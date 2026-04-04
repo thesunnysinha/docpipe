@@ -9,6 +9,7 @@ import Button from "@mui/material/Button";
 import Chip from "@mui/material/Chip";
 import Box from "@mui/material/Box";
 import GitHubIcon from "@mui/icons-material/GitHub";
+import { PlaygroundButton } from "./Playground";
 
 const navLinks = ["#pipelines", "#rag", "#features", "#usage"];
 
@@ -102,6 +103,7 @@ export default function Nav() {
                 <Box component="span" className="nav-underline" />
               </Button>
             ))}
+            <PlaygroundButton variant="nav" />
             <Button
               component="a"
               href="https://github.com/thesunnysinha/docpipe"

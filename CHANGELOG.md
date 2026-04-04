@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-04-04
+
+### Fixed
+
+- Updated PyPI package description to include RAG pipeline (was missing from the one-liner)
+- Added `pgvector`, `embeddings`, `retrieval` to package keywords for better discoverability
+- Interactive Code Playground added to landing page — configure any pipeline and get copy-ready Python code
+
 ## [0.2.0] - 2026-04-04
 
 ### Added
@@ -45,6 +53,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Dockerfile for containerized deployment
 - 34 unit tests with mock parser/extractor
 
-[Unreleased]: https://github.com/thesunnysinha/docpipe/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/thesunnysinha/docpipe/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/thesunnysinha/docpipe/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/thesunnysinha/docpipe/compare/v0.1.0...v0.2.0
+[0.1.0]: https://github.com/thesunnysinha/docpipe/releases/tag/v0.1.0
 [0.1.0]: https://github.com/thesunnysinha/docpipe/releases/tag/v0.1.0
