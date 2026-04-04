@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import importlib
 import logging
 from typing import Any
 
@@ -22,6 +23,61 @@ EMBEDDING_PROVIDERS = {
     "google": ("langchain_google_genai", "GoogleGenerativeAIEmbeddings", {"model": "model"}),
     "ollama": ("langchain_ollama", "OllamaEmbeddings", {"model": "model"}),
     "huggingface": ("langchain_huggingface", "HuggingFaceEmbeddings", {"model_name": "model"}),
+}
+
+LLM_PROVIDERS: dict[str, tuple[str, str]] = {
+    "openai": ("langchain_openai", "ChatOpenAI"),
+    "google": ("langchain_google_genai", "ChatGoogleGenerativeAI"),
+    "ollama": ("langchain_ollama", "ChatOllama"),
+    "anthropic": ("langchain_anthropic", "ChatAnthropic"),
+}
+
+CONTEXTUAL_INJECTION_PROMPT = """\
+Document:
+{full_text}
+
+Chunk:
+{chunk_text}
+
+Write a 1-2 sentence context that situates this chunk within the full document. \
+Be specific about what section or topic this chunk covers. Reply with only the context sentences."""
+
+CHUNK_METHOD_SETTINGS: dict[str, dict[str, Any]] = {
+    "paper": {
+        "separators": ["\n## ", "\n### ", "\n\n", "\n", " "],
+        "chunk_size": 1500,
+        "chunk_overlap": 150,
+    },
+    "laws": {
+        "separators": ["\nSection ", "\nArticle ", "\n\n", "\n"],
+        "chunk_size": 2000,
+        "chunk_overlap": 100,
+    },
+    "book": {
+        "separators": ["\nChapter ", "\n\n", "\n"],
+        "chunk_size": 2000,
+        "chunk_overlap": 200,
+    },
+    "qa": {
+        "separators": ["\nQ:", "\n\n", "\n"],
+        "chunk_size": 500,
+        "chunk_overlap": 50,
+    },
+    "manual": {
+        "separators": ["\n# ", "\n## ", "\n\n", "\n"],
+        "chunk_size": 800,
+        "chunk_overlap": 100,
+    },
+    "table": {
+        "separators": ["\n\n", "\n"],
+        "chunk_size": 500,
+        "chunk_overlap": 0,
+    },
+    "presentation": {
+        "separators": ["\n---", "\n\n", "\n"],
+        "chunk_size": 600,
+        "chunk_overlap": 50,
+    },
 }
 
 
@@ -86,6 +142,12 @@ class IngestionPipeline:
         # Split documents into chunks
         chunks = self._splitter.split_documents(lc_docs)
         logger.info("Split into %d chunks from %d documents", len(chunks), len(lc_docs))
+
+        # Contextual chunk injection
+        if self._config.contextual_injection:
+            full_text = parsed.text
+            context_llm = self._create_context_llm(self._config)
+            chunks = self._inject_context(chunks, full_text, context_llm)
 
         # Ingest via LangChain PGVector
         try:
@@ -238,10 +300,54 @@ class IngestionPipeline:
 
     @staticmethod
     def _create_splitter(config: IngestionConfig) -> Any:
-        """Create LangChain text splitter."""
+        """Create LangChain text splitter based on chunk_method."""
         from langchain_text_splitters import RecursiveCharacterTextSplitter
 
+        if config.chunk_method == "default" or config.chunk_method not in CHUNK_METHOD_SETTINGS:
+            return RecursiveCharacterTextSplitter(
+                chunk_size=config.chunk_size,
+                chunk_overlap=config.chunk_overlap,
+            )
+
+        settings = CHUNK_METHOD_SETTINGS[config.chunk_method]
         return RecursiveCharacterTextSplitter(
-            chunk_size=config.chunk_size,
-            chunk_overlap=config.chunk_overlap,
+            separators=settings["separators"],
+            chunk_size=settings["chunk_size"],
+            chunk_overlap=settings["chunk_overlap"],
         )
+
+    @staticmethod
+    def _create_context_llm(config: IngestionConfig) -> Any:
+        """Create LLM for contextual chunk injection."""
+        if config.contextual_llm_provider not in LLM_PROVIDERS:
+            raise ConfigurationError(
+                f"Unknown LLM provider: '{config.contextual_llm_provider}'. "
+                f"Available: {list(LLM_PROVIDERS)}"
+            )
+        module_name, class_name = LLM_PROVIDERS[config.contextual_llm_provider]
+        try:
+            module = importlib.import_module(module_name)
+            cls = getattr(module, class_name)
+        except ImportError as err:
+            raise ConfigurationError(
+                f"LLM provider '{config.contextual_llm_provider}' requires '{module_name}'. "
+                f"Install with: pip install {module_name}"
+            ) from err
+        return cls(model=config.contextual_llm_model)
+
+    @staticmethod
+    def _inject_context(chunks: list[Any], full_text: str, llm: Any) -> list[Any]:
+        """Prepend LLM-generated situational context to each chunk."""
+        from langchain_core.messages import HumanMessage
+
+        for chunk in chunks:
+            prompt = CONTEXTUAL_INJECTION_PROMPT.format(
+                full_text=full_text[:4000],  # truncate to avoid token limits
+                chunk_text=chunk.page_content,
+            )
+            try:
+                context_sentence = llm.invoke([HumanMessage(content=prompt)]).content.strip()
+                chunk.page_content = f"{context_sentence}\n\n{chunk.page_content}"
+            except Exception as e:  # noqa: BLE001
+                logger.warning("Contextual injection failed for chunk: %s", e)
+        return chunks

@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import importlib
+import math
 import time
+from collections.abc import Iterator
 from typing import Any
 
 from docpipe.core.errors import ConfigurationError, RAGError
@@ -49,35 +51,81 @@ Output one question per line, no numbering or bullets.
 
 Original question: {question}"""
 
+AUTO_STRATEGY_PROMPT = """\
+Given this question, which retrieval strategy is best?
+- naive: simple factual lookup
+- hyde: complex or abstract questions benefiting from hypothetical framing
+- multi_query: ambiguous questions that benefit from multiple phrasings
+- parent_document: questions needing broader surrounding context
+- hybrid: keyword-heavy or technical queries
+
+Question: {question}
+Reply with exactly one word: naive, hyde, multi_query, parent_document, or hybrid."""
+
 
 class RAGPipeline:
     """Retrieve relevant chunks from a vector DB and generate grounded answers."""
 
-    STRATEGIES = ["naive", "hyde", "multi_query", "parent_document", "hybrid"]
+    STRATEGIES = ["naive", "hyde", "multi_query", "parent_document", "hybrid", "auto"]
 
     def __init__(self, config: RAGConfig) -> None:
         self._config = config
         self._embeddings = self._create_embeddings(config)
         self._llm = self._create_llm(config)
+        self._cache: list[tuple[list[float], RAGResult]] = []
 
     # ── Public API ───────────────────────────────────────────────────────────
 
     def query(self, question: str) -> RAGResult:
         """Run a RAG query against the user's vector DB."""
+        if self._config.stream:
+            raise ValueError(
+                "RAGConfig(stream=True) requires stream_query() instead of query(). "
+                "Use: pipeline.stream_query(question)"
+            )
         start = time.perf_counter()
+
+        # Semantic cache lookup
+        if self._config.cache_enabled:
+            cached = self._cache_lookup(question)
+            if cached is not None:
+                return cached
+
         dispatch = {
             "naive": self._naive_query,
             "hyde": self._hyde_query,
             "multi_query": self._multi_query_query,
             "parent_document": self._parent_document_query,
             "hybrid": self._hybrid_query,
+            "auto": self._auto_query,
         }
         strategy = self._config.strategy
         if strategy not in dispatch:
             raise RAGError(f"Unknown strategy '{strategy}'. Available: {self.STRATEGIES}")
         result = dispatch[strategy](question)
         result.timing_seconds = time.perf_counter() - start
+
+        if self._config.cache_enabled:
+            self._cache_store(question, result)
+
         return result
+
+    def stream_query(self, question: str) -> Iterator[str]:
+        """Retrieve chunks (blocking), then stream answer tokens."""
+        dispatch = {
+            "naive": self._retrieve_naive,
+            "hyde": self._retrieve_hyde,
+            "multi_query": self._retrieve_multi_query,
+            "parent_document": self._retrieve_parent_document,
+            "hybrid": self._retrieve_hybrid,
+            "auto": self._retrieve_auto,
+        }
+        strategy = self._config.strategy
+        if strategy not in dispatch:
+            raise RAGError(f"Unknown strategy '{strategy}'. Available: {self.STRATEGIES}")
+        chunks = dispatch[strategy](question)
+        context = self._build_context(chunks)
+        return self._generate_stream(question, context)
 
     async def aquery(self, question: str) -> RAGResult:
         """Async variant — runs query() in a thread."""
@@ -137,6 +185,16 @@ class RAGPipeline:
         response = self._llm.invoke([HumanMessage(content=prompt)])
         return response.content, None
 
+    def _generate_stream(self, question: str, context: str) -> Iterator[str]:
+        """Stream answer tokens from the LLM."""
+        from langchain_core.messages import HumanMessage
+
+        prompt = (self._config.system_prompt or DEFAULT_SYSTEM_PROMPT).format(
+            context=context, question=question
+        )
+        for chunk in self._llm.stream([HumanMessage(content=prompt)]):
+            yield chunk.content
+
     def _rerank(self, chunks: list[RAGChunk], question: str) -> list[RAGChunk]:
         """Optional cross-encoder reranking after retrieval."""
         reranker = self._config.reranker
@@ -191,12 +249,167 @@ class RAGPipeline:
         result.structured = structured
         return result
 
+    # ── Cache helpers ────────────────────────────────────────────────────────
+
+    @staticmethod
+    def _cosine_sim(a: list[float], b: list[float]) -> float:
+        dot = sum(x * y for x, y in zip(a, b))
+        norm_a = math.sqrt(sum(x * x for x in a))
+        norm_b = math.sqrt(sum(x * x for x in b))
+        if norm_a == 0 or norm_b == 0:
+            return 0.0
+        return dot / (norm_a * norm_b)
+
+    def _cache_lookup(self, question: str) -> RAGResult | None:
+        embedding = self._embeddings.embed_query(question)
+        for cached_emb, cached_result in self._cache:
+            if self._cosine_sim(embedding, cached_emb) >= self._config.cache_similarity_threshold:
+                return cached_result
+        return None
+
+    def _cache_store(self, question: str, result: RAGResult) -> None:
+        embedding = self._embeddings.embed_query(question)
+        self._cache.append((embedding, result))
+        if len(self._cache) > self._config.cache_max_size:
+            self._cache.pop(0)
+
+    # ── Retrieval-only helpers (for stream_query) ────────────────────────────
+
+    def _retrieve_naive(self, question: str) -> list[RAGChunk]:
+        vs = self._get_vectorstore()
+        docs_scores = vs.similarity_search_with_score(question, k=self._config.top_k)
+        return self._rerank(self._docs_to_chunks(docs_scores), question)
+
+    def _retrieve_hyde(self, question: str) -> list[RAGChunk]:
+        from langchain_core.messages import HumanMessage
+
+        hyde_prompt = (self._config.hyde_prompt or HYDE_GENERATION_PROMPT).format(
+            question=question
+        )
+        hypothetical_doc = self._llm.invoke([HumanMessage(content=hyde_prompt)]).content
+        vs = self._get_vectorstore()
+        docs_scores = vs.similarity_search_with_score(hypothetical_doc, k=self._config.top_k)
+        return self._rerank(self._docs_to_chunks(docs_scores), question)
+
+    def _retrieve_multi_query(self, question: str) -> list[RAGChunk]:
+        from langchain_core.messages import HumanMessage
+
+        prompt = MULTI_QUERY_PROMPT.format(n=self._config.multi_query_count, question=question)
+        variants_text = self._llm.invoke([HumanMessage(content=prompt)]).content
+        variants = [q.strip() for q in variants_text.strip().splitlines() if q.strip()]
+        all_queries = [question] + variants[: self._config.multi_query_count]
+
+        vs = self._get_vectorstore()
+        seen: set[str] = set()
+        merged: list[tuple[Any, float]] = []
+        for q in all_queries:
+            for doc, score in vs.similarity_search_with_score(q, k=self._config.top_k):
+                key = doc.page_content[:200]
+                if key not in seen:
+                    seen.add(key)
+                    merged.append((doc, score))
+        merged.sort(key=lambda x: x[1], reverse=True)
+        return self._rerank(self._docs_to_chunks(merged[: self._config.top_k]), question)
+
+    def _retrieve_parent_document(self, question: str) -> list[RAGChunk]:
+        vs = self._get_vectorstore()
+        seed_docs_scores = vs.similarity_search_with_score(question, k=self._config.top_k)
+        seed_chunks = self._docs_to_chunks(seed_docs_scores)
+
+        seen: set[str] = set()
+        expanded: list[RAGChunk] = []
+        for chunk in seed_chunks:
+            key = chunk.content[:200]
+            if key not in seen:
+                seen.add(key)
+                expanded.append(chunk)
+
+        unique_sources = list(dict.fromkeys(c.source for c in seed_chunks))
+        for source in unique_sources:
+            try:
+                extra = vs.similarity_search_with_score(
+                    question,
+                    k=self._config.parent_window_size,
+                    filter={"source": source},
+                )
+                for doc, score in extra:
+                    key = doc.page_content[:200]
+                    if key not in seen:
+                        seen.add(key)
+                        expanded.append(
+                            RAGChunk(
+                                content=doc.page_content,
+                                score=float(score),
+                                source=doc.metadata.get("source", source),
+                                page=doc.metadata.get("page"),
+                                metadata=doc.metadata,
+                            )
+                        )
+            except Exception:  # noqa: BLE001
+                pass
+        return self._rerank(expanded, question)
+
+    def _retrieve_hybrid(self, question: str) -> list[RAGChunk]:
+        try:
+            from langchain_community.retrievers import BM25Retriever
+        except ImportError as err:
+            raise RAGError(
+                "Hybrid strategy requires langchain-community. "
+                "Install with: pip install 'docpipe-sdk[rag]'"
+            ) from err
+        try:
+            from langchain.retrievers import EnsembleRetriever
+        except ImportError as err:
+            raise RAGError(
+                "Hybrid strategy requires langchain. "
+                "Install with: pip install 'docpipe-sdk[rag]'"
+            ) from err
+
+        vs = self._get_vectorstore()
+        candidate_pool_size = self._config.top_k * 10
+        all_docs_scores = vs.similarity_search_with_score(question, k=candidate_pool_size)
+        all_docs = [doc for doc, _ in all_docs_scores]
+
+        bm25 = BM25Retriever.from_documents(all_docs)
+        bm25.k = self._config.top_k
+        vector_retriever = vs.as_retriever(search_kwargs={"k": self._config.top_k})
+        w = self._config.hybrid_bm25_weight
+        ensemble = EnsembleRetriever(retrievers=[bm25, vector_retriever], weights=[w, 1.0 - w])
+
+        docs = ensemble.invoke(question)
+        chunks_raw = [
+            RAGChunk(
+                content=doc.page_content,
+                score=1.0,
+                source=doc.metadata.get("source", "unknown"),
+                page=doc.metadata.get("page"),
+                metadata=doc.metadata,
+            )
+            for doc in docs[: self._config.top_k]
+        ]
+        return self._rerank(chunks_raw, question)
+
+    def _retrieve_auto(self, question: str) -> list[RAGChunk]:
+        from langchain_core.messages import HumanMessage
+
+        prompt = AUTO_STRATEGY_PROMPT.format(question=question)
+        chosen = self._llm.invoke([HumanMessage(content=prompt)]).content.strip().lower()
+        valid = ["naive", "hyde", "multi_query", "parent_document", "hybrid"]
+        if chosen not in valid:
+            chosen = "naive"
+        retrieve_dispatch = {
+            "naive": self._retrieve_naive,
+            "hyde": self._retrieve_hyde,
+            "multi_query": self._retrieve_multi_query,
+            "parent_document": self._retrieve_parent_document,
+            "hybrid": self._retrieve_hybrid,
+        }
+        return retrieve_dispatch[chosen](question)
+
     # ── Strategies ───────────────────────────────────────────────────────────
 
     def _naive_query(self, question: str) -> RAGResult:
-        vs = self._get_vectorstore()
-        docs_scores = vs.similarity_search_with_score(question, k=self._config.top_k)
-        chunks = self._rerank(self._docs_to_chunks(docs_scores), question)
+        chunks = self._retrieve_naive(question)
         answer, structured = self._generate(question, self._build_context(chunks))
         return self._make_result(question, answer, chunks, structured)
 
@@ -242,88 +455,33 @@ class RAGPipeline:
         return result
 
     def _parent_document_query(self, question: str) -> RAGResult:
-        vs = self._get_vectorstore()
-        seed_docs_scores = vs.similarity_search_with_score(question, k=self._config.top_k)
-        seed_chunks = self._docs_to_chunks(seed_docs_scores)
-
-        seen: set[str] = set()
-        expanded: list[RAGChunk] = []
-        for chunk in seed_chunks:
-            key = chunk.content[:200]
-            if key not in seen:
-                seen.add(key)
-                expanded.append(chunk)
-
-        unique_sources = list(dict.fromkeys(c.source for c in seed_chunks))
-        for source in unique_sources:
-            try:
-                extra = vs.similarity_search_with_score(
-                    question,
-                    k=self._config.parent_window_size,
-                    filter={"source": source},
-                )
-                for doc, score in extra:
-                    key = doc.page_content[:200]
-                    if key not in seen:
-                        seen.add(key)
-                        expanded.append(
-                            RAGChunk(
-                                content=doc.page_content,
-                                score=float(score),
-                                source=doc.metadata.get("source", source),
-                                page=doc.metadata.get("page"),
-                                metadata=doc.metadata,
-                            )
-                        )
-            except Exception:  # noqa: BLE001
-                pass  # filter not supported — fall back to seed chunks only
-
-        chunks = self._rerank(expanded, question)
+        chunks = self._retrieve_parent_document(question)
         answer, structured = self._generate(question, self._build_context(chunks))
         return self._make_result(question, answer, chunks, structured)
 
     def _hybrid_query(self, question: str) -> RAGResult:
-        try:
-            from langchain_community.retrievers import BM25Retriever
-        except ImportError as err:
-            raise RAGError(
-                "Hybrid strategy requires langchain-community. "
-                "Install with: pip install 'docpipe-sdk[rag]'"
-            ) from err
-        try:
-            from langchain.retrievers import EnsembleRetriever
-        except ImportError as err:
-            raise RAGError(
-                "Hybrid strategy requires langchain. "
-                "Install with: pip install 'docpipe-sdk[rag]'"
-            ) from err
-
-        vs = self._get_vectorstore()
-        candidate_pool_size = self._config.top_k * 10
-        all_docs_scores = vs.similarity_search_with_score(question, k=candidate_pool_size)
-        all_docs = [doc for doc, _ in all_docs_scores]
-
-        bm25 = BM25Retriever.from_documents(all_docs)
-        bm25.k = self._config.top_k
-
-        vector_retriever = vs.as_retriever(search_kwargs={"k": self._config.top_k})
-        w = self._config.hybrid_bm25_weight
-        ensemble = EnsembleRetriever(retrievers=[bm25, vector_retriever], weights=[w, 1.0 - w])
-
-        docs = ensemble.invoke(question)
-        chunks_raw = [
-            RAGChunk(
-                content=doc.page_content,
-                score=1.0,
-                source=doc.metadata.get("source", "unknown"),
-                page=doc.metadata.get("page"),
-                metadata=doc.metadata,
-            )
-            for doc in docs[: self._config.top_k]
-        ]
-        chunks = self._rerank(chunks_raw, question)
+        chunks = self._retrieve_hybrid(question)
         answer, structured = self._generate(question, self._build_context(chunks))
         return self._make_result(question, answer, chunks, structured)
+
+    def _auto_query(self, question: str) -> RAGResult:
+        from langchain_core.messages import HumanMessage
+
+        prompt = AUTO_STRATEGY_PROMPT.format(question=question)
+        chosen = self._llm.invoke([HumanMessage(content=prompt)]).content.strip().lower()
+        valid = ["naive", "hyde", "multi_query", "parent_document", "hybrid"]
+        if chosen not in valid:
+            chosen = "naive"
+        dispatch = {
+            "naive": self._naive_query,
+            "hyde": self._hyde_query,
+            "multi_query": self._multi_query_query,
+            "parent_document": self._parent_document_query,
+            "hybrid": self._hybrid_query,
+        }
+        result = dispatch[chosen](question)
+        result.metadata["auto_selected_strategy"] = chosen
+        return result
 
     # ── Factories ────────────────────────────────────────────────────────────
 

@@ -1,5 +1,7 @@
 """docpipe - Unified document parsing, structured extraction, and vector ingestion pipeline."""
 
+from collections.abc import Iterator
+
 from docpipe._version import __version__
 from docpipe.core.errors import (
     ConfigurationError,
@@ -129,6 +131,12 @@ def rag(question: str, *, config: RAGConfig) -> RAGResult:
     return pipeline.query(question)
 
 
+def stream_query(question: str, *, config: RAGConfig) -> Iterator[str]:
+    """Stream answer tokens for a RAG query against the user's vector store."""
+    pipeline = RAGPipeline(config)
+    return pipeline.stream_query(question)
+
+
 __all__ = [
     "__version__",
     # Core types
@@ -179,4 +187,5 @@ __all__ = [
     "parse",
     "rag",
     "run",
+    "stream_query",
 ]
