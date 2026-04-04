@@ -8,6 +8,7 @@ import pytest
 
 from docpipe.core.errors import ConfigurationError, RAGError
 from docpipe.core.types import RAGChunk, RAGConfig, RAGResult
+from docpipe.rag.pipeline import RAGPipeline
 
 
 def _make_config(**overrides: object) -> RAGConfig:
@@ -51,21 +52,19 @@ def test_rag_config_defaults() -> None:
 # ---------------------------------------------------------------------------
 
 
-@patch("docpipe.rag.pipeline.RAGPipeline._create_llm")
+@patch.object(RAGPipeline, "_create_llm")
 def test_unknown_embedding_provider_raises(mock_llm: MagicMock) -> None:
     mock_llm.return_value = MagicMock()
     config = _make_config(embedding_provider="nonexistent")
     with pytest.raises(ConfigurationError, match="Unknown embedding provider"):
-        from docpipe.rag.pipeline import RAGPipeline
         RAGPipeline(config)
 
 
-@patch("docpipe.rag.pipeline.RAGPipeline._create_embeddings")
+@patch.object(RAGPipeline, "_create_embeddings")
 def test_unknown_llm_provider_raises(mock_emb: MagicMock) -> None:
     mock_emb.return_value = MagicMock()
     config = _make_config(llm_provider="nonexistent")
     with pytest.raises(ConfigurationError, match="Unknown LLM provider"):
-        from docpipe.rag.pipeline import RAGPipeline
         RAGPipeline(config)
 
 
@@ -74,12 +73,11 @@ def test_unknown_llm_provider_raises(mock_emb: MagicMock) -> None:
 # ---------------------------------------------------------------------------
 
 
-@patch("docpipe.rag.pipeline.RAGPipeline._create_embeddings")
-@patch("docpipe.rag.pipeline.RAGPipeline._create_llm")
+@patch.object(RAGPipeline, "_create_embeddings")
+@patch.object(RAGPipeline, "_create_llm")
 def test_invalid_strategy_raises(mock_llm: MagicMock, mock_emb: MagicMock) -> None:
     mock_emb.return_value = MagicMock()
     mock_llm.return_value = MagicMock()
-    from docpipe.rag.pipeline import RAGPipeline
 
     config = _make_config()
     pipeline = RAGPipeline(config)
@@ -93,15 +91,13 @@ def test_invalid_strategy_raises(mock_llm: MagicMock, mock_emb: MagicMock) -> No
 # ---------------------------------------------------------------------------
 
 
-@patch("docpipe.rag.pipeline.RAGPipeline._create_embeddings")
-@patch("docpipe.rag.pipeline.RAGPipeline._create_llm")
+@patch.object(RAGPipeline, "_create_embeddings")
+@patch.object(RAGPipeline, "_create_llm")
 def test_naive_query(mock_llm: MagicMock, mock_emb: MagicMock) -> None:
     mock_emb.return_value = MagicMock()
     llm = MagicMock()
     llm.invoke.return_value = MagicMock(content="The answer is 42.")
     mock_llm.return_value = llm
-
-    from docpipe.rag.pipeline import RAGPipeline
 
     pipeline = RAGPipeline(_make_config(strategy="naive"))
 
@@ -127,15 +123,13 @@ def test_naive_query(mock_llm: MagicMock, mock_emb: MagicMock) -> None:
 # ---------------------------------------------------------------------------
 
 
-@patch("docpipe.rag.pipeline.RAGPipeline._create_embeddings")
-@patch("docpipe.rag.pipeline.RAGPipeline._create_llm")
+@patch.object(RAGPipeline, "_create_embeddings")
+@patch.object(RAGPipeline, "_create_llm")
 def test_sources_deduplicated(mock_llm: MagicMock, mock_emb: MagicMock) -> None:
     mock_emb.return_value = MagicMock()
     llm = MagicMock()
     llm.invoke.return_value = MagicMock(content="Answer.")
     mock_llm.return_value = llm
-
-    from docpipe.rag.pipeline import RAGPipeline
 
     pipeline = RAGPipeline(_make_config())
     vs = MagicMock()
@@ -154,8 +148,8 @@ def test_sources_deduplicated(mock_llm: MagicMock, mock_emb: MagicMock) -> None:
 # ---------------------------------------------------------------------------
 
 
-@patch("docpipe.rag.pipeline.RAGPipeline._create_embeddings")
-@patch("docpipe.rag.pipeline.RAGPipeline._create_llm")
+@patch.object(RAGPipeline, "_create_embeddings")
+@patch.object(RAGPipeline, "_create_llm")
 def test_hyde_query_uses_hypothetical_doc(mock_llm: MagicMock, mock_emb: MagicMock) -> None:
     mock_emb.return_value = MagicMock()
     llm = MagicMock()
@@ -164,8 +158,6 @@ def test_hyde_query_uses_hypothetical_doc(mock_llm: MagicMock, mock_emb: MagicMo
         MagicMock(content="Revenue was $5M."),
     ]
     mock_llm.return_value = llm
-
-    from docpipe.rag.pipeline import RAGPipeline
 
     pipeline = RAGPipeline(_make_config(strategy="hyde"))
     vs = MagicMock()
@@ -188,8 +180,8 @@ def test_hyde_query_uses_hypothetical_doc(mock_llm: MagicMock, mock_emb: MagicMo
 # ---------------------------------------------------------------------------
 
 
-@patch("docpipe.rag.pipeline.RAGPipeline._create_embeddings")
-@patch("docpipe.rag.pipeline.RAGPipeline._create_llm")
+@patch.object(RAGPipeline, "_create_embeddings")
+@patch.object(RAGPipeline, "_create_llm")
 def test_multi_query_deduplicates(mock_llm: MagicMock, mock_emb: MagicMock) -> None:
     mock_emb.return_value = MagicMock()
     llm = MagicMock()
@@ -198,8 +190,6 @@ def test_multi_query_deduplicates(mock_llm: MagicMock, mock_emb: MagicMock) -> N
         MagicMock(content="Final answer."),
     ]
     mock_llm.return_value = llm
-
-    from docpipe.rag.pipeline import RAGPipeline
 
     pipeline = RAGPipeline(_make_config(strategy="multi_query", multi_query_count=3))
     vs = MagicMock()
@@ -220,15 +210,13 @@ def test_multi_query_deduplicates(mock_llm: MagicMock, mock_emb: MagicMock) -> N
 # ---------------------------------------------------------------------------
 
 
-@patch("docpipe.rag.pipeline.RAGPipeline._create_embeddings")
-@patch("docpipe.rag.pipeline.RAGPipeline._create_llm")
+@patch.object(RAGPipeline, "_create_embeddings")
+@patch.object(RAGPipeline, "_create_llm")
 def test_parent_document_expands_context(mock_llm: MagicMock, mock_emb: MagicMock) -> None:
     mock_emb.return_value = MagicMock()
     llm = MagicMock()
     llm.invoke.return_value = MagicMock(content="Expanded answer.")
     mock_llm.return_value = llm
-
-    from docpipe.rag.pipeline import RAGPipeline
 
     pipeline = RAGPipeline(_make_config(strategy="parent_document", parent_window_size=2))
     vs = MagicMock()
@@ -254,15 +242,13 @@ def test_parent_document_expands_context(mock_llm: MagicMock, mock_emb: MagicMoc
 # ---------------------------------------------------------------------------
 
 
-@patch("docpipe.rag.pipeline.RAGPipeline._create_embeddings")
-@patch("docpipe.rag.pipeline.RAGPipeline._create_llm")
+@patch.object(RAGPipeline, "_create_embeddings")
+@patch.object(RAGPipeline, "_create_llm")
 def test_hybrid_missing_dep_raises(mock_llm: MagicMock, mock_emb: MagicMock) -> None:
     mock_emb.return_value = MagicMock()
     mock_llm.return_value = MagicMock()
 
     import sys
-
-    from docpipe.rag.pipeline import RAGPipeline
 
     pipeline = RAGPipeline(_make_config(strategy="hybrid"))
     vs = MagicMock()
@@ -280,8 +266,8 @@ def test_hybrid_missing_dep_raises(mock_llm: MagicMock, mock_emb: MagicMock) -> 
 # ---------------------------------------------------------------------------
 
 
-@patch("docpipe.rag.pipeline.RAGPipeline._create_embeddings")
-@patch("docpipe.rag.pipeline.RAGPipeline._create_llm")
+@patch.object(RAGPipeline, "_create_embeddings")
+@patch.object(RAGPipeline, "_create_llm")
 def test_structured_rag_output(mock_llm: MagicMock, mock_emb: MagicMock) -> None:
     from pydantic import BaseModel as PydanticModel
 
@@ -296,8 +282,6 @@ def test_structured_rag_output(mock_llm: MagicMock, mock_emb: MagicMock) -> None
     structured_llm.invoke.return_value = invoice_obj
     llm.with_structured_output.return_value = structured_llm
     mock_llm.return_value = llm
-
-    from docpipe.rag.pipeline import RAGPipeline
 
     pipeline = RAGPipeline(_make_config(output_model=Invoice))
     vs = MagicMock()
