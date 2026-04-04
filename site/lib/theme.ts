@@ -29,6 +29,7 @@ export const theme = createTheme({
       main: "#ec4899",
     },
   },
+  shape: { borderRadius: 10 },
   typography: {
     fontFamily: "'Inter', -apple-system, sans-serif",
     fontWeightBold: 700,
@@ -47,6 +48,29 @@ export const theme = createTheme({
       styleOverrides: {
         root: {
           backgroundImage: "none",
+        },
+      },
+    },
+    MuiAccordion: {
+      styleOverrides: {
+        root: {
+          backgroundImage: "none",
+        },
+      },
+    },
+    MuiTab: {
+      styleOverrides: {
+        root: {
+          textTransform: "none",
+          fontWeight: 600,
+          minHeight: 48,
+        },
+      },
+    },
+    MuiChip: {
+      styleOverrides: {
+        root: {
+          fontWeight: 500,
         },
       },
     },

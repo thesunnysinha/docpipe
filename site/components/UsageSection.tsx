@@ -1,11 +1,16 @@
 "use client";
 
+import { useState } from "react";
 import { motion, type Variants } from "framer-motion";
 import Box from "@mui/material/Box";
 import Container from "@mui/material/Container";
 import Typography from "@mui/material/Typography";
 import Paper from "@mui/material/Paper";
-import Grid from "@mui/material/Grid";
+import Tabs from "@mui/material/Tabs";
+import Tab from "@mui/material/Tab";
+import TerminalIcon from "@mui/icons-material/Terminal";
+import SmartToyIcon from "@mui/icons-material/SmartToy";
+import StorageIcon from "@mui/icons-material/Storage";
 import CodeBlock from "./CodeBlock";
 
 const sectionFadeUp: Variants = {
@@ -78,15 +83,17 @@ pip install docpipe-sdk[rerank]        # + Local reranking (FlashRank)
 pip install docpipe-sdk[server]        # + FastAPI server
 pip install docpipe-sdk[all]           # Everything`;
 
-const tabs = [
-  { icon: "▶", label: "CLI", code: cliCode },
-  { icon: "🤖", label: "RAG CLI", code: ragCliCode },
-  { icon: "🐋", label: "Docker", code: dockerCode },
+const tabDefs = [
+  { label: "CLI", icon: <TerminalIcon />, code: cliCode },
+  { label: "RAG CLI", icon: <SmartToyIcon />, code: ragCliCode },
+  { label: "Docker", icon: <StorageIcon />, code: dockerCode },
 ];
 
 export default function UsageSection() {
+  const [tab, setTab] = useState(0);
+
   return (
-    <Box component="section" id="usage" sx={{ py: 10 }}>
+    <Box component="section" id="usage" sx={{ py: 12 }}>
       <Container maxWidth="lg">
         <motion.div
           initial="hidden"
@@ -96,7 +103,7 @@ export default function UsageSection() {
         >
           <Typography
             variant="h3"
-            sx={{ fontWeight: 700, textAlign: "center", mb: 1.5, fontSize: "2rem" }}
+            sx={{ fontWeight: 800, textAlign: "center", mb: 1.5, fontSize: { xs: "1.75rem", md: "2.25rem" }, letterSpacing: "-0.02em" }}
           >
             Use It Your Way
           </Typography>
@@ -111,56 +118,55 @@ export default function UsageSection() {
           <Typography
             variant="body1"
             color="text.secondary"
-            sx={{ textAlign: "center", mb: 8 }}
+            sx={{ textAlign: "center", mb: 8, maxWidth: 540, mx: "auto" }}
           >
             CLI for quick tasks, Python API for integration, Docker for deployment.
           </Typography>
         </motion.div>
 
-        {/* 3-col code blocks */}
-        <Grid container spacing={2} sx={{ mb: 3 }}>
-          {tabs.map((tab, i) => (
-            <Grid item xs={12} lg={4} key={tab.label}>
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                whileInView={{ opacity: 1, y: 0 }}
-                viewport={{ once: true, margin: "-100px" }}
-                transition={{ duration: 0.4, delay: i * 0.08, ease: "easeOut" as const }}
-                style={{ height: "100%" }}
+        {/* MUI Tabs */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          whileInView={{ opacity: 1, y: 0 }}
+          viewport={{ once: true, margin: "-100px" }}
+          transition={{ duration: 0.4, ease: "easeOut" as const }}
+        >
+          <Paper
+            elevation={0}
+            sx={{ bgcolor: "#141416", border: "1px solid #2a2a2e", overflow: "hidden", mb: 3 }}
+          >
+            <Box sx={{ borderBottom: "1px solid #2a2a2e" }}>
+              <Tabs
+                value={tab}
+                onChange={(_, v: number) => setTab(v)}
+                TabIndicatorProps={{
+                  style: { background: "#6366f1", height: 3, borderRadius: "3px 3px 0 0" },
+                }}
+                sx={{
+                  px: 1,
+                  "& .MuiTab-root": {
+                    color: "text.secondary",
+                    fontWeight: 600,
+                    minHeight: 48,
+                    "&.Mui-selected": { color: "primary.light" },
+                  },
+                }}
               >
-                <Paper
-                  elevation={0}
-                  sx={{
-                    height: "100%",
-                    bgcolor: "#141416",
-                    border: "1px solid #2a2a2e",
-                    overflow: "hidden",
-                  }}
-                >
-                  <Box
-                    sx={{
-                      bgcolor: "#1c1c1f",
-                      px: 2,
-                      py: 1.25,
-                      borderBottom: "1px solid #2a2a2e",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: 1,
-                    }}
-                  >
-                    <span>{tab.icon}</span>
-                    <Typography variant="caption" sx={{ fontWeight: 600, fontSize: "0.8125rem" }}>
-                      {tab.label}
-                    </Typography>
-                  </Box>
-                  <Box sx={{ p: 2 }}>
-                    <CodeBlock code={tab.code} language="bash" />
-                  </Box>
-                </Paper>
-              </motion.div>
-            </Grid>
-          ))}
-        </Grid>
+                {tabDefs.map((t) => (
+                  <Tab
+                    key={t.label}
+                    label={t.label}
+                    icon={t.icon}
+                    iconPosition="start"
+                  />
+                ))}
+              </Tabs>
+            </Box>
+            <Box sx={{ p: 2.5 }}>
+              <CodeBlock code={tabDefs[tab].code} language="bash" />
+            </Box>
+          </Paper>
+        </motion.div>
 
         {/* Install options */}
         <motion.div
