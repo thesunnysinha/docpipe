@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "docpipe-sdk"
-version = "0.1.0"
+version = "0.2.0"
 description = "Unified document parsing, structured extraction, and vector ingestion pipeline"
 readme = "README.md"
 license = "MIT"
@@ -45,7 +45,9 @@ ollama = ["langchain-ollama>=0.3"]
 huggingface = ["langchain-huggingface>=0.1"]
 pgvector = ["langchain-postgres>=0.0.12"]
 server = ["fastapi>=0.100", "uvicorn[standard]>=0.20", "python-multipart>=0.0.6"]
-all = ["docpipe-sdk[docling,langextract,openai,google,ollama,pgvector,server]"]
+rag = ["langchain-community>=0.3", "langchain>=0.2"]
+rerank = ["flashrank>=0.2"]
+all = ["docpipe-sdk[docling,langextract,openai,google,ollama,pgvector,server,rag,rerank]"]
 dev = [
     "pytest>=7.0",
     "pytest-asyncio>=0.21",
@@ -97,4 +99,5 @@ markers = [
     "requires_langchain: needs langchain provider installed",
     "requires_pgvector: needs pgvector DB available",
     "requires_api_key: needs LLM API key configured",
+    "requires_rag: needs rag extra, DB, and API key available",
 ]

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import logging
 from typing import Any
 
@@ -66,6 +67,22 @@ class IngestionPipeline:
                 table_created=False,
             )
 
+        # Incremental mode: skip if source hash already exists in the DB
+        if self._config.incremental:
+            source_hash = self._compute_source_hash(parsed.source)
+            if self._hash_exists(source_hash):
+                logger.info("Skipping %s (unchanged, incremental mode)", parsed.source)
+                return IngestionResult(
+                    source=parsed.source,
+                    chunks_ingested=0,
+                    skipped=1,
+                    table_name=self._config.table_name,
+                    table_created=False,
+                )
+            # Stamp all docs with the hash so future runs can detect them
+            for doc in lc_docs:
+                doc.metadata["source_hash"] = source_hash
+
         # Split documents into chunks
         chunks = self._splitter.split_documents(lc_docs)
         logger.info("Split into %d chunks from %d documents", len(chunks), len(lc_docs))
@@ -121,6 +138,30 @@ class IngestionPipeline:
             ]
         except Exception as e:
             raise IngestionError(f"Search failed: {e}") from e
+
+    @staticmethod
+    def _compute_source_hash(source: str) -> str:
+        """SHA-256 of file bytes (or source string for non-file sources)."""
+        try:
+            with open(source, "rb") as f:
+                return hashlib.sha256(f.read()).hexdigest()
+        except OSError:
+            return hashlib.sha256(source.encode()).hexdigest()
+
+    def _hash_exists(self, source_hash: str) -> bool:
+        """Check if a source_hash already exists in the vector store metadata."""
+        try:
+            from langchain_postgres import PGVector
+
+            vs = PGVector(
+                embeddings=self._embeddings,
+                collection_name=self._config.table_name,
+                connection=self._config.connection_string,
+            )
+            results = vs.similarity_search("", k=1, filter={"source_hash": source_hash})
+            return len(results) > 0
+        except Exception:  # noqa: BLE001
+            return False
 
     @staticmethod
     def _parsed_to_lc_docs(parsed: ParsedDocument) -> list[Any]:

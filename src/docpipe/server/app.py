@@ -87,6 +87,61 @@ class HealthResponse(BaseModel):
     plugins: dict[str, list[str]]
 
 
+class RAGQueryRequest(BaseModel):
+    question: str
+    connection_string: str
+    table_name: str
+    embedding_provider: str
+    embedding_model: str
+    llm_provider: str
+    llm_model: str
+    strategy: str = "naive"
+    top_k: int = 5
+    system_prompt: str | None = None
+    hyde_prompt: str | None = None
+    multi_query_count: int = 3
+    parent_window_size: int = 3
+    hybrid_bm25_weight: float = 0.5
+    reranker: str = "none"
+    reranker_model: str | None = None
+    rerank_top_n: int | None = None
+
+
+class RAGChunkResponse(BaseModel):
+    content: str
+    score: float
+    source: str
+    page: int | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class RAGQueryResponse(BaseModel):
+    query: str
+    answer: str
+    strategy: str
+    chunks: list[RAGChunkResponse]
+    sources: list[str]
+    timing_seconds: float
+
+
+class EvaluateRequest(BaseModel):
+    questions: list[dict[str, Any]]
+    connection_string: str
+    table_name: str
+    embedding_provider: str
+    embedding_model: str
+    llm_provider: str
+    llm_model: str
+    strategy: str = "naive"
+    metrics: list[str] = Field(default_factory=lambda: ["hit_rate", "answer_similarity"])
+
+
+class EvaluateResponse(BaseModel):
+    metrics: dict[str, Any]
+    num_questions: int
+    timing_seconds: float
+
+
 # --- App factory ---
 
 
@@ -232,6 +287,72 @@ def create_app() -> Any:
                 name: registry.extractor_info(name) for name in registry.list_extractors()
             },
         }
+
+    @app.post("/rag/query", response_model=RAGQueryResponse)
+    async def rag_query(req: RAGQueryRequest) -> RAGQueryResponse:
+        try:
+            from docpipe.core.types import RAGConfig
+            from docpipe.rag.pipeline import RAGPipeline
+
+            config = RAGConfig(
+                connection_string=req.connection_string,
+                table_name=req.table_name,
+                embedding_provider=req.embedding_provider,
+                embedding_model=req.embedding_model,
+                llm_provider=req.llm_provider,
+                llm_model=req.llm_model,
+                strategy=req.strategy,
+                top_k=req.top_k,
+                system_prompt=req.system_prompt,
+                hyde_prompt=req.hyde_prompt,
+                multi_query_count=req.multi_query_count,
+                parent_window_size=req.parent_window_size,
+                hybrid_bm25_weight=req.hybrid_bm25_weight,
+                reranker=req.reranker,  # type: ignore[arg-type]
+                reranker_model=req.reranker_model,
+                rerank_top_n=req.rerank_top_n,
+            )
+            pipeline = RAGPipeline(config)
+            result = await pipeline.aquery(req.question)
+            return RAGQueryResponse(
+                query=result.query,
+                answer=result.answer,
+                strategy=result.strategy,
+                chunks=[RAGChunkResponse(**c.model_dump()) for c in result.chunks],
+                sources=result.sources,
+                timing_seconds=result.timing_seconds,
+            )
+        except DocpipeError as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
+
+    @app.post("/evaluate/run", response_model=EvaluateResponse)
+    async def evaluate_run(req: EvaluateRequest) -> EvaluateResponse:
+        try:
+            from docpipe.core.types import EvalConfig, EvalQuestion, RAGConfig
+            from docpipe.eval.pipeline import EvalPipeline
+
+            rag_config = RAGConfig(
+                connection_string=req.connection_string,
+                table_name=req.table_name,
+                embedding_provider=req.embedding_provider,
+                embedding_model=req.embedding_model,
+                llm_provider=req.llm_provider,
+                llm_model=req.llm_model,
+                strategy=req.strategy,
+            )
+            questions = [EvalQuestion(**q) for q in req.questions]
+            cfg = EvalConfig(
+                rag_config=rag_config, questions=questions, metrics=req.metrics  # type: ignore[arg-type]
+            )
+            runner = EvalPipeline(cfg)
+            result = await runner.arun()
+            return EvaluateResponse(
+                metrics=result.metrics.model_dump(exclude_none=True),
+                num_questions=result.num_questions,
+                timing_seconds=result.timing_seconds,
+            )
+        except DocpipeError as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
 
     return app
 
