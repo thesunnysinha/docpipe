@@ -16,7 +16,3 @@ venv/
 htmlcov/
 .coverage
 *.log
-.vercel
-node_modules/
-.next/
-next-env.d.ts

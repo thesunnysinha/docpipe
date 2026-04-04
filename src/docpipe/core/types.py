@@ -95,6 +95,14 @@ class IngestionConfig(BaseModel):
     chunk_overlap: int = 200
     ingest_mode: Literal["chunks", "extractions", "both"] = "both"
     incremental: bool = False
+    # Domain-specific chunking
+    chunk_method: Literal[
+        "default", "paper", "laws", "book", "qa", "manual", "table", "presentation"
+    ] = "default"
+    # Contextual chunk injection
+    contextual_injection: bool = False
+    contextual_llm_provider: str = "openai"
+    contextual_llm_model: str = "gpt-4o-mini"
 
 
 class IngestionResult(BaseModel):
@@ -122,7 +130,7 @@ class RAGConfig(BaseModel):
     embedding_model: str
     llm_provider: str
     llm_model: str
-    strategy: Literal["naive", "hyde", "multi_query", "parent_document", "hybrid"] = "naive"
+    strategy: Literal["naive", "hyde", "multi_query", "parent_document", "hybrid", "auto"] = "naive"
     top_k: int = 5
     # Strategy-specific
     hyde_prompt: str | None = None
@@ -140,6 +148,11 @@ class RAGConfig(BaseModel):
         description="Pydantic model class for structured RAG output",
         exclude=True,
     )
+    stream: bool = False
+    # Semantic query cache
+    cache_enabled: bool = False
+    cache_similarity_threshold: float = 0.95
+    cache_max_size: int = 100
 
 
 class RAGChunk(BaseModel):

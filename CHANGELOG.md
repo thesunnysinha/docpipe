@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0] - 2026-04-04
+
+### Added
+
+- Contextual Chunk Injection — LLM prepends situational context to each chunk before embedding (`IngestionConfig(contextual_injection=True)`)
+- Semantic Query Cache — cosine-similarity cache avoids redundant LLM calls for near-duplicate queries (`RAGConfig(cache_enabled=True, cache_similarity_threshold=0.95)`)
+- Domain-specific chunk methods — 7 document-type-aware chunking strategies: `paper`, `laws`, `book`, `qa`, `manual`, `table`, `presentation` (`IngestionConfig(chunk_method="paper")`)
+- Streaming RAG — `RAGPipeline.stream_query()` and `docpipe.stream_query()` return `Iterator[str]` of answer tokens (`RAGConfig(stream=True)`)
+- Agentic RAG — `strategy="auto"` lets the LLM classify the question and dispatch to the optimal strategy; result includes `metadata["auto_selected_strategy"]`
+
 ## [0.2.1] - 2026-04-04
 
 ### Fixed
@@ -53,7 +63,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Dockerfile for containerized deployment
 - 34 unit tests with mock parser/extractor
 
-[Unreleased]: https://github.com/thesunnysinha/docpipe/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/thesunnysinha/docpipe/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/thesunnysinha/docpipe/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/thesunnysinha/docpipe/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/thesunnysinha/docpipe/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/thesunnysinha/docpipe/releases/tag/v0.1.0
