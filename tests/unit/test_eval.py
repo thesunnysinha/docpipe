@@ -7,6 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from docpipe.core.types import EvalConfig, EvalQuestion, RAGConfig, RAGChunk, RAGResult
+from docpipe.rag.pipeline import RAGPipeline
 
 
 def _make_rag_config() -> RAGConfig:
@@ -69,8 +70,8 @@ def test_eval_config_defaults() -> None:
 # ---------------------------------------------------------------------------
 
 
-@patch("docpipe.rag.pipeline.RAGPipeline._create_embeddings")
-@patch("docpipe.rag.pipeline.RAGPipeline._create_llm")
+@patch.object(RAGPipeline, "_create_embeddings")
+@patch.object(RAGPipeline, "_create_llm")
 def test_hit_rate_when_source_retrieved(mock_llm: MagicMock, mock_emb: MagicMock) -> None:
     mock_emb.return_value = MagicMock()
     mock_llm.return_value = MagicMock()
@@ -86,8 +87,8 @@ def test_hit_rate_when_source_retrieved(mock_llm: MagicMock, mock_emb: MagicMock
     assert result.metrics.hit_rate == pytest.approx(1.0)
 
 
-@patch("docpipe.rag.pipeline.RAGPipeline._create_embeddings")
-@patch("docpipe.rag.pipeline.RAGPipeline._create_llm")
+@patch.object(RAGPipeline, "_create_embeddings")
+@patch.object(RAGPipeline, "_create_llm")
 def test_hit_rate_when_source_not_retrieved(mock_llm: MagicMock, mock_emb: MagicMock) -> None:
     mock_emb.return_value = MagicMock()
     mock_llm.return_value = MagicMock()
@@ -108,8 +109,8 @@ def test_hit_rate_when_source_not_retrieved(mock_llm: MagicMock, mock_emb: Magic
 # ---------------------------------------------------------------------------
 
 
-@patch("docpipe.rag.pipeline.RAGPipeline._create_embeddings")
-@patch("docpipe.rag.pipeline.RAGPipeline._create_llm")
+@patch.object(RAGPipeline, "_create_embeddings")
+@patch.object(RAGPipeline, "_create_llm")
 def test_mrr_first_position(mock_llm: MagicMock, mock_emb: MagicMock) -> None:
     mock_emb.return_value = MagicMock()
     mock_llm.return_value = MagicMock()
@@ -131,8 +132,8 @@ def test_mrr_first_position(mock_llm: MagicMock, mock_emb: MagicMock) -> None:
 # ---------------------------------------------------------------------------
 
 
-@patch("docpipe.rag.pipeline.RAGPipeline._create_embeddings")
-@patch("docpipe.rag.pipeline.RAGPipeline._create_llm")
+@patch.object(RAGPipeline, "_create_embeddings")
+@patch.object(RAGPipeline, "_create_llm")
 def test_answer_similarity_llm_judge(mock_llm: MagicMock, mock_emb: MagicMock) -> None:
     mock_emb.return_value = MagicMock()
     llm = MagicMock()
@@ -155,8 +156,8 @@ def test_answer_similarity_llm_judge(mock_llm: MagicMock, mock_emb: MagicMock) -
 # ---------------------------------------------------------------------------
 
 
-@patch("docpipe.rag.pipeline.RAGPipeline._create_embeddings")
-@patch("docpipe.rag.pipeline.RAGPipeline._create_llm")
+@patch.object(RAGPipeline, "_create_embeddings")
+@patch.object(RAGPipeline, "_create_llm")
 def test_eval_result_metadata(mock_llm: MagicMock, mock_emb: MagicMock) -> None:
     mock_emb.return_value = MagicMock()
     llm = MagicMock()
@@ -185,8 +186,8 @@ def test_eval_result_metadata(mock_llm: MagicMock, mock_emb: MagicMock) -> None:
 # ---------------------------------------------------------------------------
 
 
-@patch("docpipe.rag.pipeline.RAGPipeline._create_embeddings")
-@patch("docpipe.rag.pipeline.RAGPipeline._create_llm")
+@patch.object(RAGPipeline, "_create_embeddings")
+@patch.object(RAGPipeline, "_create_llm")
 def test_unselected_metrics_are_none(mock_llm: MagicMock, mock_emb: MagicMock) -> None:
     mock_emb.return_value = MagicMock()
     mock_llm.return_value = MagicMock()
