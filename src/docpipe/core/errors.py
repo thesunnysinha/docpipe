@@ -39,3 +39,11 @@ class ConfigurationError(DocpipeError):
 
 class UnsupportedFormatError(DocpipeError):
     """Raised when a document format is not supported by the selected parser."""
+
+
+class RAGError(DocpipeError):
+    """Raised when RAG query or generation fails."""
+
+
+class EvalError(DocpipeError):
+    """Raised when evaluation fails."""

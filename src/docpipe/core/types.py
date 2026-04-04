@@ -94,6 +94,7 @@ class IngestionConfig(BaseModel):
     chunk_size: int = 1000
     chunk_overlap: int = 200
     ingest_mode: Literal["chunks", "extractions", "both"] = "both"
+    incremental: bool = False
 
 
 class IngestionResult(BaseModel):
@@ -101,6 +102,106 @@ class IngestionResult(BaseModel):
 
     source: str
     chunks_ingested: int
+    skipped: int = 0
     table_name: str
     table_created: bool
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+# ---------------------------------------------------------------------------
+# RAG types
+# ---------------------------------------------------------------------------
+
+
+class RAGConfig(BaseModel):
+    """Configuration for the RAG query pipeline."""
+
+    connection_string: str
+    table_name: str
+    embedding_provider: str
+    embedding_model: str
+    llm_provider: str
+    llm_model: str
+    strategy: Literal["naive", "hyde", "multi_query", "parent_document", "hybrid"] = "naive"
+    top_k: int = 5
+    # Strategy-specific
+    hyde_prompt: str | None = None
+    multi_query_count: int = 3
+    parent_window_size: int = 3
+    hybrid_bm25_weight: float = 0.5
+    # Reranking
+    reranker: Literal["none", "flashrank", "cohere"] = "none"
+    reranker_model: str | None = None
+    rerank_top_n: int | None = None
+    # Generation
+    system_prompt: str | None = None
+    output_model: Any = Field(
+        default=None,
+        description="Pydantic model class for structured RAG output",
+        exclude=True,
+    )
+
+
+class RAGChunk(BaseModel):
+    """A single retrieved chunk with provenance."""
+
+    content: str
+    score: float
+    source: str
+    page: int | None = None
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class RAGResult(BaseModel):
+    """Output of a RAGPipeline.query() call."""
+
+    query: str
+    answer: str
+    strategy: str
+    chunks: list[RAGChunk]
+    sources: list[str]
+    timing_seconds: float
+    structured: Any = Field(default=None, exclude=True)
+    metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+# ---------------------------------------------------------------------------
+# Evaluation types
+# ---------------------------------------------------------------------------
+
+
+class EvalQuestion(BaseModel):
+    """A single question with ground truth for RAG evaluation."""
+
+    question: str
+    expected_answer: str
+    expected_sources: list[str] = Field(default_factory=list)
+
+
+class EvalConfig(BaseModel):
+    """Configuration for the evaluation pipeline."""
+
+    rag_config: RAGConfig
+    questions: list[EvalQuestion]
+    metrics: list[Literal["hit_rate", "mrr", "faithfulness", "answer_similarity"]] = Field(
+        default_factory=lambda: ["hit_rate", "answer_similarity"]
+    )
+
+
+class EvalMetrics(BaseModel):
+    """Aggregate evaluation metrics."""
+
+    hit_rate: float | None = None
+    mrr: float | None = None
+    faithfulness: float | None = None
+    answer_similarity: float | None = None
+    per_question: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class EvalResult(BaseModel):
+    """Output of an EvalPipeline.run() call."""
+
+    metrics: EvalMetrics
+    num_questions: int
+    timing_seconds: float
     metadata: dict[str, Any] = Field(default_factory=dict)

@@ -4,6 +4,7 @@ from docpipe._version import __version__
 from docpipe.core.errors import (
     ConfigurationError,
     DocpipeError,
+    EvalError,
     ExtractionError,
     ExtractorNotFoundError,
     ExtractorNotInstalledError,
@@ -11,6 +12,7 @@ from docpipe.core.errors import (
     ParseError,
     ParserNotFoundError,
     ParserNotInstalledError,
+    RAGError,
     UnsupportedFormatError,
 )
 from docpipe.core.extractor import BaseExtractor
@@ -18,6 +20,10 @@ from docpipe.core.parser import BaseParser
 from docpipe.core.pipeline import Pipeline
 from docpipe.core.types import (
     DocumentFormat,
+    EvalConfig,
+    EvalMetrics,
+    EvalQuestion,
+    EvalResult,
     ExtractionResult,
     ExtractionSchema,
     IngestionConfig,
@@ -25,8 +31,13 @@ from docpipe.core.types import (
     PageContent,
     ParsedDocument,
     PipelineResult,
+    RAGChunk,
+    RAGConfig,
+    RAGResult,
     SourceSpan,
 )
+from docpipe.eval.pipeline import EvalPipeline
+from docpipe.rag.pipeline import RAGPipeline
 from docpipe.registry.registry import PluginRegistry
 
 
@@ -112,6 +123,12 @@ def ingest(
     return ingestion.ingest(parsed)
 
 
+def rag(question: str, *, config: RAGConfig) -> RAGResult:
+    """Answer a question using RAG against the user's vector store."""
+    pipeline = RAGPipeline(config)
+    return pipeline.query(question)
+
+
 __all__ = [
     "__version__",
     # Core types
@@ -142,9 +159,24 @@ __all__ = [
     "ParserNotFoundError",
     "ParserNotInstalledError",
     "UnsupportedFormatError",
+    # RAG
+    "RAGConfig",
+    "RAGChunk",
+    "RAGResult",
+    "RAGPipeline",
+    # Evaluation
+    "EvalConfig",
+    "EvalMetrics",
+    "EvalQuestion",
+    "EvalResult",
+    "EvalPipeline",
+    # Extra errors
+    "EvalError",
+    "RAGError",
     # Convenience functions
     "extract",
     "ingest",
     "parse",
+    "rag",
     "run",
 ]

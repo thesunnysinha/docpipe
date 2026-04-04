@@ -146,6 +146,7 @@ def run_pipeline(
 @click.option("--chunk-size", default=1000, help="Chunk size for text splitting")
 @click.option("--chunk-overlap", default=200, help="Chunk overlap")
 @click.option("--parser", default="docling", help="Parser to use")
+@click.option("--incremental", is_flag=True, help="Skip files already ingested (hash-based)")
 def ingest(
     file: str,
     db: str,
@@ -156,6 +157,7 @@ def ingest(
     chunk_size: int,
     chunk_overlap: int,
     parser: str,
+    incremental: bool,
 ) -> None:
     """Parse a document and ingest into a vector database."""
     from docpipe.core.types import IngestionConfig
@@ -170,6 +172,7 @@ def ingest(
         chunk_size=chunk_size,
         chunk_overlap=chunk_overlap,
         ingest_mode=mode,
+        incremental=incremental,
     )
 
     p = PluginRegistry.get().get_parser(parser)
@@ -178,7 +181,10 @@ def ingest(
     ingestion = IngestionPipeline(config)
     result = ingestion.ingest(parsed)
 
-    click.echo(f"Ingested {result.chunks_ingested} chunks into '{result.table_name}'")
+    if result.skipped:
+        click.echo(f"Skipped '{file}' (unchanged, incremental mode)")
+    else:
+        click.echo(f"Ingested {result.chunks_ingested} chunks into '{result.table_name}'")
     if result.table_created:
         click.echo("Table was created.")
 
@@ -302,6 +308,159 @@ log_level: INFO
 """
     Path(output).write_text(template)
     click.echo(f"Config template written to {output}")
+
+
+@cli.group()
+def rag() -> None:
+    """RAG (Retrieval-Augmented Generation) commands."""
+
+
+@rag.command("query")
+@click.argument("question")
+@click.option("--db", required=True, help="Database connection string")
+@click.option("--table", required=True, help="Table name in the vector DB")
+@click.option(
+    "--strategy",
+    default="naive",
+    type=click.Choice(["naive", "hyde", "multi_query", "parent_document", "hybrid"]),
+    show_default=True,
+    help="Retrieval strategy",
+)
+@click.option("--llm-provider", required=True, help="LLM provider (openai, google, ollama, anthropic)")  # noqa: E501
+@click.option("--llm-model", required=True, help="LLM model name")
+@click.option("--embedding-provider", required=True, help="Embedding provider")
+@click.option("--embedding-model", required=True, help="Embedding model name")
+@click.option("--top-k", default=5, show_default=True, help="Number of chunks to retrieve")
+@click.option(
+    "--reranker",
+    default="none",
+    type=click.Choice(["none", "flashrank", "cohere"]),
+    show_default=True,
+    help="Optional reranker",
+)
+@click.option("--output", "-o", default=None, help="Output JSON file (default: stdout)")
+def rag_query(
+    question: str,
+    db: str,
+    table: str,
+    strategy: str,
+    llm_provider: str,
+    llm_model: str,
+    embedding_provider: str,
+    embedding_model: str,
+    top_k: int,
+    reranker: str,
+    output: str | None,
+) -> None:
+    """Answer a question using RAG against a vector database."""
+    from docpipe.core.types import RAGConfig
+    from docpipe.rag.pipeline import RAGPipeline
+
+    config = RAGConfig(
+        connection_string=db,
+        table_name=table,
+        embedding_provider=embedding_provider,
+        embedding_model=embedding_model,
+        llm_provider=llm_provider,
+        llm_model=llm_model,
+        strategy=strategy,
+        top_k=top_k,
+        reranker=reranker,
+    )
+
+    pipeline = RAGPipeline(config)
+    result = pipeline.query(question)
+
+    click.echo(f"\nAnswer  [{result.strategy}, {result.timing_seconds:.2f}s]")
+    click.echo("-" * 60)
+    click.echo(result.answer)
+    click.echo(f"\nSources ({len(result.sources)}):")
+    for src in result.sources:
+        click.echo(f"  - {src}")
+    click.echo(f"Chunks retrieved: {len(result.chunks)}")
+
+    if output:
+        Path(output).write_text(result.model_dump_json(indent=2))
+        click.echo(f"\nFull result written to {output}")
+
+
+@cli.group(name="evaluate")
+def evaluate_group() -> None:
+    """Evaluation commands for measuring RAG quality."""
+
+
+@evaluate_group.command("run")
+@click.option("--questions", "questions_file", required=True, help="JSON file with Q&A pairs")
+@click.option("--db", required=True, help="Database connection string")
+@click.option("--table", required=True, help="Table name in the vector DB")
+@click.option(
+    "--strategy",
+    default="naive",
+    type=click.Choice(["naive", "hyde", "multi_query", "parent_document", "hybrid"]),
+    show_default=True,
+)
+@click.option("--llm-provider", required=True, help="LLM provider")
+@click.option("--llm-model", required=True, help="LLM model name")
+@click.option("--embedding-provider", required=True, help="Embedding provider")
+@click.option("--embedding-model", required=True, help="Embedding model name")
+@click.option(
+    "--metrics",
+    default="hit_rate,answer_similarity",
+    help="Comma-separated metrics: hit_rate,mrr,faithfulness,answer_similarity",
+    show_default=True,
+)
+@click.option("--output", "-o", default=None, help="Output JSON file (default: stdout)")
+def evaluate_run(
+    questions_file: str,
+    db: str,
+    table: str,
+    strategy: str,
+    llm_provider: str,
+    llm_model: str,
+    embedding_provider: str,
+    embedding_model: str,
+    metrics: str,
+    output: str | None,
+) -> None:
+    """Evaluate RAG quality using a Q&A file."""
+    from docpipe.core.types import EvalConfig, EvalQuestion, RAGConfig
+    from docpipe.eval.pipeline import EvalPipeline
+
+    with open(questions_file) as f:
+        raw = json.load(f)
+    questions = [EvalQuestion(**q) for q in raw]
+    metric_list = [m.strip() for m in metrics.split(",")]  # type: ignore[assignment]
+
+    rag_config = RAGConfig(
+        connection_string=db,
+        table_name=table,
+        embedding_provider=embedding_provider,
+        embedding_model=embedding_model,
+        llm_provider=llm_provider,
+        llm_model=llm_model,
+        strategy=strategy,
+    )
+    cfg = EvalConfig(rag_config=rag_config, questions=questions, metrics=metric_list)
+    runner = EvalPipeline(cfg)
+    result = runner.run()
+
+    m = result.metrics
+    click.echo(
+        f"\nEvaluation Results ({result.num_questions} questions, {result.timing_seconds:.1f}s)"
+    )
+    click.echo("-" * 50)
+    if m.hit_rate is not None:
+        click.echo(f"  hit_rate:          {m.hit_rate:.3f}")
+    if m.mrr is not None:
+        click.echo(f"  mrr:               {m.mrr:.3f}")
+    if m.faithfulness is not None:
+        click.echo(f"  faithfulness:      {m.faithfulness:.3f}")
+    if m.answer_similarity is not None:
+        click.echo(f"  answer_similarity: {m.answer_similarity:.3f}")
+
+    if output:
+        Path(output).write_text(result.model_dump_json(indent=2))
+        click.echo(f"\nFull results written to {output}")
 
 
 if __name__ == "__main__":
