@@ -13,6 +13,7 @@ import CheckIcon from "@mui/icons-material/Check";
 import GitHubIcon from "@mui/icons-material/GitHub";
 import InventoryIcon from "@mui/icons-material/Inventory";
 import AutoAwesomeIcon from "@mui/icons-material/AutoAwesome";
+import { PlaygroundButton } from "./Playground";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 20 },
@@ -196,6 +197,7 @@ export default function Hero() {
             >
               PyPI Package
             </Button>
+            <PlaygroundButton variant="hero" />
           </Box>
         </motion.div>
 

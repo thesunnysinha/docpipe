@@ -4,14 +4,14 @@ build-backend = "hatchling.build"
 
 [project]
 name = "docpipe-sdk"
-version = "0.2.0"
-description = "Unified document parsing, structured extraction, and vector ingestion pipeline"
+version = "0.2.1"
+description = "Unified document parsing, structured extraction, vector ingestion, and RAG pipeline SDK"
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
 requires-python = ">=3.10"
 authors = [{ name = "Sunny Sinha", email = "thesunnysinha@gmail.com" }]
-keywords = ["document", "parsing", "extraction", "llm", "pipeline", "vector", "ingestion", "rag", "docling", "langextract", "langchain"]
+keywords = ["document", "parsing", "extraction", "llm", "pipeline", "vector", "ingestion", "rag", "docling", "langextract", "langchain", "pgvector", "embeddings", "retrieval"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
