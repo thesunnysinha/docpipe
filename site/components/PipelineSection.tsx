@@ -4,9 +4,9 @@ import { motion, type Variants } from "framer-motion";
 import Box from "@mui/material/Box";
 import Container from "@mui/material/Container";
 import Typography from "@mui/material/Typography";
-import Paper from "@mui/material/Paper";
+import Card from "@mui/material/Card";
+import CardContent from "@mui/material/CardContent";
 import Grid from "@mui/material/Grid";
-import ArrowForwardIosIcon from "@mui/icons-material/ArrowForwardIos";
 import CodeBlock from "./CodeBlock";
 
 const sectionFadeUp: Variants = {
@@ -19,11 +19,11 @@ const sectionFadeUp: Variants = {
 };
 
 const pipelineSteps = [
-  { icon: "📄", label: "Documents", sub: "PDF, DOCX, images...", borderColor: "#2a2a2e" },
-  { icon: "🔍", label: "Parse", sub: "Docling", borderColor: "#3b82f6" },
-  { icon: "⚡", label: "Extract", sub: "LangExtract / LangChain", borderColor: "#f59e0b" },
-  { icon: "🗃", label: "Ingest", sub: "pgvector + your DB", borderColor: "#22c55e" },
-  { icon: "🤖", label: "RAG Query", sub: "5 strategies", borderColor: "#818cf8" },
+  { icon: "📄", label: "Documents", sub: "PDF, DOCX, images...", color: "#a1a1aa" },
+  { icon: "🔍", label: "Parse", sub: "Docling", color: "#3b82f6" },
+  { icon: "⚡", label: "Extract", sub: "LangExtract / LangChain", color: "#f59e0b" },
+  { icon: "🗃", label: "Ingest", sub: "pgvector + your DB", color: "#22c55e" },
+  { icon: "🤖", label: "RAG Query", sub: "5 strategies", color: "#818cf8" },
 ];
 
 const useCases = [
@@ -100,7 +100,7 @@ print(result.sources)  # ["invoice.pdf"]`,
 
 export default function PipelineSection() {
   return (
-    <Box component="section" id="pipelines" sx={{ py: 10 }}>
+    <Box component="section" id="pipelines" sx={{ py: 12 }}>
       <Container maxWidth="lg">
         {/* Title */}
         <motion.div
@@ -111,7 +111,7 @@ export default function PipelineSection() {
         >
           <Typography
             variant="h3"
-            sx={{ fontWeight: 700, textAlign: "center", mb: 1.5, fontSize: "2rem" }}
+            sx={{ fontWeight: 800, textAlign: "center", mb: 1.5, fontSize: { xs: "1.75rem", md: "2.25rem" }, letterSpacing: "-0.02em" }}
           >
             Four Pipelines, Fully Composable
           </Typography>
@@ -126,73 +126,75 @@ export default function PipelineSection() {
           <Typography
             variant="body1"
             color="text.secondary"
-            sx={{ textAlign: "center", mb: 8 }}
+            sx={{ textAlign: "center", mb: 8, maxWidth: 540, mx: "auto" }}
           >
             Use each independently or chain them together. Your data, your DB, your LLM.
           </Typography>
         </motion.div>
 
-        {/* Pipeline flow */}
-        <Box
-          sx={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            flexWrap: "wrap",
-            gap: 1.5,
-            mb: 8,
-          }}
-        >
-          {pipelineSteps.map((step, i) => (
-            <Box key={i} sx={{ display: "flex", alignItems: "center", gap: 1.5 }}>
-              <motion.div
-                initial={{ opacity: 0, x: -20 }}
-                whileInView={{ opacity: 1, x: 0 }}
-                viewport={{ once: true, margin: "-100px" }}
-                transition={{ duration: 0.4, delay: i * 0.12, ease: "easeOut" as const }}
-                whileHover={{ scale: 1.05 }}
-              >
-                <Paper
-                  elevation={0}
-                  sx={{
-                    p: 2,
-                    textAlign: "center",
-                    minWidth: 120,
-                    bgcolor: "#141416",
-                    border: `1px solid ${step.borderColor}`,
-                    transition: "transform 0.2s",
-                    cursor: "default",
-                  }}
-                >
-                  <Typography sx={{ fontSize: "1.375rem", mb: 0.5 }}>
-                    {step.icon}
-                  </Typography>
-                  <Typography variant="body2" sx={{ fontWeight: 600, fontSize: "0.8125rem" }}>
-                    {step.label}
-                  </Typography>
-                  <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.6875rem" }}>
-                    {step.sub}
-                  </Typography>
-                </Paper>
-              </motion.div>
-              {i < pipelineSteps.length - 1 && (
+        {/* Pipeline Stepper flow */}
+        <Box sx={{ mb: 8, overflowX: "auto", pb: 1 }}>
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "flex-start",
+              justifyContent: "center",
+              minWidth: 600,
+            }}
+          >
+            {pipelineSteps.map((step, i) => (
+              <Box key={i} sx={{ display: "flex", alignItems: "flex-start", flex: i < pipelineSteps.length - 1 ? "1 1 auto" : "0 0 auto" }}>
+                {/* Step column */}
                 <motion.div
-                  initial={{ opacity: 0 }}
-                  whileInView={{ opacity: 1 }}
+                  initial={{ opacity: 0, x: -20 }}
+                  whileInView={{ opacity: 1, x: 0 }}
                   viewport={{ once: true, margin: "-100px" }}
-                  transition={{ duration: 0.3, delay: i * 0.12 + 0.2 }}
+                  transition={{ duration: 0.4, delay: i * 0.15, ease: "easeOut" as const }}
                 >
-                  <ArrowForwardIosIcon
-                    sx={{
-                      color: "text.secondary",
-                      fontSize: 18,
-                      display: { xs: "none", sm: "block" },
-                    }}
-                  />
+                  <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", minWidth: 90 }}>
+                    {/* Numbered circle */}
+                    <Box sx={{
+                      width: 44, height: 44, borderRadius: "50%",
+                      border: "2px solid", borderColor: step.color,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                      bgcolor: `${step.color}18`,
+                      fontSize: "1.25rem",
+                      mb: 1.5,
+                      boxShadow: `0 0 16px ${step.color}33`,
+                    }}>
+                      {step.icon}
+                    </Box>
+                    <Typography variant="body2" sx={{ fontWeight: 700, fontSize: "0.8125rem", textAlign: "center", color: "text.primary" }}>
+                      {step.label}
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary" sx={{ fontSize: "0.6875rem", textAlign: "center", mt: 0.25 }}>
+                      {step.sub}
+                    </Typography>
+                  </Box>
                 </motion.div>
-              )}
-            </Box>
-          ))}
+
+                {/* Connector line */}
+                {i < pipelineSteps.length - 1 && (
+                  <motion.div
+                    style={{ flex: 1 }}
+                    initial={{ opacity: 0, scaleX: 0 }}
+                    whileInView={{ opacity: 1, scaleX: 1 }}
+                    viewport={{ once: true, margin: "-100px" }}
+                    transition={{ duration: 0.4, delay: i * 0.15 + 0.2 }}
+                  >
+                    <Box sx={{
+                      height: 2,
+                      background: `linear-gradient(90deg, ${step.color}, ${pipelineSteps[i + 1].color})`,
+                      mt: "21px",
+                      mx: 1,
+                      opacity: 0.5,
+                      borderRadius: 1,
+                    }} />
+                  </motion.div>
+                )}
+              </Box>
+            ))}
+          </Box>
         </Box>
 
         {/* Use case cards */}
@@ -206,36 +208,30 @@ export default function PipelineSection() {
                 transition={{ duration: 0.4, delay: i * 0.05, ease: "easeOut" as const }}
                 style={{ height: "100%" }}
               >
-                <Paper
+                <Card
                   elevation={0}
                   sx={{
-                    p: 3,
                     height: "100%",
                     bgcolor: "#141416",
                     border: "1px solid #2a2a2e",
-                    transition: "border-color 0.2s",
-                    "&:hover": { borderColor: "primary.main" },
+                    borderTop: `3px solid ${uc.dotColor}`,
+                    transition: "transform 0.2s, box-shadow 0.2s",
+                    "&:hover": {
+                      transform: "translateY(-4px)",
+                      boxShadow: `0 8px 32px rgba(0,0,0,0.4), 0 0 0 1px ${uc.dotColor}33`,
+                    },
                   }}
                 >
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 1.25, mb: 1.5 }}>
-                    <Box
-                      sx={{
-                        width: 10,
-                        height: 10,
-                        borderRadius: "50%",
-                        bgcolor: uc.dotColor,
-                        flexShrink: 0,
-                      }}
-                    />
-                    <Typography variant="subtitle1" sx={{ fontWeight: 600, fontSize: "0.9375rem" }}>
+                  <CardContent sx={{ p: 3, "&:last-child": { pb: 3 } }}>
+                    <Typography variant="subtitle1" sx={{ fontWeight: 700, fontSize: "0.9375rem", mb: 1 }}>
                       {uc.title}
                     </Typography>
-                  </Box>
-                  <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5, fontSize: "0.8125rem" }}>
-                    {uc.desc}
-                  </Typography>
-                  <CodeBlock code={uc.code} language="python" />
-                </Paper>
+                    <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5, fontSize: "0.8125rem" }}>
+                      {uc.desc}
+                    </Typography>
+                    <CodeBlock code={uc.code} language="python" />
+                  </CardContent>
+                </Card>
               </motion.div>
             </Grid>
           ))}
