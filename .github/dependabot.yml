@@ -1,0 +1,35 @@
+version: 2
+
+updates:
+  # Python dependencies
+  - package-ecosystem: pip
+    directory: "/"
+    schedule:
+      interval: weekly
+      day: monday
+    open-pull-requests-limit: 10
+    labels:
+      - "dependencies"
+      - "python"
+    groups:
+      langchain:
+        patterns:
+          - "langchain-*"
+        update-types:
+          - "minor"
+          - "patch"
+      docling:
+        patterns:
+          - "docling*"
+      langextract:
+        patterns:
+          - "langextract*"
+
+  # GitHub Actions
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    labels:
+      - "dependencies"
+      - "ci"
