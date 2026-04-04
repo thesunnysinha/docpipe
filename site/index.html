@@ -338,7 +338,7 @@
       <a href="#features">Features</a>
       <a href="#usage">Usage</a>
       <a href="https://github.com/thesunnysinha/docpipe" target="_blank">GitHub</a>
-      <a href="https://pypi.org/project/docpipe/" target="_blank"><span class="badge">PyPI</span></a>
+      <a href="https://pypi.org/project/docpipe-sdk/" target="_blank"><span class="badge">PyPI</span></a>
     </div>
   </div>
 </nav>
@@ -350,10 +350,10 @@
     <p>Parse documents, extract structured data with LLMs, and ingest into vector databases. Composable pipelines with a plugin architecture.</p>
     <div class="hero-actions">
       <a href="https://github.com/thesunnysinha/docpipe" class="btn btn-primary" target="_blank">View on GitHub</a>
-      <a href="https://pypi.org/project/docpipe/" class="btn btn-secondary" target="_blank">PyPI Package</a>
+      <a href="https://pypi.org/project/docpipe-sdk/" class="btn btn-secondary" target="_blank">PyPI Package</a>
     </div>
-    <div class="install-bar" onclick="navigator.clipboard.writeText('pip install docpipe[all]')">
-      <code><span class="dollar">$</span> pip install docpipe[all]</code>
+    <div class="install-bar" onclick="navigator.clipboard.writeText('pip install docpipe-sdk[all]')">
+      <code><span class="dollar">$</span> pip install docpipe-sdk[all]</code>
       <span class="copy">click to copy</span>
     </div>
   </div>
@@ -549,14 +549,14 @@ $ docker run --env-file .env \
     <div style="margin-top: 32px;">
       <div class="code-block">
         <div class="code-block-header">&#128230; Install Options</div>
-        <pre><code>pip install docpipe                    <span class="comment"># Core only</span>
-pip install docpipe[docling]           <span class="comment"># + Document parsing</span>
-pip install docpipe[langextract]       <span class="comment"># + Google LangExtract</span>
-pip install docpipe[openai]            <span class="comment"># + OpenAI embeddings & LLM</span>
-pip install docpipe[google]            <span class="comment"># + Google Gemini</span>
-pip install docpipe[pgvector]          <span class="comment"># + PostgreSQL vector store</span>
-pip install docpipe[server]            <span class="comment"># + FastAPI server</span>
-pip install docpipe[all]               <span class="comment"># Everything</span></code></pre>
+        <pre><code>pip install docpipe-sdk                <span class="comment"># Core only</span>
+pip install docpipe-sdk[docling]           <span class="comment"># + Document parsing</span>
+pip install docpipe-sdk[langextract]       <span class="comment"># + Google LangExtract</span>
+pip install docpipe-sdk[openai]            <span class="comment"># + OpenAI embeddings & LLM</span>
+pip install docpipe-sdk[google]            <span class="comment"># + Google Gemini</span>
+pip install docpipe-sdk[pgvector]          <span class="comment"># + PostgreSQL vector store</span>
+pip install docpipe-sdk[server]            <span class="comment"># + FastAPI server</span>
+pip install docpipe-sdk[all]               <span class="comment"># Everything</span></code></pre>
       </div>
     </div>
   </div>
@@ -568,7 +568,7 @@ pip install docpipe[all]               <span class="comment"># Everything</span>
       <strong>docpipe</strong> is open source under the MIT License.
       <br>
       <a href="https://github.com/thesunnysinha/docpipe">GitHub</a> &middot;
-      <a href="https://pypi.org/project/docpipe/">PyPI</a> &middot;
+      <a href="https://pypi.org/project/docpipe-sdk/">PyPI</a> &middot;
       <a href="https://github.com/thesunnysinha/docpipe/blob/main/CHANGELOG.md">Changelog</a>
     </p>
   </div>
@@ -576,7 +576,7 @@ pip install docpipe[all]               <span class="comment"># Everything</span>
 
 <script>
   document.querySelector('.install-bar').addEventListener('click', function() {
-    navigator.clipboard.writeText('pip install docpipe[all]');
+    navigator.clipboard.writeText('pip install docpipe-sdk[all]');
     this.querySelector('.copy').textContent = 'copied!';
     setTimeout(() => this.querySelector('.copy').textContent = 'click to copy', 2000);
   });
