@@ -3,7 +3,7 @@ requires = ["hatchling>=1.26"]
 build-backend = "hatchling.build"
 
 [project]
-name = "docpipe"
+name = "docpipe-sdk"
 version = "0.1.0"
 description = "Unified document parsing, structured extraction, and vector ingestion pipeline"
 readme = "README.md"
@@ -45,7 +45,7 @@ ollama = ["langchain-ollama>=0.3"]
 huggingface = ["langchain-huggingface>=0.1"]
 pgvector = ["langchain-postgres>=0.0.12"]
 server = ["fastapi>=0.100", "uvicorn[standard]>=0.20", "python-multipart>=0.0.6"]
-all = ["docpipe[docling,langextract,openai,google,ollama,pgvector,server]"]
+all = ["docpipe-sdk[docling,langextract,openai,google,ollama,pgvector,server]"]
 dev = [
     "pytest>=7.0",
     "pytest-asyncio>=0.21",
