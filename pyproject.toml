@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "docpipe-sdk"
-version = "0.3.1"
+version = "0.4.0"
 description = "Unified document parsing, structured extraction, vector ingestion, and RAG pipeline SDK"
 readme = "README.md"
 license = "MIT"
@@ -38,6 +38,7 @@ dependencies = [
 
 [project.optional-dependencies]
 docling = ["docling>=2.0"]
+glm-ocr = ["glmocr>=0.1"]
 langextract = ["langextract>=0.1"]
 openai = ["langchain-openai>=0.3"]
 google = ["langchain-google-genai>=2.0"]
@@ -47,7 +48,7 @@ pgvector = ["langchain-postgres>=0.0.12"]
 server = ["fastapi>=0.100", "uvicorn[standard]>=0.20", "python-multipart>=0.0.6"]
 rag = ["langchain-community>=0.3", "langchain>=0.2"]
 rerank = ["flashrank>=0.2"]
-all = ["docpipe-sdk[docling,langextract,openai,google,ollama,pgvector,server,rag,rerank]"]
+all = ["docpipe-sdk[docling,glm-ocr,langextract,openai,google,ollama,pgvector,server,rag,rerank]"]
 dev = [
     "pytest>=7.0",
     "pytest-asyncio>=0.21",
@@ -62,6 +63,7 @@ docpipe = "docpipe.cli.main:cli"
 
 [project.entry-points."docpipe.parsers"]
 docling = "docpipe.parsers.docling_parser:DoclingParser"
+glm-ocr = "docpipe.parsers.glm_ocr_parser:GLMOCRParser"
 
 [project.entry-points."docpipe.extractors"]
 langextract = "docpipe.extractors.langextract_extractor:LangExtractExtractor"

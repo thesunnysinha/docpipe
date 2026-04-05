@@ -7,6 +7,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0] - 2026-04-05
+
+### Added
+
+- GLM-OCR as optional parser backend — state-of-the-art multimodal OCR (0.9B params, #1 on OmniDocBench V1.5)
+  - Install: `pip install "docpipe-sdk[glm-ocr]"`
+  - Usage: `docpipe.parse("doc.pdf", parser="glm-ocr")`
+  - Supports Cloud API (MaaS) and self-hosted (vLLM/SGLang) modes
+  - Best for scanned documents, complex tables, formulas, code-heavy layouts
+
 ## [0.3.0] - 2026-04-04
 
 ### Added
