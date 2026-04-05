@@ -13,7 +13,7 @@ docpipe connects document parsing (Docling), LLM-based structured extraction (La
 
 **Four independent pipelines, composable together:**
 
-1. **Parse** — Unstructured docs → parsed text/markdown via Docling
+1. **Parse** — Unstructured docs → parsed text/markdown via Docling or GLM-OCR
 2. **Extract** — Text → structured entities via LLM (LangExtract or LangChain)
 3. **Ingest** — Parsed chunks → embeddings → your vector DB (LangChain + pgvector)
 4. **RAG** — Questions → grounded answers with source citations (5 retrieval strategies)
@@ -26,7 +26,8 @@ docpipe connects document parsing (Docling), LLM-based structured extraction (La
 
 ```bash
 pip install docpipe-sdk                  # Core only
-pip install "docpipe-sdk[docling]"       # + Document parsing (PDF, DOCX, images, ...)
+pip install "docpipe-sdk[docling]"       # + Document parsing via Docling (PDF, DOCX, images, ...)
+pip install "docpipe-sdk[glm-ocr]"      # + Document parsing via GLM-OCR (state-of-the-art OCR)
 pip install "docpipe-sdk[langextract]"   # + Google LangExtract
 pip install "docpipe-sdk[openai]"        # + OpenAI embeddings & LLM
 pip install "docpipe-sdk[google]"        # + Google Gemini
@@ -47,9 +48,14 @@ pip install "docpipe-sdk[all]"           # Everything
 ```python
 import docpipe
 
+# Default: Docling parser
 doc = docpipe.parse("invoice.pdf")
 print(doc.markdown)
 print(doc.text)
+
+# GLM-OCR parser (state-of-the-art OCR, best for scanned/image-heavy docs)
+doc = docpipe.parse("scanned_report.pdf", parser="glm-ocr")
+print(doc.markdown)
 ```
 
 ### Extract structured data
@@ -303,7 +309,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for a full walkthrough.
 
 | Component | Providers |
 |---|---|
-| **Parsing** | Docling (PDF, DOCX, XLSX, PPTX, HTML, images, audio, video) |
+| **Parsing** | Docling (PDF, DOCX, XLSX, PPTX, HTML, images), GLM-OCR (state-of-the-art multimodal OCR) |
 | **Extraction** | LangExtract (Google), LangChain `with_structured_output` |
 | **Embeddings** | OpenAI, Google Gemini, Ollama, HuggingFace |
 | **Vector store** | PostgreSQL + pgvector |

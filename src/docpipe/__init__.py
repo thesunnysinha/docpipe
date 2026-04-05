@@ -55,6 +55,13 @@ def _register_builtins() -> None:
         pass
 
     try:
+        from docpipe.parsers.glm_ocr_parser import GLMOCRParser
+
+        registry.register_parser("glm-ocr", GLMOCRParser)
+    except ImportError:
+        pass
+
+    try:
         from docpipe.extractors.langextract_extractor import LangExtractExtractor
 
         registry.register_extractor("langextract", LangExtractExtractor)
