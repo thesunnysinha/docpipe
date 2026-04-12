@@ -38,7 +38,7 @@ class LangExtractExtractor:
 
         try:
             raw = lx.extract(
-                text=text,
+                text,
                 prompt_description=schema.description,
                 examples=examples,
                 model_id=schema.model_id,
@@ -51,7 +51,9 @@ class LangExtractExtractor:
         for e in raw:
             source_span = None
             if e.char_interval is not None:
-                source_span = SourceSpan(start=e.char_interval[0], end=e.char_interval[1])
+                source_span = SourceSpan(
+                    start=e.char_interval.start, end=e.char_interval.end
+                )
 
             results.append(
                 ExtractionResult(
@@ -85,10 +87,25 @@ class LangExtractExtractor:
     @staticmethod
     def _build_examples(schema: ExtractionSchema) -> list[Any]:
         """Convert schema examples to LangExtract ExampleData objects."""
-        if not schema.examples:
-            return []
+        from langextract.data import ExampleData, Extraction
 
-        import langextract as lx
+        if not schema.examples:
+            # LangExtract requires at least one example — provide a minimal placeholder
+            entity_class = (
+                schema.entity_classes[0] if schema.entity_classes else schema.description or "entity"
+            )
+            return [
+                ExampleData(
+                    text=f"Example {entity_class} text.",
+                    extractions=[
+                        Extraction(
+                            extraction_class=entity_class,
+                            extraction_text=f"Example {entity_class} text.",
+                            attributes={},
+                        )
+                    ],
+                )
+            ]
 
         examples = []
         for ex in schema.examples:
@@ -96,11 +113,11 @@ class LangExtractExtractor:
             extractions = []
             for ext in ex.get("extractions", []):
                 extractions.append(
-                    lx.Extraction(
+                    Extraction(
                         extraction_class=ext.get("entity_class", ""),
                         extraction_text=ext.get("text", ""),
                         attributes=ext.get("attributes", {}),
                     )
                 )
-            examples.append(lx.ExampleData(text=text, extractions=extractions))
+            examples.append(ExampleData(text=text, extractions=extractions))
         return examples

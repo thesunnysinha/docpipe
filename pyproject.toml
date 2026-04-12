@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "docpipe-sdk"
-version = "0.4.0"
+version = "0.4.1"
 description = "Unified document parsing, structured extraction, vector ingestion, and RAG pipeline SDK"
 readme = "README.md"
 license = "MIT"
@@ -41,14 +41,15 @@ docling = ["docling>=2.0"]
 glm-ocr = ["glmocr>=0.1"]
 langextract = ["langextract>=0.1"]
 openai = ["langchain-openai>=0.3"]
+anthropic = ["langchain-anthropic>=0.3"]
 google = ["langchain-google-genai>=2.0"]
 ollama = ["langchain-ollama>=0.3"]
 huggingface = ["langchain-huggingface>=0.1"]
-pgvector = ["langchain-postgres>=0.0.12"]
+pgvector = ["langchain-postgres>=0.0.12", "psycopg2-binary>=2.9"]
 server = ["fastapi>=0.100", "uvicorn[standard]>=0.20", "python-multipart>=0.0.6"]
-rag = ["langchain-community>=0.3", "langchain>=0.2"]
+rag = ["langchain-community>=0.3", "langchain-classic>=0.1", "rank-bm25>=0.2"]
 rerank = ["flashrank>=0.2"]
-all = ["docpipe-sdk[docling,glm-ocr,langextract,openai,google,ollama,pgvector,server,rag,rerank]"]
+all = ["docpipe-sdk[docling,glm-ocr,langextract,openai,anthropic,google,ollama,pgvector,server,rag,rerank]"]
 dev = [
     "pytest>=7.0",
     "pytest-asyncio>=0.21",

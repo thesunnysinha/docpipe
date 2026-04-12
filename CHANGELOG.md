@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.1] - 2026-04-11
+
+### Fixed
+
+- `LangExtractExtractor`: changed `lx.extract(text=text, ...)` to positional arg `lx.extract(text, ...)` to match updated API
+- `LangExtractExtractor`: fixed `e.char_interval[0]`/`[1]` → `e.char_interval.start`/`.end` for `CharInterval` named attributes
+- `LangExtractExtractor`: fixed import paths — `ExampleData` and `Extraction` now imported from `langextract.data`
+- `LangExtractExtractor`: provide a minimal placeholder example when `schema.examples` is empty (LangExtract requires at least one)
+- `RAGPipeline` hybrid strategy: changed `from langchain.retrievers` → `from langchain_classic.retrievers` for `EnsembleRetriever`
+- Added missing optional deps: `psycopg2-binary` to `[pgvector]`, `rank-bm25` and `langchain-classic` to `[rag]`, new `[anthropic]` extra for `langchain-anthropic`
+
 ## [0.4.0] - 2026-04-05
 
 ### Added
