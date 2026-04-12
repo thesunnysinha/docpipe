@@ -358,10 +358,10 @@ class RAGPipeline:
                 "Install with: pip install 'docpipe-sdk[rag]'"
             ) from err
         try:
-            from langchain.retrievers import EnsembleRetriever
+            from langchain_classic.retrievers import EnsembleRetriever
         except ImportError as err:
             raise RAGError(
-                "Hybrid strategy requires langchain. "
+                "Hybrid strategy requires langchain-classic. "
                 "Install with: pip install 'docpipe-sdk[rag]'"
             ) from err
 
