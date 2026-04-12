@@ -5,18 +5,19 @@ Unified document parsing, structured extraction, vector ingestion, and RAG pipel
 [![PyPI](https://img.shields.io/pypi/v/docpipe-sdk)](https://pypi.org/project/docpipe-sdk/)
 [![Python](https://img.shields.io/pypi/pyversions/docpipe-sdk)](https://pypi.org/project/docpipe-sdk/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Docker](https://img.shields.io/badge/ghcr.io-docpipe-6366f1?logo=docker&logoColor=white)](https://ghcr.io/thesunnysinha/docpipe)
 [![Website](https://img.shields.io/badge/website-docpipe.sunnysinha.online-6366f1)](https://docpipe.sunnysinha.online)
 
 ## Overview
 
-docpipe connects document parsing (Docling), LLM-based structured extraction (LangExtract + LangChain), vector ingestion (pgvector via LangChain), and RAG querying into a single composable pipeline.
+docpipe connects document parsing (Docling / GLM-OCR), LLM-based structured extraction (LangExtract + LangChain), vector ingestion (pgvector), and RAG querying into a single composable pipeline.
 
 **Four independent pipelines, composable together:**
 
 1. **Parse** — Unstructured docs → parsed text/markdown via Docling or GLM-OCR
 2. **Extract** — Text → structured entities via LLM (LangExtract or LangChain)
 3. **Ingest** — Parsed chunks → embeddings → your vector DB (LangChain + pgvector)
-4. **RAG** — Questions → grounded answers with source citations (5 retrieval strategies)
+4. **RAG** — Questions → grounded answers with source citations (6 retrieval strategies)
 
 > docpipe never stores your data. It connects to your infrastructure and gets out of the way.
 
@@ -27,13 +28,14 @@ docpipe connects document parsing (Docling), LLM-based structured extraction (La
 ```bash
 pip install docpipe-sdk                  # Core only
 pip install "docpipe-sdk[docling]"       # + Document parsing via Docling (PDF, DOCX, images, ...)
-pip install "docpipe-sdk[glm-ocr]"      # + Document parsing via GLM-OCR (state-of-the-art OCR)
+pip install "docpipe-sdk[glm-ocr]"       # + Document parsing via GLM-OCR (state-of-the-art OCR)
 pip install "docpipe-sdk[langextract]"   # + Google LangExtract
 pip install "docpipe-sdk[openai]"        # + OpenAI embeddings & LLM
+pip install "docpipe-sdk[anthropic]"     # + Anthropic Claude
 pip install "docpipe-sdk[google]"        # + Google Gemini
 pip install "docpipe-sdk[ollama]"        # + Ollama (local models)
 pip install "docpipe-sdk[pgvector]"      # + PostgreSQL vector store
-pip install "docpipe-sdk[rag]"           # + Hybrid search (BM25)
+pip install "docpipe-sdk[rag]"           # + Hybrid search (BM25 + langchain-classic)
 pip install "docpipe-sdk[rerank]"        # + Local reranking (FlashRank)
 pip install "docpipe-sdk[server]"        # + FastAPI server
 pip install "docpipe-sdk[all]"           # Everything
@@ -111,7 +113,7 @@ rag_config = docpipe.RAGConfig(
     embedding_model="text-embedding-3-small",
     llm_provider="openai",
     llm_model="gpt-4o",
-    strategy="hyde",   # naive | hyde | multi_query | parent_document | hybrid
+    strategy="hyde",   # naive | hyde | multi_query | parent_document | hybrid | auto
 )
 result = docpipe.rag("What is the total amount on the invoice?", config=rag_config)
 print(result.answer)   # grounded answer with inline citations
@@ -142,7 +144,7 @@ summary = result.structured  # InvoiceSummary(total=4250.0, currency='USD', vend
 rag_config = docpipe.RAGConfig(
     ...,
     strategy="naive",
-    reranker="flashrank",   # local, no API key (pip install docpipe-sdk[rerank])
+    reranker="flashrank",   # local, no API key (pip install "docpipe-sdk[rerank]")
     rerank_top_n=5,
 )
 ```
@@ -162,7 +164,7 @@ questions = [
 cfg = EvalConfig(rag_config=rag_config, questions=questions,
                  metrics=["hit_rate", "answer_similarity"])
 result = EvalPipeline(cfg).run()
-print(result.metrics.hit_rate)         # 0.9
+print(result.metrics.hit_rate)          # 0.9
 print(result.metrics.answer_similarity) # 0.85
 ```
 
@@ -177,6 +179,7 @@ print(result.metrics.answer_similarity) # 0.85
 | `multi_query` | Expand into N query variants → union results | Vague or short queries |
 | `parent_document` | Retrieve seed chunks → expand context by source | Long documents, context coherence |
 | `hybrid` | Dense vector + BM25 keyword via EnsembleRetriever | Exact terms, proper nouns, IDs |
+| `auto` | LLM classifies question → dispatches to optimal strategy | Mixed workloads, unknown query types |
 
 ---
 
@@ -238,8 +241,6 @@ Start the FastAPI server:
 
 ```bash
 docpipe serve --host 0.0.0.0 --port 8000
-# or via Docker
-docker run -p 8000:8000 --env-file .env docpipe
 ```
 
 Endpoints:
@@ -260,19 +261,82 @@ Endpoints:
 
 ## Docker
 
+The official image is published to GitHub Container Registry and updated automatically on every release.
+
 ```bash
-# API server
-docker run -p 8000:8000 --env-file .env docpipe
+docker pull ghcr.io/thesunnysinha/docpipe:latest
+```
 
-# Parse in container
-docker run -v ./data:/data docpipe parse /data/invoice.pdf --format markdown
+### Run the API server
 
-# Ingest from container
-docker run --env-file .env docpipe ingest /data/invoice.pdf \
-    --db "postgresql://user:pass@mydb.example.com:5432/mydb" \
-    --table invoices \
+```bash
+docker run -p 8000:8000 --env-file .env \
+    ghcr.io/thesunnysinha/docpipe:latest
+```
+
+### Parse or ingest a document
+
+```bash
+# Parse
+docker run -v ./data:/data \
+    ghcr.io/thesunnysinha/docpipe:latest \
+    parse /data/invoice.pdf --format markdown
+
+# Ingest
+docker run --env-file .env -v ./data:/data \
+    ghcr.io/thesunnysinha/docpipe:latest \
+    ingest /data/invoice.pdf \
+    --db "postgresql://..." --table invoices \
     --embedding-provider openai --embedding-model text-embedding-3-small
 ```
+
+### Docker Compose — server + pgvector (zero config)
+
+```bash
+cp .env.example .env   # fill in your API key
+docker compose up -d
+```
+
+```yaml
+# docker-compose.yml
+services:
+  docpipe:
+    image: ghcr.io/thesunnysinha/docpipe:latest
+    ports:
+      - "8000:8000"
+    env_file: .env
+    volumes:
+      - ./data:/data
+    depends_on:
+      db:
+        condition: service_healthy
+
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: docpipe
+      POSTGRES_PASSWORD: docpipe
+      POSTGRES_DB: docpipe
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U docpipe"]
+      interval: 5s
+      retries: 5
+
+volumes:
+  pgdata:
+```
+
+A full-stack variant with Adminer (DB UI) is in [`docker-compose.full.yml`](docker-compose.full.yml).
+
+### Available tags
+
+| Tag | Description |
+|---|---|
+| `latest` | Most recent build from `main` |
+| `0.4.1`, `0.4` | Specific release versions |
+| `sha-<hash>` | Exact commit build |
 
 ---
 
@@ -313,7 +377,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for a full walkthrough.
 | **Extraction** | LangExtract (Google), LangChain `with_structured_output` |
 | **Embeddings** | OpenAI, Google Gemini, Ollama, HuggingFace |
 | **Vector store** | PostgreSQL + pgvector |
-| **LLM (RAG)** | OpenAI, Google Gemini, Ollama, Anthropic |
+| **LLM (RAG)** | OpenAI, Anthropic Claude, Google Gemini, Ollama |
 | **Reranking** | FlashRank (local), Cohere |
 
 ---
