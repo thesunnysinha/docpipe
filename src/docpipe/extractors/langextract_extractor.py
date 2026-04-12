@@ -92,7 +92,9 @@ class LangExtractExtractor:
         if not schema.examples:
             # LangExtract requires at least one example — provide a minimal placeholder
             entity_class = (
-                schema.entity_classes[0] if schema.entity_classes else schema.description or "entity"
+                schema.entity_classes[0]
+                if schema.entity_classes
+                else schema.description or "entity"
             )
             return [
                 ExampleData(
