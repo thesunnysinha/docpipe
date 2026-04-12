@@ -1,0 +1,48 @@
+# docpipe — full stack: API server + pgvector + Adminer (DB UI)
+# Usage:
+#   cp .env.example .env
+#   docker compose -f docker-compose.full.yml up -d
+
+services:
+  docpipe:
+    image: ghcr.io/thesunnysinha/docpipe:latest
+    ports:
+      - "8000:8000"
+    env_file: .env
+    environment:
+      - DB_CONNECTION_STRING=postgresql://docpipe:docpipe@db:5432/docpipe
+    volumes:
+      - ./data:/data
+      - ./docpipe.yaml:/app/docpipe.yaml:ro
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: docpipe
+      POSTGRES_PASSWORD: docpipe
+      POSTGRES_DB: docpipe
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U docpipe"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+  adminer:
+    image: adminer:latest
+    ports:
+      - "8080:8080"
+    depends_on:
+      - db
+    restart: unless-stopped
+
+volumes:
+  pgdata:
