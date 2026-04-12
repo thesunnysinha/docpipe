@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.2] - 2026-04-12
+
+### Changed
+
+- README: add Docker / Docker Compose quickstart, GHCR image reference and tags table
+- README: add `anthropic` to install options, update RAG strategies table with `auto` (6 total)
+- Add `docker-compose.yml` (server + pgvector), `docker-compose.full.yml` (+ Adminer), `.env.example`
+
 ## [0.4.1] - 2026-04-11
 
 ### Fixed
