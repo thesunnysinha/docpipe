@@ -1,0 +1,37 @@
+# docpipe — minimal setup: API server + pgvector database
+# Usage:
+#   cp .env.example .env        # fill in your API keys
+#   docker compose up -d
+
+services:
+  docpipe:
+    image: ghcr.io/thesunnysinha/docpipe:latest
+    ports:
+      - "8000:8000"
+    env_file: .env
+    volumes:
+      - ./data:/data
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: docpipe
+      POSTGRES_PASSWORD: docpipe
+      POSTGRES_DB: docpipe
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U docpipe"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  pgdata:
