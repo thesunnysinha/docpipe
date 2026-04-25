@@ -5,7 +5,9 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+import re
+
+from pydantic import BaseModel, Field, field_validator
 
 
 class DocumentFormat(str, Enum):
@@ -122,6 +124,13 @@ class DeleteRequest(BaseModel):
     connection_string: str
     table_name: str
     source: str
+
+    @field_validator("table_name")
+    @classmethod
+    def _validate_table_name(cls, v: str) -> str:
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", v):
+            raise ValueError("table_name must be a valid PostgreSQL identifier (letters, digits, underscores only)")
+        return v
 
 
 class DeleteResponse(BaseModel):

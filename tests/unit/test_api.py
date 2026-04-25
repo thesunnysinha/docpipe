@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
+import psycopg2.errors
 import pytest
 from fastapi.testclient import TestClient
 
@@ -18,10 +19,8 @@ def test_delete_by_source_removes_chunks(mock_psycopg2, client):
     mock_conn = MagicMock()
     mock_cursor = MagicMock()
     mock_cursor.rowcount = 3
-    mock_conn.cursor.return_value.__enter__ = lambda s: mock_cursor
-    mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
-    mock_psycopg2.connect.return_value.__enter__ = lambda s: mock_conn
-    mock_psycopg2.connect.return_value.__exit__ = MagicMock(return_value=False)
+    mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+    mock_psycopg2.connect.return_value.__enter__.return_value = mock_conn
 
     resp = client.request(
         "DELETE",
@@ -44,11 +43,10 @@ def test_delete_by_source_removes_chunks(mock_psycopg2, client):
 def test_delete_table_not_found_returns_404(mock_psycopg2, client):
     mock_conn = MagicMock()
     mock_cursor = MagicMock()
-    mock_cursor.execute.side_effect = Exception('relation "nonexistent" does not exist')
-    mock_conn.cursor.return_value.__enter__ = lambda s: mock_cursor
-    mock_conn.cursor.return_value.__exit__ = MagicMock(return_value=False)
-    mock_psycopg2.connect.return_value.__enter__ = lambda s: mock_conn
-    mock_psycopg2.connect.return_value.__exit__ = MagicMock(return_value=False)
+    mock_cursor.execute.side_effect = psycopg2.errors.UndefinedTable('relation "nonexistent" does not exist')
+    mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
+    mock_psycopg2.connect.return_value.__enter__.return_value = mock_conn
+    mock_psycopg2.errors.UndefinedTable = psycopg2.errors.UndefinedTable
 
     resp = client.request(
         "DELETE",
@@ -60,3 +58,17 @@ def test_delete_table_not_found_returns_404(mock_psycopg2, client):
         },
     )
     assert resp.status_code == 404
+
+
+@patch("docpipe.server.app.psycopg2")
+def test_delete_invalid_table_name_returns_422(mock_psycopg2, client):
+    resp = client.request(
+        "DELETE",
+        "/ingest",
+        json={
+            "connection_string": "postgresql://test/db",
+            "table_name": "docs; DROP TABLE langchain_pg_embedding; --",
+            "source": "doc.pdf",
+        },
+    )
+    assert resp.status_code == 422

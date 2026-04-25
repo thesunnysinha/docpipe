@@ -278,9 +278,9 @@ def create_app() -> Any:
                 source=req.source,
                 chunks_deleted=deleted,
             )
+        except psycopg2.errors.UndefinedTable as exc:
+            raise HTTPException(status_code=404, detail=f"Table '{req.table_name}' not found") from exc
         except Exception as exc:
-            if "does not exist" in str(exc):
-                raise HTTPException(status_code=404, detail=f"Table '{req.table_name}' not found") from exc
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     @app.post("/search", response_model=SearchResponse)
