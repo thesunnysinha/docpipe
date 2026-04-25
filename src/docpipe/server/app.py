@@ -6,9 +6,9 @@ import logging
 from typing import Any
 
 import psycopg2
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
-from docpipe.core.types import DeleteRequest, DeleteResponse, RAGConfig
+from docpipe.core.types import DeleteRequest, DeleteResponse, RAGConfig, validate_table_name
 from docpipe.rag.pipeline import RAGPipeline
 
 logger = logging.getLogger(__name__)
@@ -64,6 +64,8 @@ class IngestRequest(BaseModel):
     chunk_overlap: int = 200
     ingest_mode: str = "both"
 
+    _validate_table_name = field_validator("table_name")(validate_table_name)
+
 
 class IngestResponse(BaseModel):
     source: str
@@ -80,6 +82,8 @@ class SearchRequest(BaseModel):
     embedding_model: str
     top_k: int = 10
     filters: dict[str, Any] = Field(default_factory=dict)
+
+    _validate_table_name = field_validator("table_name")(validate_table_name)
 
 
 class SearchResponse(BaseModel):
@@ -113,6 +117,8 @@ class RAGQueryRequest(BaseModel):
     rerank_top_n: int | None = None
     filters: dict[str, Any] = Field(default_factory=dict)
 
+    _validate_table_name = field_validator("table_name")(validate_table_name)
+
 
 class RAGChunkResponse(BaseModel):
     content: str
@@ -141,6 +147,8 @@ class EvaluateRequest(BaseModel):
     llm_model: str
     strategy: str = "naive"
     metrics: list[str] = Field(default_factory=lambda: ["hit_rate", "answer_similarity"])
+
+    _validate_table_name = field_validator("table_name")(validate_table_name)
 
 
 class EvaluateResponse(BaseModel):

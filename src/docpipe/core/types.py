@@ -86,6 +86,15 @@ class PipelineResult(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
+def validate_table_name(v: str) -> str:
+    """Validate that a string is a safe PostgreSQL identifier."""
+    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", v):
+        raise ValueError(
+            "table_name must be a valid PostgreSQL identifier (letters, digits, underscores only)"
+        )
+    return v
+
+
 class IngestionConfig(BaseModel):
     """Configuration for the ingestion pipeline."""
 
@@ -105,6 +114,8 @@ class IngestionConfig(BaseModel):
     contextual_injection: bool = False
     contextual_llm_provider: str = "openai"
     contextual_llm_model: str = "gpt-4o-mini"
+
+    _validate_table_name = field_validator("table_name")(validate_table_name)
 
 
 class IngestionResult(BaseModel):
@@ -181,6 +192,8 @@ class RAGConfig(BaseModel):
     cache_max_size: int = 100
     # Metadata filtering
     filters: dict[str, Any] = Field(default_factory=dict)
+
+    _validate_table_name = field_validator("table_name")(validate_table_name)
 
 
 class RAGChunk(BaseModel):

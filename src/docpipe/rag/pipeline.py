@@ -393,7 +393,11 @@ class RAGPipeline:
 
         bm25 = BM25Retriever.from_documents(all_docs)
         bm25.k = self._config.top_k
-        vector_retriever = vs.as_retriever(search_kwargs={"k": self._config.top_k})
+        filter_arg = self._config.filters or None
+        search_kwargs: dict[str, Any] = {"k": self._config.top_k}
+        if filter_arg:
+            search_kwargs["filter"] = filter_arg
+        vector_retriever = vs.as_retriever(search_kwargs=search_kwargs)
         w = self._config.hybrid_bm25_weight
         ensemble = EnsembleRetriever(retrievers=[bm25, vector_retriever], weights=[w, 1.0 - w])
 
