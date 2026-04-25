@@ -167,7 +167,7 @@ def create_app() -> Any:
 
     from docpipe._version import __version__
     from docpipe.core.errors import DocpipeError
-    from docpipe.core.types import DeleteRequest, DeleteResponse, ExtractionSchema, IngestionConfig
+    from docpipe.core.types import ExtractionSchema, IngestionConfig
     from docpipe.registry.registry import PluginRegistry
 
     app = FastAPI(
@@ -278,21 +278,22 @@ def create_app() -> Any:
     @app.delete("/ingest", response_model=DeleteResponse)
     async def delete_document(req: DeleteRequest) -> DeleteResponse:
         try:
-            with psycopg2.connect(req.connection_string) as conn:
-                with conn.cursor() as cur:
-                    sql = (
-                        f"DELETE FROM {req.table_name} "  # noqa: S608
-                        "WHERE cmetadata->>'source' = %s"
-                    )
-                    cur.execute(sql, [req.source])
-                    deleted = cur.rowcount
+            with psycopg2.connect(req.connection_string) as conn, conn.cursor() as cur:
+                sql = (
+                    f"DELETE FROM {req.table_name} "  # noqa: S608
+                    "WHERE cmetadata->>'source' = %s"
+                )
+                cur.execute(sql, [req.source])
+                deleted = cur.rowcount
             return DeleteResponse(
                 table_name=req.table_name,
                 source=req.source,
                 chunks_deleted=deleted,
             )
         except psycopg2.errors.UndefinedTable as exc:
-            raise HTTPException(status_code=404, detail=f"Table '{req.table_name}' not found") from exc
+            raise HTTPException(
+                status_code=404, detail=f"Table '{req.table_name}' not found"
+            ) from exc
         except Exception as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
