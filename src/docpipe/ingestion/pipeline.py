@@ -189,7 +189,7 @@ class IngestionPipeline:
                 collection_name=self._config.table_name,
                 connection=self._config.connection_string,
             )
-            results = vectorstore.similarity_search_with_score(query, k=top_k, filter=filters)
+            results = vectorstore.similarity_search_with_score(query, k=top_k, filter=filters or None)
             return [
                 {
                     "content": doc.page_content,
