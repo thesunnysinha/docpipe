@@ -5,7 +5,11 @@ from __future__ import annotations
 import logging
 from typing import Any
 
-from pydantic import BaseModel, Field
+import psycopg2
+from pydantic import BaseModel, Field, field_validator
+
+from docpipe.core.types import DeleteRequest, DeleteResponse, RAGConfig, validate_table_name
+from docpipe.rag.pipeline import RAGPipeline
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +64,8 @@ class IngestRequest(BaseModel):
     chunk_overlap: int = 200
     ingest_mode: str = "both"
 
+    _validate_table_name = field_validator("table_name")(validate_table_name)
+
 
 class IngestResponse(BaseModel):
     source: str
@@ -75,6 +81,9 @@ class SearchRequest(BaseModel):
     embedding_provider: str
     embedding_model: str
     top_k: int = 10
+    filters: dict[str, Any] = Field(default_factory=dict)
+
+    _validate_table_name = field_validator("table_name")(validate_table_name)
 
 
 class SearchResponse(BaseModel):
@@ -98,6 +107,7 @@ class RAGQueryRequest(BaseModel):
     strategy: str = "naive"
     top_k: int = 5
     system_prompt: str | None = None
+    history: list[dict[str, str]] = Field(default_factory=list)
     hyde_prompt: str | None = None
     multi_query_count: int = 3
     parent_window_size: int = 3
@@ -105,6 +115,9 @@ class RAGQueryRequest(BaseModel):
     reranker: str = "none"
     reranker_model: str | None = None
     rerank_top_n: int | None = None
+    filters: dict[str, Any] = Field(default_factory=dict)
+
+    _validate_table_name = field_validator("table_name")(validate_table_name)
 
 
 class RAGChunkResponse(BaseModel):
@@ -135,6 +148,8 @@ class EvaluateRequest(BaseModel):
     strategy: str = "naive"
     metrics: list[str] = Field(default_factory=lambda: ["hit_rate", "answer_similarity"])
 
+    _validate_table_name = field_validator("table_name")(validate_table_name)
+
 
 class EvaluateResponse(BaseModel):
     metrics: dict[str, Any]
@@ -148,10 +163,11 @@ class EvaluateResponse(BaseModel):
 def create_app() -> Any:
     """Create the FastAPI application."""
     from fastapi import FastAPI, HTTPException
+    from fastapi.responses import StreamingResponse
 
     from docpipe._version import __version__
     from docpipe.core.errors import DocpipeError
-    from docpipe.core.types import ExtractionSchema, IngestionConfig
+    from docpipe.core.types import DeleteRequest, DeleteResponse, ExtractionSchema, IngestionConfig
     from docpipe.registry.registry import PluginRegistry
 
     app = FastAPI(
@@ -259,6 +275,27 @@ def create_app() -> Any:
         except DocpipeError as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
 
+    @app.delete("/ingest", response_model=DeleteResponse)
+    async def delete_document(req: DeleteRequest) -> DeleteResponse:
+        try:
+            with psycopg2.connect(req.connection_string) as conn:
+                with conn.cursor() as cur:
+                    sql = (
+                        f"DELETE FROM {req.table_name} "  # noqa: S608
+                        "WHERE cmetadata->>'source' = %s"
+                    )
+                    cur.execute(sql, [req.source])
+                    deleted = cur.rowcount
+            return DeleteResponse(
+                table_name=req.table_name,
+                source=req.source,
+                chunks_deleted=deleted,
+            )
+        except psycopg2.errors.UndefinedTable as exc:
+            raise HTTPException(status_code=404, detail=f"Table '{req.table_name}' not found") from exc
+        except Exception as exc:
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
+
     @app.post("/search", response_model=SearchResponse)
     async def search_documents(req: SearchRequest) -> SearchResponse:
         try:
@@ -271,7 +308,7 @@ def create_app() -> Any:
                 embedding_model=req.embedding_model,
             )
             ingestion = IngestionPipeline(config)
-            results = ingestion.search(req.query, top_k=req.top_k)
+            results = ingestion.search(req.query, top_k=req.top_k, filters=req.filters)
             return SearchResponse(results=results)
         except DocpipeError as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
@@ -291,9 +328,6 @@ def create_app() -> Any:
     @app.post("/rag/query", response_model=RAGQueryResponse)
     async def rag_query(req: RAGQueryRequest) -> RAGQueryResponse:
         try:
-            from docpipe.core.types import RAGConfig
-            from docpipe.rag.pipeline import RAGPipeline
-
             config = RAGConfig(
                 connection_string=req.connection_string,
                 table_name=req.table_name,
@@ -304,6 +338,7 @@ def create_app() -> Any:
                 strategy=req.strategy,
                 top_k=req.top_k,
                 system_prompt=req.system_prompt,
+                history=req.history,
                 hyde_prompt=req.hyde_prompt,
                 multi_query_count=req.multi_query_count,
                 parent_window_size=req.parent_window_size,
@@ -311,6 +346,7 @@ def create_app() -> Any:
                 reranker=req.reranker,  # type: ignore[arg-type]
                 reranker_model=req.reranker_model,
                 rerank_top_n=req.rerank_top_n,
+                filters=req.filters,
             )
             pipeline = RAGPipeline(config)
             result = await pipeline.aquery(req.question)
@@ -324,6 +360,47 @@ def create_app() -> Any:
             )
         except DocpipeError as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
+
+    @app.post("/rag/stream", response_class=StreamingResponse)
+    async def rag_stream(req: RAGQueryRequest) -> StreamingResponse:
+        try:
+            config = RAGConfig(
+                connection_string=req.connection_string,
+                table_name=req.table_name,
+                embedding_provider=req.embedding_provider,
+                embedding_model=req.embedding_model,
+                llm_provider=req.llm_provider,
+                llm_model=req.llm_model,
+                strategy=req.strategy,
+                top_k=req.top_k,
+                system_prompt=req.system_prompt,
+                history=req.history,
+                hyde_prompt=req.hyde_prompt,
+                multi_query_count=req.multi_query_count,
+                parent_window_size=req.parent_window_size,
+                hybrid_bm25_weight=req.hybrid_bm25_weight,
+                reranker=req.reranker,  # type: ignore[arg-type]
+                reranker_model=req.reranker_model,
+                rerank_top_n=req.rerank_top_n,
+                filters=req.filters,
+                stream=True,
+            )
+            pipeline = RAGPipeline(config)
+        except DocpipeError as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
+
+        # NOTE: stream_query() is synchronous and blocks the event loop.
+        # Acceptable for single-worker deployments; for async scale, wrap with asyncio.to_thread.
+        def generate():
+            try:
+                for token in pipeline.stream_query(req.question):
+                    yield f"data: {token}\n\n"
+                yield "data: [DONE]\n\n"
+            except Exception as exc:  # noqa: BLE001
+                logger.exception("stream_query failed")
+                yield f"event: error\ndata: {exc}\n\n"
+
+        return StreamingResponse(generate(), media_type="text/event-stream")
 
     @app.post("/evaluate/run", response_model=EvaluateResponse)
     async def evaluate_run(req: EvaluateRequest) -> EvaluateResponse:

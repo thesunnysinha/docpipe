@@ -167,32 +167,43 @@ class RAGPipeline:
 
     def _generate(self, question: str, context: str) -> tuple[str, Any]:
         """Generate an answer. Returns (text, structured_or_None)."""
-        from langchain_core.messages import HumanMessage
+        from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+
+        system_text = (self._config.system_prompt or DEFAULT_SYSTEM_PROMPT).format(
+            context=context, question=question
+        )
+        messages: list[Any] = [SystemMessage(content=system_text)]
+        for turn in self._config.history:
+            if turn["role"] == "user":
+                messages.append(HumanMessage(content=turn["content"]))
+            elif turn["role"] == "assistant":
+                messages.append(AIMessage(content=turn["content"]))
+        messages.append(HumanMessage(content=question))
 
         if self._config.output_model is not None:
             structured_llm = self._llm.with_structured_output(self._config.output_model)
-            prompt = (
-                (self._config.system_prompt or DEFAULT_SYSTEM_PROMPT)
-                .replace("{context}", context)
-                .replace("{question}", question)
-            )
-            result = structured_llm.invoke(prompt)
+            result = structured_llm.invoke(messages)
             return result.model_dump_json(), result
 
-        prompt = (self._config.system_prompt or DEFAULT_SYSTEM_PROMPT).format(
-            context=context, question=question
-        )
-        response = self._llm.invoke([HumanMessage(content=prompt)])
+        response = self._llm.invoke(messages)
         return response.content, None
 
     def _generate_stream(self, question: str, context: str) -> Iterator[str]:
         """Stream answer tokens from the LLM."""
-        from langchain_core.messages import HumanMessage
+        from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
-        prompt = (self._config.system_prompt or DEFAULT_SYSTEM_PROMPT).format(
+        system_text = (self._config.system_prompt or DEFAULT_SYSTEM_PROMPT).format(
             context=context, question=question
         )
-        for chunk in self._llm.stream([HumanMessage(content=prompt)]):
+        messages: list[Any] = [SystemMessage(content=system_text)]
+        for turn in self._config.history:
+            if turn["role"] == "user":
+                messages.append(HumanMessage(content=turn["content"]))
+            elif turn["role"] == "assistant":
+                messages.append(AIMessage(content=turn["content"]))
+        messages.append(HumanMessage(content=question))
+
+        for chunk in self._llm.stream(messages):
             yield chunk.content
 
     def _rerank(self, chunks: list[RAGChunk], question: str) -> list[RAGChunk]:
@@ -277,7 +288,9 @@ class RAGPipeline:
 
     def _retrieve_naive(self, question: str) -> list[RAGChunk]:
         vs = self._get_vectorstore()
-        docs_scores = vs.similarity_search_with_score(question, k=self._config.top_k)
+        docs_scores = vs.similarity_search_with_score(
+            question, k=self._config.top_k, filter=self._config.filters or None
+        )
         return self._rerank(self._docs_to_chunks(docs_scores), question)
 
     def _retrieve_hyde(self, question: str) -> list[RAGChunk]:
@@ -288,7 +301,9 @@ class RAGPipeline:
         )
         hypothetical_doc = self._llm.invoke([HumanMessage(content=hyde_prompt)]).content
         vs = self._get_vectorstore()
-        docs_scores = vs.similarity_search_with_score(hypothetical_doc, k=self._config.top_k)
+        docs_scores = vs.similarity_search_with_score(
+            hypothetical_doc, k=self._config.top_k, filter=self._config.filters or None
+        )
         return self._rerank(self._docs_to_chunks(docs_scores), question)
 
     def _retrieve_multi_query(self, question: str) -> list[RAGChunk]:
@@ -303,7 +318,9 @@ class RAGPipeline:
         seen: set[str] = set()
         merged: list[tuple[Any, float]] = []
         for q in all_queries:
-            for doc, score in vs.similarity_search_with_score(q, k=self._config.top_k):
+            for doc, score in vs.similarity_search_with_score(
+                q, k=self._config.top_k, filter=self._config.filters or None
+            ):
                 key = doc.page_content[:200]
                 if key not in seen:
                     seen.add(key)
@@ -313,7 +330,9 @@ class RAGPipeline:
 
     def _retrieve_parent_document(self, question: str) -> list[RAGChunk]:
         vs = self._get_vectorstore()
-        seed_docs_scores = vs.similarity_search_with_score(question, k=self._config.top_k)
+        seed_docs_scores = vs.similarity_search_with_score(
+            question, k=self._config.top_k, filter=self._config.filters or None
+        )
         seed_chunks = self._docs_to_chunks(seed_docs_scores)
 
         seen: set[str] = set()
@@ -367,12 +386,18 @@ class RAGPipeline:
 
         vs = self._get_vectorstore()
         candidate_pool_size = self._config.top_k * 10
-        all_docs_scores = vs.similarity_search_with_score(question, k=candidate_pool_size)
+        all_docs_scores = vs.similarity_search_with_score(
+            question, k=candidate_pool_size, filter=self._config.filters or None
+        )
         all_docs = [doc for doc, _ in all_docs_scores]
 
         bm25 = BM25Retriever.from_documents(all_docs)
         bm25.k = self._config.top_k
-        vector_retriever = vs.as_retriever(search_kwargs={"k": self._config.top_k})
+        filter_arg = self._config.filters or None
+        search_kwargs: dict[str, Any] = {"k": self._config.top_k}
+        if filter_arg:
+            search_kwargs["filter"] = filter_arg
+        vector_retriever = vs.as_retriever(search_kwargs=search_kwargs)
         w = self._config.hybrid_bm25_weight
         ensemble = EnsembleRetriever(retrievers=[bm25, vector_retriever], weights=[w, 1.0 - w])
 
@@ -422,7 +447,9 @@ class RAGPipeline:
         hypothetical_doc = self._llm.invoke([HumanMessage(content=hyde_prompt)]).content
 
         vs = self._get_vectorstore()
-        docs_scores = vs.similarity_search_with_score(hypothetical_doc, k=self._config.top_k)
+        docs_scores = vs.similarity_search_with_score(
+            hypothetical_doc, k=self._config.top_k, filter=self._config.filters or None
+        )
         chunks = self._rerank(self._docs_to_chunks(docs_scores), question)
         answer, structured = self._generate(question, self._build_context(chunks))
         result = self._make_result(question, answer, chunks, structured)
@@ -441,7 +468,9 @@ class RAGPipeline:
         seen: set[str] = set()
         merged: list[tuple[Any, float]] = []
         for q in all_queries:
-            for doc, score in vs.similarity_search_with_score(q, k=self._config.top_k):
+            for doc, score in vs.similarity_search_with_score(
+                q, k=self._config.top_k, filter=self._config.filters or None
+            ):
                 key = doc.page_content[:200]
                 if key not in seen:
                     seen.add(key)
