@@ -19,3 +19,4 @@ htmlcov/
 .vercel
 .worktrees/
 graphify-out/
+tsconfig.tsbuildinfo
