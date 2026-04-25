@@ -8,7 +8,8 @@ from typing import Any
 import psycopg2
 from pydantic import BaseModel, Field
 
-from docpipe.core.types import DeleteRequest, DeleteResponse
+from docpipe.core.types import DeleteRequest, DeleteResponse, RAGConfig
+from docpipe.rag.pipeline import RAGPipeline
 
 logger = logging.getLogger(__name__)
 
@@ -152,6 +153,7 @@ class EvaluateResponse(BaseModel):
 def create_app() -> Any:
     """Create the FastAPI application."""
     from fastapi import FastAPI, HTTPException
+    from fastapi.responses import StreamingResponse
 
     from docpipe._version import __version__
     from docpipe.core.errors import DocpipeError
@@ -316,9 +318,6 @@ def create_app() -> Any:
     @app.post("/rag/query", response_model=RAGQueryResponse)
     async def rag_query(req: RAGQueryRequest) -> RAGQueryResponse:
         try:
-            from docpipe.core.types import RAGConfig
-            from docpipe.rag.pipeline import RAGPipeline
-
             config = RAGConfig(
                 connection_string=req.connection_string,
                 table_name=req.table_name,
@@ -350,6 +349,40 @@ def create_app() -> Any:
             )
         except DocpipeError as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
+
+    @app.post("/rag/stream")
+    async def rag_stream(req: RAGQueryRequest) -> StreamingResponse:
+        config = RAGConfig(
+            connection_string=req.connection_string,
+            table_name=req.table_name,
+            embedding_provider=req.embedding_provider,
+            embedding_model=req.embedding_model,
+            llm_provider=req.llm_provider,
+            llm_model=req.llm_model,
+            strategy=req.strategy,
+            top_k=req.top_k,
+            system_prompt=req.system_prompt,
+            history=req.history,
+            hyde_prompt=req.hyde_prompt,
+            multi_query_count=req.multi_query_count,
+            parent_window_size=req.parent_window_size,
+            hybrid_bm25_weight=req.hybrid_bm25_weight,
+            reranker=req.reranker,  # type: ignore[arg-type]
+            reranker_model=req.reranker_model,
+            rerank_top_n=req.rerank_top_n,
+            stream=True,
+        )
+        pipeline = RAGPipeline(config)
+
+        def generate():
+            try:
+                for token in pipeline.stream_query(req.question):
+                    yield f"data: {token}\n\n"
+                yield "data: [DONE]\n\n"
+            except DocpipeError as e:
+                yield f"data: [ERROR] {e}\n\n"
+
+        return StreamingResponse(generate(), media_type="text/event-stream")
 
     @app.post("/evaluate/run", response_model=EvaluateResponse)
     async def evaluate_run(req: EvaluateRequest) -> EvaluateResponse:
