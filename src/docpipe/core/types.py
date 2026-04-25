@@ -5,7 +5,9 @@ from __future__ import annotations
 from enum import Enum
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+import re
+
+from pydantic import BaseModel, Field, field_validator
 
 
 class DocumentFormat(str, Enum):
@@ -84,6 +86,15 @@ class PipelineResult(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
+def validate_table_name(v: str) -> str:
+    """Validate that a string is a safe PostgreSQL identifier."""
+    if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", v):
+        raise ValueError(
+            "table_name must be a valid PostgreSQL identifier (letters, digits, underscores only)"
+        )
+    return v
+
+
 class IngestionConfig(BaseModel):
     """Configuration for the ingestion pipeline."""
 
@@ -104,6 +115,8 @@ class IngestionConfig(BaseModel):
     contextual_llm_provider: str = "openai"
     contextual_llm_model: str = "gpt-4o-mini"
 
+    _validate_table_name = field_validator("table_name")(validate_table_name)
+
 
 class IngestionResult(BaseModel):
     """Result of an ingestion operation."""
@@ -114,6 +127,29 @@ class IngestionResult(BaseModel):
     table_name: str
     table_created: bool
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+class DeleteRequest(BaseModel):
+    """Request to delete chunks by source from a pgvector table."""
+
+    connection_string: str
+    table_name: str
+    source: str
+
+    @field_validator("table_name")
+    @classmethod
+    def _validate_table_name(cls, v: str) -> str:
+        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", v):
+            raise ValueError("table_name must be a valid PostgreSQL identifier (letters, digits, underscores only)")
+        return v
+
+
+class DeleteResponse(BaseModel):
+    """Result of a delete operation."""
+
+    table_name: str
+    source: str
+    chunks_deleted: int
 
 
 # ---------------------------------------------------------------------------
@@ -143,6 +179,7 @@ class RAGConfig(BaseModel):
     rerank_top_n: int | None = None
     # Generation
     system_prompt: str | None = None
+    history: list[dict[str, str]] = Field(default_factory=list)
     output_model: Any = Field(
         default=None,
         description="Pydantic model class for structured RAG output",
@@ -153,6 +190,10 @@ class RAGConfig(BaseModel):
     cache_enabled: bool = False
     cache_similarity_threshold: float = 0.95
     cache_max_size: int = 100
+    # Metadata filtering
+    filters: dict[str, Any] = Field(default_factory=dict)
+
+    _validate_table_name = field_validator("table_name")(validate_table_name)
 
 
 class RAGChunk(BaseModel):

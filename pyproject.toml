@@ -97,6 +97,7 @@ warn_unused_configs = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 asyncio_mode = "auto"
+pythonpath = ["src"]
 markers = [
     "requires_docling: needs docling installed",
     "requires_langextract: needs langextract installed",
