@@ -57,6 +57,8 @@ dev = [
     "ruff",
     "mypy",
     "httpx",
+    "fastapi>=0.100",
+    "psycopg2-binary>=2.9",
 ]
 
 [project.scripts]
