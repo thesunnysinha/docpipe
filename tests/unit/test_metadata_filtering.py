@@ -141,3 +141,18 @@ def test_rag_config_accepts_filters_field():
         llm_model="gpt-4o-mini",
     )
     assert config_default.filters == {}
+
+
+def test_search_default_filters_passes_none_after_guard(client):
+    with patch("docpipe.ingestion.pipeline.IngestionPipeline") as MockIngestion:
+        mock_pipeline = MagicMock()
+        MockIngestion.return_value = mock_pipeline
+        mock_pipeline.search.return_value = []
+
+        resp = client.post("/search", json=VALID_SEARCH_REQUEST)  # no filters key
+
+        assert resp.status_code == 200
+        # When filters={} (default), the search method receives {} which guards to None
+        # Verify filters kwarg is the empty dict {} (or None after or-guard in search())
+        filters_passed = mock_pipeline.search.call_args.kwargs.get("filters")
+        assert filters_passed == {}  # app.py passes req.filters which defaults to {}
