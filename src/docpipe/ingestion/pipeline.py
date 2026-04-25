@@ -179,7 +179,9 @@ class IngestionPipeline:
         """Async variant."""
         return await asyncio.to_thread(self.ingest, parsed, extractions=extractions)
 
-    def search(self, query: str, top_k: int = 10, filters: dict[str, Any] | None = None) -> list[dict[str, Any]]:
+    def search(
+        self, query: str, top_k: int = 10, filters: dict[str, Any] | None = None
+    ) -> list[dict[str, Any]]:
         """Similarity search against the user's vector DB."""
         try:
             from langchain_postgres import PGVector
@@ -189,7 +191,9 @@ class IngestionPipeline:
                 collection_name=self._config.table_name,
                 connection=self._config.connection_string,
             )
-            results = vectorstore.similarity_search_with_score(query, k=top_k, filter=filters or None)
+            results = vectorstore.similarity_search_with_score(
+                query, k=top_k, filter=filters or None
+            )
             return [
                 {
                     "content": doc.page_content,
