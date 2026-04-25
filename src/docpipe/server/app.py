@@ -350,7 +350,7 @@ def create_app() -> Any:
         except DocpipeError as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
 
-    @app.post("/rag/stream")
+    @app.post("/rag/stream", response_class=StreamingResponse)
     async def rag_stream(req: RAGQueryRequest) -> StreamingResponse:
         try:
             config = RAGConfig(
@@ -377,10 +377,16 @@ def create_app() -> Any:
         except DocpipeError as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
 
+        # NOTE: stream_query() is synchronous and blocks the event loop.
+        # Acceptable for single-worker deployments; for async scale, wrap with asyncio.to_thread.
         def generate():
-            for token in pipeline.stream_query(req.question):
-                yield f"data: {token}\n\n"
-            yield "data: [DONE]\n\n"
+            try:
+                for token in pipeline.stream_query(req.question):
+                    yield f"data: {token}\n\n"
+                yield "data: [DONE]\n\n"
+            except Exception as exc:  # noqa: BLE001
+                logger.exception("stream_query failed")
+                yield f"event: error\ndata: {exc}\n\n"
 
         return StreamingResponse(generate(), media_type="text/event-stream")
 

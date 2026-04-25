@@ -26,39 +26,35 @@ def client():
     return TestClient(create_app())
 
 
-def test_rag_stream_returns_event_stream(client):
+@patch("docpipe.server.app.RAGPipeline")
+@patch("docpipe.server.app.RAGConfig")
+def test_rag_stream_returns_event_stream(MockConfig, MockPipeline, client):
     """Endpoint returns 200 with text/event-stream content type and SSE tokens."""
-    with (
-        patch("docpipe.server.app.RAGPipeline") as mock_pipeline_cls,
-        patch("docpipe.server.app.RAGConfig"),
-    ):
-        mock_pipeline = MagicMock()
-        mock_pipeline.stream_query.return_value = iter(["Hello", " world", "!"])
-        mock_pipeline_cls.return_value = mock_pipeline
+    mock_pipeline = MagicMock()
+    mock_pipeline.stream_query.return_value = iter(["Hello", " world", "!"])
+    MockPipeline.return_value = mock_pipeline
 
-        resp = client.post("/rag/stream", json=VALID_REQUEST)
+    resp = client.post("/rag/stream", json=VALID_REQUEST)
 
     assert resp.status_code == 200
     assert "text/event-stream" in resp.headers["content-type"]
     assert "data: Hello\n\n" in resp.text
     assert "data: [DONE]\n\n" in resp.text
+    # Verify stream=True is passed to RAGConfig
+    assert MockConfig.call_args.kwargs.get("stream") is True
 
 
-def test_rag_stream_all_tokens_present(client):
-    """All tokens from stream_query appear in the SSE response body."""
-    with (
-        patch("docpipe.server.app.RAGPipeline") as mock_pipeline_cls,
-        patch("docpipe.server.app.RAGConfig"),
-    ):
-        mock_pipeline = MagicMock()
-        mock_pipeline.stream_query.return_value = iter(["Hello", " world", "!"])
-        mock_pipeline_cls.return_value = mock_pipeline
+@patch("docpipe.server.app.RAGPipeline")
+@patch("docpipe.server.app.RAGConfig")
+def test_rag_stream_calls_stream_query_with_question(MockConfig, MockPipeline, client):
+    """stream_query is called with the correct question from the request."""
+    mock_pipeline = MagicMock()
+    mock_pipeline.stream_query.return_value = iter(["Answer"])
+    MockPipeline.return_value = mock_pipeline
 
-        resp = client.post("/rag/stream", json=VALID_REQUEST)
+    client.post("/rag/stream", json={"question": "What is docpipe?", **{k: v for k, v in VALID_REQUEST.items() if k != "question"}})
 
-    assert "Hello" in resp.text
-    assert " world" in resp.text
-    assert "!" in resp.text
+    mock_pipeline.stream_query.assert_called_once_with("What is docpipe?")
 
 
 def test_rag_stream_done_sentinel_at_end(client):
