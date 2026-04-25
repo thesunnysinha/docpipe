@@ -101,6 +101,7 @@ class RAGQueryRequest(BaseModel):
     strategy: str = "naive"
     top_k: int = 5
     system_prompt: str | None = None
+    history: list[dict[str, str]] = Field(default_factory=list)
     hyde_prompt: str | None = None
     multi_query_count: int = 3
     parent_window_size: int = 3
@@ -328,6 +329,7 @@ def create_app() -> Any:
                 strategy=req.strategy,
                 top_k=req.top_k,
                 system_prompt=req.system_prompt,
+                history=req.history,
                 hyde_prompt=req.hyde_prompt,
                 multi_query_count=req.multi_query_count,
                 parent_window_size=req.parent_window_size,
