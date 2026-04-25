@@ -179,6 +179,8 @@ class RAGConfig(BaseModel):
     cache_enabled: bool = False
     cache_similarity_threshold: float = 0.95
     cache_max_size: int = 100
+    # Metadata filtering
+    filters: dict[str, Any] = Field(default_factory=dict)
 
 
 class RAGChunk(BaseModel):
