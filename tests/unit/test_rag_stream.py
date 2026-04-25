@@ -76,3 +76,26 @@ def test_rag_stream_done_sentinel_at_end(client):
     assert done_pos != -1, "[DONE] sentinel not found in response"
     assert last_token_pos != -1, "Last token not found in response"
     assert done_pos > last_token_pos, "[DONE] sentinel must appear after the last token"
+
+
+@patch("docpipe.server.app.RAGPipeline")
+@patch("docpipe.server.app.RAGConfig")
+def test_rag_stream_error_mid_stream_yields_error_event(MockConfig, MockPipeline, client):
+    """When stream_query raises, the response contains an SSE error event (status 200)."""
+    mock_pipeline = MagicMock()
+    mock_pipeline.stream_query.side_effect = RuntimeError("boom")
+    MockPipeline.return_value = mock_pipeline
+
+    resp = client.post("/rag/stream", json={
+        "question": "What is docpipe?",
+        "connection_string": "postgresql://test/db",
+        "table_name": "docs",
+        "embedding_provider": "openai",
+        "embedding_model": "text-embedding-3-small",
+        "llm_provider": "openai",
+        "llm_model": "gpt-4o-mini",
+    })
+
+    assert resp.status_code == 200
+    assert "event: error" in resp.text
+    assert "boom" in resp.text
