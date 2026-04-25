@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
+import re
 from enum import Enum
 from typing import Any, Literal
-
-import re
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -140,7 +139,10 @@ class DeleteRequest(BaseModel):
     @classmethod
     def _validate_table_name(cls, v: str) -> str:
         if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", v):
-            raise ValueError("table_name must be a valid PostgreSQL identifier (letters, digits, underscores only)")
+            raise ValueError(
+                "table_name must be a valid PostgreSQL identifier"
+                " (letters, digits, underscores only)"
+            )
         return v
 
 
