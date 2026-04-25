@@ -252,10 +252,58 @@ Endpoints:
 | `POST` | `/extract` | Extract structured data |
 | `POST` | `/run` | Parse + extract |
 | `POST` | `/ingest` | Ingest into vector DB |
-| `POST` | `/search` | Vector similarity search |
-| `POST` | `/rag/query` | RAG question answering |
+| `DELETE` | `/ingest` | Remove all chunks for a source document |
+| `POST` | `/search` | Vector similarity search (supports `filters`) |
+| `POST` | `/rag/query` | RAG question answering (supports `history`, `filters`) |
+| `POST` | `/rag/stream` | Streaming RAG via Server-Sent Events (SSE) |
 | `POST` | `/evaluate/run` | Evaluate RAG quality |
 | `GET` | `/plugins` | List registered plugins |
+
+### Conversation history
+
+Pass prior turns to `/rag/query` or `/rag/stream` for multi-turn RAG:
+
+```python
+history = [
+    {"role": "user", "content": "What is docpipe?"},
+    {"role": "assistant", "content": "docpipe is a document processing SDK..."},
+]
+response = requests.post(f"{BASE}/rag/query", json={..., "history": history})
+```
+
+### Metadata filtering
+
+Filter retrieved chunks by document metadata on `/search`, `/rag/query`, and `/rag/stream`:
+
+```python
+requests.post(f"{BASE}/rag/query", json={..., "filters": {"source": "report.pdf"}})
+```
+
+### Streaming (SSE)
+
+Stream token-by-token answers from `/rag/stream`:
+
+```python
+import sseclient, requests
+
+resp = requests.post(f"{BASE}/rag/stream", json={...}, stream=True)
+for event in sseclient.SSEClient(resp):
+    if event.data == "[DONE]":
+        break
+    print(event.data, end="", flush=True)
+```
+
+### Delete a document
+
+Remove all ingested chunks for a source:
+
+```python
+requests.delete(f"{BASE}/ingest", json={
+    "connection_string": "postgresql://...",
+    "table_name": "docs",
+    "source": "reports/q1.pdf",
+})
+```
 
 ---
 
