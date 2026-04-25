@@ -115,7 +115,7 @@ def test_naive_query(mock_llm: MagicMock, mock_emb: MagicMock) -> None:
     assert result.chunks[0].score == pytest.approx(0.91)
     assert result.sources == ["report.pdf"]
     assert result.timing_seconds > 0
-    vs.similarity_search_with_score.assert_called_once_with("What is the answer?", k=5)
+    vs.similarity_search_with_score.assert_called_once_with("What is the answer?", k=5, filter=None)
 
 
 # ---------------------------------------------------------------------------
@@ -169,7 +169,7 @@ def test_hyde_query_uses_hypothetical_doc(mock_llm: MagicMock, mock_emb: MagicMo
 
     # Search must use the hypothetical doc, not the original question
     vs.similarity_search_with_score.assert_called_once_with(
-        "Hypothetical passage about revenue.", k=5
+        "Hypothetical passage about revenue.", k=5, filter=None
     )
     assert result.answer == "Revenue was $5M."
     assert result.metadata.get("hypothetical_doc") == "Hypothetical passage about revenue."

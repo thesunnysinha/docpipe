@@ -79,6 +79,7 @@ class SearchRequest(BaseModel):
     embedding_provider: str
     embedding_model: str
     top_k: int = 10
+    filters: dict[str, Any] = Field(default_factory=dict)
 
 
 class SearchResponse(BaseModel):
@@ -110,6 +111,7 @@ class RAGQueryRequest(BaseModel):
     reranker: str = "none"
     reranker_model: str | None = None
     rerank_top_n: int | None = None
+    filters: dict[str, Any] = Field(default_factory=dict)
 
 
 class RAGChunkResponse(BaseModel):
@@ -298,7 +300,7 @@ def create_app() -> Any:
                 embedding_model=req.embedding_model,
             )
             ingestion = IngestionPipeline(config)
-            results = ingestion.search(req.query, top_k=req.top_k)
+            results = ingestion.search(req.query, top_k=req.top_k, filters=req.filters)
             return SearchResponse(results=results)
         except DocpipeError as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
@@ -336,6 +338,7 @@ def create_app() -> Any:
                 reranker=req.reranker,  # type: ignore[arg-type]
                 reranker_model=req.reranker_model,
                 rerank_top_n=req.rerank_top_n,
+                filters=req.filters,
             )
             pipeline = RAGPipeline(config)
             result = await pipeline.aquery(req.question)
@@ -371,6 +374,7 @@ def create_app() -> Any:
                 reranker=req.reranker,  # type: ignore[arg-type]
                 reranker_model=req.reranker_model,
                 rerank_top_n=req.rerank_top_n,
+                filters=req.filters,
                 stream=True,
             )
             pipeline = RAGPipeline(config)

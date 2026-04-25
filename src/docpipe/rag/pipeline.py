@@ -288,7 +288,9 @@ class RAGPipeline:
 
     def _retrieve_naive(self, question: str) -> list[RAGChunk]:
         vs = self._get_vectorstore()
-        docs_scores = vs.similarity_search_with_score(question, k=self._config.top_k)
+        docs_scores = vs.similarity_search_with_score(
+            question, k=self._config.top_k, filter=self._config.filters or None
+        )
         return self._rerank(self._docs_to_chunks(docs_scores), question)
 
     def _retrieve_hyde(self, question: str) -> list[RAGChunk]:
@@ -299,7 +301,9 @@ class RAGPipeline:
         )
         hypothetical_doc = self._llm.invoke([HumanMessage(content=hyde_prompt)]).content
         vs = self._get_vectorstore()
-        docs_scores = vs.similarity_search_with_score(hypothetical_doc, k=self._config.top_k)
+        docs_scores = vs.similarity_search_with_score(
+            hypothetical_doc, k=self._config.top_k, filter=self._config.filters or None
+        )
         return self._rerank(self._docs_to_chunks(docs_scores), question)
 
     def _retrieve_multi_query(self, question: str) -> list[RAGChunk]:
@@ -314,7 +318,9 @@ class RAGPipeline:
         seen: set[str] = set()
         merged: list[tuple[Any, float]] = []
         for q in all_queries:
-            for doc, score in vs.similarity_search_with_score(q, k=self._config.top_k):
+            for doc, score in vs.similarity_search_with_score(
+                q, k=self._config.top_k, filter=self._config.filters or None
+            ):
                 key = doc.page_content[:200]
                 if key not in seen:
                     seen.add(key)
@@ -324,7 +330,9 @@ class RAGPipeline:
 
     def _retrieve_parent_document(self, question: str) -> list[RAGChunk]:
         vs = self._get_vectorstore()
-        seed_docs_scores = vs.similarity_search_with_score(question, k=self._config.top_k)
+        seed_docs_scores = vs.similarity_search_with_score(
+            question, k=self._config.top_k, filter=self._config.filters or None
+        )
         seed_chunks = self._docs_to_chunks(seed_docs_scores)
 
         seen: set[str] = set()
@@ -378,7 +386,9 @@ class RAGPipeline:
 
         vs = self._get_vectorstore()
         candidate_pool_size = self._config.top_k * 10
-        all_docs_scores = vs.similarity_search_with_score(question, k=candidate_pool_size)
+        all_docs_scores = vs.similarity_search_with_score(
+            question, k=candidate_pool_size, filter=self._config.filters or None
+        )
         all_docs = [doc for doc, _ in all_docs_scores]
 
         bm25 = BM25Retriever.from_documents(all_docs)
@@ -433,7 +443,9 @@ class RAGPipeline:
         hypothetical_doc = self._llm.invoke([HumanMessage(content=hyde_prompt)]).content
 
         vs = self._get_vectorstore()
-        docs_scores = vs.similarity_search_with_score(hypothetical_doc, k=self._config.top_k)
+        docs_scores = vs.similarity_search_with_score(
+            hypothetical_doc, k=self._config.top_k, filter=self._config.filters or None
+        )
         chunks = self._rerank(self._docs_to_chunks(docs_scores), question)
         answer, structured = self._generate(question, self._build_context(chunks))
         result = self._make_result(question, answer, chunks, structured)
@@ -452,7 +464,9 @@ class RAGPipeline:
         seen: set[str] = set()
         merged: list[tuple[Any, float]] = []
         for q in all_queries:
-            for doc, score in vs.similarity_search_with_score(q, k=self._config.top_k):
+            for doc, score in vs.similarity_search_with_score(
+                q, k=self._config.top_k, filter=self._config.filters or None
+            ):
                 key = doc.page_content[:200]
                 if key not in seen:
                     seen.add(key)
