@@ -5,7 +5,10 @@ from __future__ import annotations
 import logging
 from typing import Any
 
+import psycopg2
 from pydantic import BaseModel, Field
+
+from docpipe.core.types import DeleteRequest, DeleteResponse
 
 logger = logging.getLogger(__name__)
 
@@ -151,7 +154,7 @@ def create_app() -> Any:
 
     from docpipe._version import __version__
     from docpipe.core.errors import DocpipeError
-    from docpipe.core.types import ExtractionSchema, IngestionConfig
+    from docpipe.core.types import DeleteRequest, DeleteResponse, ExtractionSchema, IngestionConfig
     from docpipe.registry.registry import PluginRegistry
 
     app = FastAPI(
@@ -258,6 +261,27 @@ def create_app() -> Any:
             )
         except DocpipeError as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
+
+    @app.delete("/ingest", response_model=DeleteResponse)
+    async def delete_document(req: DeleteRequest) -> DeleteResponse:
+        try:
+            with psycopg2.connect(req.connection_string) as conn:
+                with conn.cursor() as cur:
+                    sql = (
+                        f"DELETE FROM {req.table_name} "  # noqa: S608
+                        "WHERE cmetadata->>'source' = %s"
+                    )
+                    cur.execute(sql, [req.source])
+                    deleted = cur.rowcount
+            return DeleteResponse(
+                table_name=req.table_name,
+                source=req.source,
+                chunks_deleted=deleted,
+            )
+        except Exception as exc:
+            if "does not exist" in str(exc):
+                raise HTTPException(status_code=404, detail=f"Table '{req.table_name}' not found") from exc
+            raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     @app.post("/search", response_model=SearchResponse)
     async def search_documents(req: SearchRequest) -> SearchResponse:

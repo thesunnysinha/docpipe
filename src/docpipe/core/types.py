@@ -116,6 +116,22 @@ class IngestionResult(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
+class DeleteRequest(BaseModel):
+    """Request to delete chunks by source from a pgvector table."""
+
+    connection_string: str
+    table_name: str
+    source: str
+
+
+class DeleteResponse(BaseModel):
+    """Result of a delete operation."""
+
+    table_name: str
+    source: str
+    chunks_deleted: int
+
+
 # ---------------------------------------------------------------------------
 # RAG types
 # ---------------------------------------------------------------------------
