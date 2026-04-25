@@ -315,3 +315,44 @@ def test_rag_result_is_pydantic() -> None:
     assert data["sources"] == ["a.pdf"]
     # structured is excluded from serialization
     assert "structured" not in data
+
+
+# ---------------------------------------------------------------------------
+# Conversation history
+# ---------------------------------------------------------------------------
+
+
+@patch.object(RAGPipeline, "_create_embeddings")
+@patch.object(RAGPipeline, "_create_llm")
+@patch.object(RAGPipeline, "_get_vectorstore")
+def test_history_messages_prepended_before_current_question(
+    mock_vs_factory, mock_llm_factory, mock_emb_factory
+):
+    from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+
+    mock_llm = MagicMock()
+    mock_llm.invoke.return_value = MagicMock(content="answer")
+    mock_llm_factory.return_value = mock_llm
+    mock_emb_factory.return_value = MagicMock()
+    mock_vs = MagicMock()
+    mock_vs.similarity_search_with_score.return_value = []
+    mock_vs_factory.return_value = mock_vs
+
+    config = _make_config(
+        history=[
+            {"role": "user", "content": "What is RAG?"},
+            {"role": "assistant", "content": "RAG stands for retrieval-augmented generation."},
+        ]
+    )
+    pipeline = RAGPipeline(config)
+    pipeline.query("Tell me more about it")
+
+    call_messages = mock_llm.invoke.call_args[0][0]
+    types = [type(m).__name__ for m in call_messages]
+    contents = [m.content for m in call_messages]
+
+    assert types[0] == "SystemMessage"
+    assert "What is RAG?" in contents
+    assert "RAG stands for retrieval-augmented generation." in contents
+    assert call_messages[-1].content == "Tell me more about it"
+    assert isinstance(call_messages[-1], HumanMessage)

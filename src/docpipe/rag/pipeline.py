@@ -167,32 +167,43 @@ class RAGPipeline:
 
     def _generate(self, question: str, context: str) -> tuple[str, Any]:
         """Generate an answer. Returns (text, structured_or_None)."""
-        from langchain_core.messages import HumanMessage
+        from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+
+        system_text = (self._config.system_prompt or DEFAULT_SYSTEM_PROMPT).format(
+            context=context, question=question
+        )
+        messages: list[Any] = [SystemMessage(content=system_text)]
+        for turn in self._config.history:
+            if turn["role"] == "user":
+                messages.append(HumanMessage(content=turn["content"]))
+            elif turn["role"] == "assistant":
+                messages.append(AIMessage(content=turn["content"]))
+        messages.append(HumanMessage(content=question))
 
         if self._config.output_model is not None:
             structured_llm = self._llm.with_structured_output(self._config.output_model)
-            prompt = (
-                (self._config.system_prompt or DEFAULT_SYSTEM_PROMPT)
-                .replace("{context}", context)
-                .replace("{question}", question)
-            )
-            result = structured_llm.invoke(prompt)
+            result = structured_llm.invoke(messages)
             return result.model_dump_json(), result
 
-        prompt = (self._config.system_prompt or DEFAULT_SYSTEM_PROMPT).format(
-            context=context, question=question
-        )
-        response = self._llm.invoke([HumanMessage(content=prompt)])
+        response = self._llm.invoke(messages)
         return response.content, None
 
     def _generate_stream(self, question: str, context: str) -> Iterator[str]:
         """Stream answer tokens from the LLM."""
-        from langchain_core.messages import HumanMessage
+        from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
-        prompt = (self._config.system_prompt or DEFAULT_SYSTEM_PROMPT).format(
+        system_text = (self._config.system_prompt or DEFAULT_SYSTEM_PROMPT).format(
             context=context, question=question
         )
-        for chunk in self._llm.stream([HumanMessage(content=prompt)]):
+        messages: list[Any] = [SystemMessage(content=system_text)]
+        for turn in self._config.history:
+            if turn["role"] == "user":
+                messages.append(HumanMessage(content=turn["content"]))
+            elif turn["role"] == "assistant":
+                messages.append(AIMessage(content=turn["content"]))
+        messages.append(HumanMessage(content=question))
+
+        for chunk in self._llm.stream(messages):
             yield chunk.content
 
     def _rerank(self, chunks: list[RAGChunk], question: str) -> list[RAGChunk]:

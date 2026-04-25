@@ -168,6 +168,7 @@ class RAGConfig(BaseModel):
     rerank_top_n: int | None = None
     # Generation
     system_prompt: str | None = None
+    history: list[dict[str, str]] = Field(default_factory=list)
     output_model: Any = Field(
         default=None,
         description="Pydantic model class for structured RAG output",
