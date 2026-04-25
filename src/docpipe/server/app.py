@@ -352,35 +352,35 @@ def create_app() -> Any:
 
     @app.post("/rag/stream")
     async def rag_stream(req: RAGQueryRequest) -> StreamingResponse:
-        config = RAGConfig(
-            connection_string=req.connection_string,
-            table_name=req.table_name,
-            embedding_provider=req.embedding_provider,
-            embedding_model=req.embedding_model,
-            llm_provider=req.llm_provider,
-            llm_model=req.llm_model,
-            strategy=req.strategy,
-            top_k=req.top_k,
-            system_prompt=req.system_prompt,
-            history=req.history,
-            hyde_prompt=req.hyde_prompt,
-            multi_query_count=req.multi_query_count,
-            parent_window_size=req.parent_window_size,
-            hybrid_bm25_weight=req.hybrid_bm25_weight,
-            reranker=req.reranker,  # type: ignore[arg-type]
-            reranker_model=req.reranker_model,
-            rerank_top_n=req.rerank_top_n,
-            stream=True,
-        )
-        pipeline = RAGPipeline(config)
+        try:
+            config = RAGConfig(
+                connection_string=req.connection_string,
+                table_name=req.table_name,
+                embedding_provider=req.embedding_provider,
+                embedding_model=req.embedding_model,
+                llm_provider=req.llm_provider,
+                llm_model=req.llm_model,
+                strategy=req.strategy,
+                top_k=req.top_k,
+                system_prompt=req.system_prompt,
+                history=req.history,
+                hyde_prompt=req.hyde_prompt,
+                multi_query_count=req.multi_query_count,
+                parent_window_size=req.parent_window_size,
+                hybrid_bm25_weight=req.hybrid_bm25_weight,
+                reranker=req.reranker,  # type: ignore[arg-type]
+                reranker_model=req.reranker_model,
+                rerank_top_n=req.rerank_top_n,
+                stream=True,
+            )
+            pipeline = RAGPipeline(config)
+        except DocpipeError as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
 
         def generate():
-            try:
-                for token in pipeline.stream_query(req.question):
-                    yield f"data: {token}\n\n"
-                yield "data: [DONE]\n\n"
-            except DocpipeError as e:
-                yield f"data: [ERROR] {e}\n\n"
+            for token in pipeline.stream_query(req.question):
+                yield f"data: {token}\n\n"
+            yield "data: [DONE]\n\n"
 
         return StreamingResponse(generate(), media_type="text/event-stream")
 
