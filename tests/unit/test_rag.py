@@ -254,11 +254,12 @@ def test_hybrid_missing_dep_raises(mock_llm: MagicMock, mock_emb: MagicMock) -> 
     vs = MagicMock()
     vs.similarity_search_with_score.return_value = [(_mock_doc(), 0.8)]
 
-    with patch.object(pipeline, "_get_vectorstore", return_value=vs):
-        with patch.dict(sys.modules, {"langchain_community": None,
-                                      "langchain_community.retrievers": None}):
-            with pytest.raises(RAGError, match="langchain-community"):
-                pipeline.query("test")
+    with (
+        patch.object(pipeline, "_get_vectorstore", return_value=vs),
+        patch.dict(sys.modules, {"langchain_community": None, "langchain_community.retrievers": None}),  # noqa: E501
+        pytest.raises(RAGError, match="langchain-community"),
+    ):
+        pipeline.query("test")
 
 
 # ---------------------------------------------------------------------------
@@ -328,7 +329,7 @@ def test_rag_result_is_pydantic() -> None:
 def test_history_messages_prepended_before_current_question(
     mock_vs_factory, mock_llm_factory, mock_emb_factory
 ):
-    from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
+    from langchain_core.messages import HumanMessage
 
     mock_llm = MagicMock()
     mock_llm.invoke.return_value = MagicMock(content="answer")

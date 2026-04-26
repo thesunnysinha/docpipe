@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from docpipe.core.types import EvalConfig, EvalQuestion, RAGConfig, RAGChunk, RAGResult
+from docpipe.core.types import EvalConfig, EvalQuestion, RAGChunk, RAGConfig, RAGResult
 from docpipe.rag.pipeline import RAGPipeline
 
 

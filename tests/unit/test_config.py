@@ -1,9 +1,6 @@
 """Tests for configuration loading."""
 
-import os
-from pathlib import Path
 
-import pytest
 
 from docpipe.config.loader import load_config
 from docpipe.config.settings import DocpipeSettings

@@ -10,7 +10,6 @@ import pytest
 
 from docpipe.core.types import DocumentFormat, ParsedDocument
 
-
 # ---------------------------------------------------------------------------
 # Fake glmocr module (not installed in dev)
 # ---------------------------------------------------------------------------
@@ -117,8 +116,8 @@ class TestGLMOCRParser:
 
     def test_parse_error_handling(self) -> None:
         with patch.dict(sys.modules, {"glmocr": fake_glmocr}):
-            from docpipe.parsers.glm_ocr_parser import GLMOCRParser
             from docpipe.core.errors import ParseError
+            from docpipe.parsers.glm_ocr_parser import GLMOCRParser
 
             parser = GLMOCRParser()
             parser._ocr.run = MagicMock(side_effect=RuntimeError("OCR failed"))
@@ -138,8 +137,8 @@ class TestGLMOCRRegistration:
 
     def test_registry_discovers_glm_ocr(self) -> None:
         with patch.dict(sys.modules, {"glmocr": fake_glmocr}):
-            from docpipe.registry.registry import PluginRegistry
             from docpipe.parsers.glm_ocr_parser import GLMOCRParser
+            from docpipe.registry.registry import PluginRegistry
 
             registry = PluginRegistry.get()
             registry.register_parser("glm-ocr", GLMOCRParser)

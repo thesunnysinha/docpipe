@@ -12,7 +12,6 @@ from docpipe.core.types import IngestionConfig, RAGConfig, RAGResult
 from docpipe.ingestion.pipeline import IngestionPipeline
 from docpipe.rag.pipeline import RAGPipeline
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -321,11 +320,10 @@ class TestStreamingRAG:
         config = _make_rag_config(stream=True)
         pipeline = RAGPipeline(config)
 
-        with patch.object(pipeline, "_retrieve_naive", return_value=[]):
-            with patch.object(
-                pipeline, "_generate_stream", return_value=iter(["Hello", " world"])
-            ):
-                result = pipeline.stream_query("What is X?")
+        with patch.object(pipeline, "_retrieve_naive", return_value=[]), patch.object(
+            pipeline, "_generate_stream", return_value=iter(["Hello", " world"])
+        ):
+            result = pipeline.stream_query("What is X?")
 
         assert isinstance(result, Iterator)
 
@@ -341,9 +339,11 @@ class TestStreamingRAG:
         pipeline = RAGPipeline(config)
 
         tokens = ["The ", "answer ", "is ", "42."]
-        with patch.object(pipeline, "_retrieve_naive", return_value=[]):
-            with patch.object(pipeline, "_generate_stream", return_value=iter(tokens)):
-                result = list(pipeline.stream_query("What is X?"))
+        with (
+            patch.object(pipeline, "_retrieve_naive", return_value=[]),
+            patch.object(pipeline, "_generate_stream", return_value=iter(tokens)),
+        ):
+            result = list(pipeline.stream_query("What is X?"))
 
         assert result == tokens
 

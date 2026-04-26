@@ -9,7 +9,6 @@ from fastapi.testclient import TestClient
 
 from docpipe.server.app import create_app
 
-
 VALID_REQUEST = {
     "question": "What is docpipe?",
     "connection_string": "postgresql://test/db",
@@ -52,7 +51,11 @@ def test_rag_stream_calls_stream_query_with_question(MockConfig, MockPipeline, c
     mock_pipeline.stream_query.return_value = iter(["Answer"])
     MockPipeline.return_value = mock_pipeline
 
-    client.post("/rag/stream", json={"question": "What is docpipe?", **{k: v for k, v in VALID_REQUEST.items() if k != "question"}})
+    payload = {  # noqa: E501
+        "question": "What is docpipe?",
+        **{k: v for k, v in VALID_REQUEST.items() if k != "question"},
+    }
+    client.post("/rag/stream", json=payload)
 
     mock_pipeline.stream_query.assert_called_once_with("What is docpipe?")
 
