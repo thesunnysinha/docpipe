@@ -72,3 +72,87 @@ def test_delete_invalid_table_name_returns_422(mock_psycopg2, client):
         },
     )
     assert resp.status_code == 422
+
+
+def test_rag_query_passes_api_key_to_llm(client):
+    """api_key in request body must reach LLM instantiation."""
+    with patch("docpipe.rag.pipeline.create_llm") as mock_create_llm:
+        mock_llm = MagicMock()
+        mock_llm.invoke.return_value = MagicMock(content="answer")
+        mock_create_llm.return_value = mock_llm
+
+        with patch("docpipe.rag.pipeline.RAGPipeline._create_embeddings") as mock_emb, \
+             patch("docpipe.rag.pipeline.RAGPipeline._get_vectorstore") as mock_vs:
+            mock_emb.return_value = MagicMock()
+            mock_vs.return_value = MagicMock(
+                similarity_search_with_score=MagicMock(return_value=[])
+            )
+            resp = client.post("/rag/query", json={
+                "question": "What is X?",
+                "connection_string": "postgresql://test/db",
+                "table_name": "docs",
+                "embedding_provider": "openai",
+                "embedding_model": "text-embedding-3-small",
+                "llm_provider": "openai",
+                "llm_model": "gpt-4o-mini",
+                "api_key": "sk-test-key",
+            })
+        mock_create_llm.assert_called_with("openai", "gpt-4o-mini", "sk-test-key")
+
+
+def test_generate_returns_content(client):
+    """POST /generate calls the LLM and returns the text response."""
+    with patch("docpipe.rag.pipeline.create_llm") as mock_create_llm:
+        mock_llm = MagicMock()
+        mock_llm.invoke.return_value = MagicMock(content="Photosynthesis Overview")
+        mock_create_llm.return_value = mock_llm
+
+        resp = client.post("/generate", json={
+            "prompt": "Generate a 3-5 word title for: photosynthesis",
+            "llm_provider": "openai",
+            "llm_model": "gpt-4o-mini",
+        })
+    assert resp.status_code == 200
+    assert resp.json()["content"] == "Photosynthesis Overview"
+    mock_create_llm.assert_called_with("openai", "gpt-4o-mini", None)
+
+
+def test_generate_with_api_key(client):
+    """api_key in request is forwarded to create_llm."""
+    with patch("docpipe.rag.pipeline.create_llm") as mock_create_llm:
+        mock_llm = MagicMock()
+        mock_llm.invoke.return_value = MagicMock(content="Result")
+        mock_create_llm.return_value = mock_llm
+
+        resp = client.post("/generate", json={
+            "prompt": "hello",
+            "llm_provider": "anthropic",
+            "llm_model": "claude-3-5-haiku-latest",
+            "api_key": "sk-ant-test",
+        })
+    assert resp.status_code == 200
+    mock_create_llm.assert_called_with("anthropic", "claude-3-5-haiku-latest", "sk-ant-test")
+
+
+def test_generate_unknown_provider_returns_400(client):
+    """Unknown llm_provider returns HTTP 400."""
+    resp = client.post("/generate", json={
+        "prompt": "hello",
+        "llm_provider": "nonexistent",
+        "llm_model": "some-model",
+    })
+    assert resp.status_code == 400
+
+
+def test_generate_llm_error_returns_500(client):
+    with patch("docpipe.rag.pipeline.create_llm") as mock_create_llm:
+        mock_llm = MagicMock()
+        mock_llm.invoke.side_effect = RuntimeError("provider timeout")
+        mock_create_llm.return_value = mock_llm
+
+        resp = client.post("/generate", json={
+            "prompt": "hello",
+            "llm_provider": "openai",
+            "llm_model": "gpt-4o-mini",
+        })
+    assert resp.status_code == 500

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 
@@ -104,6 +105,7 @@ class RAGQueryRequest(BaseModel):
     embedding_model: str
     llm_provider: str
     llm_model: str
+    api_key: str | None = None
     strategy: str = "naive"
     top_k: int = 5
     system_prompt: str | None = None
@@ -155,6 +157,17 @@ class EvaluateResponse(BaseModel):
     metrics: dict[str, Any]
     num_questions: int
     timing_seconds: float
+
+
+class GenerateRequest(BaseModel):
+    prompt: str
+    llm_provider: str
+    llm_model: str
+    api_key: str | None = None
+
+
+class GenerateResponse(BaseModel):
+    content: str
 
 
 # --- App factory ---
@@ -336,6 +349,7 @@ def create_app() -> Any:
                 embedding_model=req.embedding_model,
                 llm_provider=req.llm_provider,
                 llm_model=req.llm_model,
+                llm_api_key=req.api_key,
                 strategy=req.strategy,
                 top_k=req.top_k,
                 system_prompt=req.system_prompt,
@@ -372,6 +386,7 @@ def create_app() -> Any:
                 embedding_model=req.embedding_model,
                 llm_provider=req.llm_provider,
                 llm_model=req.llm_model,
+                llm_api_key=req.api_key,
                 strategy=req.strategy,
                 top_k=req.top_k,
                 system_prompt=req.system_prompt,
@@ -431,6 +446,24 @@ def create_app() -> Any:
             )
         except DocpipeError as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
+
+    @app.post("/generate", response_model=GenerateResponse)
+    async def generate(req: GenerateRequest) -> GenerateResponse:
+        from docpipe.core.errors import ConfigurationError
+        from docpipe.rag.pipeline import create_llm
+        from langchain_core.messages import HumanMessage
+
+        try:
+            llm = create_llm(req.llm_provider, req.llm_model, req.api_key)
+        except ConfigurationError as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
+
+        try:
+            response = await asyncio.to_thread(llm.invoke, [HumanMessage(content=req.prompt)])
+            return GenerateResponse(content=response.content)
+        except Exception as e:
+            logger.exception("LLM invocation failed")
+            raise HTTPException(status_code=500, detail="LLM invocation failed") from e
 
     return app
 

@@ -168,6 +168,7 @@ class RAGConfig(BaseModel):
     embedding_model: str
     llm_provider: str
     llm_model: str
+    llm_api_key: str | None = None
     strategy: Literal["naive", "hyde", "multi_query", "parent_document", "hybrid", "auto"] = "naive"
     top_k: int = 5
     # Strategy-specific
