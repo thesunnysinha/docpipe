@@ -98,3 +98,46 @@ def test_rag_query_passes_api_key_to_llm(client):
                 "api_key": "sk-test-key",
             })
         mock_create_llm.assert_called_with("openai", "gpt-4o-mini", "sk-test-key")
+
+
+def test_generate_returns_content(client):
+    """POST /generate calls the LLM and returns the text response."""
+    with patch("docpipe.rag.pipeline.create_llm") as mock_create_llm:
+        mock_llm = MagicMock()
+        mock_llm.invoke.return_value = MagicMock(content="Photosynthesis Overview")
+        mock_create_llm.return_value = mock_llm
+
+        resp = client.post("/generate", json={
+            "prompt": "Generate a 3-5 word title for: photosynthesis",
+            "llm_provider": "openai",
+            "llm_model": "gpt-4o-mini",
+        })
+    assert resp.status_code == 200
+    assert resp.json()["content"] == "Photosynthesis Overview"
+    mock_create_llm.assert_called_with("openai", "gpt-4o-mini", None)
+
+
+def test_generate_with_api_key(client):
+    """api_key in request is forwarded to create_llm."""
+    with patch("docpipe.rag.pipeline.create_llm") as mock_create_llm:
+        mock_llm = MagicMock()
+        mock_llm.invoke.return_value = MagicMock(content="Result")
+        mock_create_llm.return_value = mock_llm
+
+        client.post("/generate", json={
+            "prompt": "hello",
+            "llm_provider": "anthropic",
+            "llm_model": "claude-3-5-haiku-latest",
+            "api_key": "sk-ant-test",
+        })
+    mock_create_llm.assert_called_with("anthropic", "claude-3-5-haiku-latest", "sk-ant-test")
+
+
+def test_generate_unknown_provider_returns_400(client):
+    """Unknown llm_provider returns HTTP 400."""
+    resp = client.post("/generate", json={
+        "prompt": "hello",
+        "llm_provider": "nonexistent",
+        "llm_model": "some-model",
+    })
+    assert resp.status_code == 400
