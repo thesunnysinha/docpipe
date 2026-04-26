@@ -104,6 +104,7 @@ class RAGQueryRequest(BaseModel):
     embedding_model: str
     llm_provider: str
     llm_model: str
+    api_key: str | None = None
     strategy: str = "naive"
     top_k: int = 5
     system_prompt: str | None = None
@@ -336,6 +337,7 @@ def create_app() -> Any:
                 embedding_model=req.embedding_model,
                 llm_provider=req.llm_provider,
                 llm_model=req.llm_model,
+                llm_api_key=req.api_key,
                 strategy=req.strategy,
                 top_k=req.top_k,
                 system_prompt=req.system_prompt,
@@ -372,6 +374,7 @@ def create_app() -> Any:
                 embedding_model=req.embedding_model,
                 llm_provider=req.llm_provider,
                 llm_model=req.llm_model,
+                llm_api_key=req.api_key,
                 strategy=req.strategy,
                 top_k=req.top_k,
                 system_prompt=req.system_prompt,
