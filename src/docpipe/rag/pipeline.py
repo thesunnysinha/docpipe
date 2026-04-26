@@ -50,7 +50,7 @@ def create_llm(llm_provider: str, llm_model: str, api_key: str | None = None) ->
             f"Install with: pip install {module_name}"
         ) from err
     kwargs: dict[str, Any] = {"model": llm_model}
-    if api_key:
+    if api_key is not None:
         param = LLM_API_KEY_PARAMS.get(llm_provider)
         if param:
             kwargs[param] = api_key
