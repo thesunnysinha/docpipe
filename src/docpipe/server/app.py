@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import Any
 
@@ -156,6 +157,17 @@ class EvaluateResponse(BaseModel):
     metrics: dict[str, Any]
     num_questions: int
     timing_seconds: float
+
+
+class GenerateRequest(BaseModel):
+    prompt: str
+    llm_provider: str
+    llm_model: str
+    api_key: str | None = None
+
+
+class GenerateResponse(BaseModel):
+    content: str
 
 
 # --- App factory ---
@@ -434,6 +446,24 @@ def create_app() -> Any:
             )
         except DocpipeError as e:
             raise HTTPException(status_code=400, detail=str(e)) from e
+
+    @app.post("/generate", response_model=GenerateResponse)
+    async def generate(req: GenerateRequest) -> GenerateResponse:
+        from docpipe.core.errors import ConfigurationError
+        from docpipe.rag.pipeline import create_llm
+        from langchain_core.messages import HumanMessage
+
+        try:
+            llm = create_llm(req.llm_provider, req.llm_model, req.api_key)
+        except ConfigurationError as e:
+            raise HTTPException(status_code=400, detail=str(e)) from e
+
+        try:
+            response = await asyncio.to_thread(llm.invoke, [HumanMessage(content=req.prompt)])
+            content = response.content if hasattr(response, "content") else str(response)
+            return GenerateResponse(content=content)
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e)) from e
 
     return app
 
