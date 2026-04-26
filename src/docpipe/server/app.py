@@ -460,10 +460,10 @@ def create_app() -> Any:
 
         try:
             response = await asyncio.to_thread(llm.invoke, [HumanMessage(content=req.prompt)])
-            content = response.content if hasattr(response, "content") else str(response)
-            return GenerateResponse(content=content)
+            return GenerateResponse(content=response.content)
         except Exception as e:
-            raise HTTPException(status_code=500, detail=str(e)) from e
+            logger.exception("LLM invocation failed")
+            raise HTTPException(status_code=500, detail="LLM invocation failed") from e
 
     return app
 
