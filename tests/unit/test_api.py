@@ -72,3 +72,29 @@ def test_delete_invalid_table_name_returns_422(mock_psycopg2, client):
         },
     )
     assert resp.status_code == 422
+
+
+def test_rag_query_passes_api_key_to_llm(client):
+    """api_key in request body must reach LLM instantiation."""
+    with patch("docpipe.rag.pipeline.create_llm") as mock_create_llm:
+        mock_llm = MagicMock()
+        mock_llm.invoke.return_value = MagicMock(content="answer")
+        mock_create_llm.return_value = mock_llm
+
+        with patch("docpipe.rag.pipeline.RAGPipeline._create_embeddings") as mock_emb, \
+             patch("docpipe.rag.pipeline.RAGPipeline._get_vectorstore") as mock_vs:
+            mock_emb.return_value = MagicMock()
+            mock_vs.return_value = MagicMock(
+                similarity_search_with_score=MagicMock(return_value=[])
+            )
+            resp = client.post("/rag/query", json={
+                "question": "What is X?",
+                "connection_string": "postgresql://test/db",
+                "table_name": "docs",
+                "embedding_provider": "openai",
+                "embedding_model": "text-embedding-3-small",
+                "llm_provider": "openai",
+                "llm_model": "gpt-4o-mini",
+                "api_key": "sk-test-key",
+            })
+        mock_create_llm.assert_called_with("openai", "gpt-4o-mini", "sk-test-key")
