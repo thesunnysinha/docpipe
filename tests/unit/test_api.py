@@ -124,12 +124,13 @@ def test_generate_with_api_key(client):
         mock_llm.invoke.return_value = MagicMock(content="Result")
         mock_create_llm.return_value = mock_llm
 
-        client.post("/generate", json={
+        resp = client.post("/generate", json={
             "prompt": "hello",
             "llm_provider": "anthropic",
             "llm_model": "claude-3-5-haiku-latest",
             "api_key": "sk-ant-test",
         })
+    assert resp.status_code == 200
     mock_create_llm.assert_called_with("anthropic", "claude-3-5-haiku-latest", "sk-ant-test")
 
 
@@ -141,3 +142,17 @@ def test_generate_unknown_provider_returns_400(client):
         "llm_model": "some-model",
     })
     assert resp.status_code == 400
+
+
+def test_generate_llm_error_returns_500(client):
+    with patch("docpipe.rag.pipeline.create_llm") as mock_create_llm:
+        mock_llm = MagicMock()
+        mock_llm.invoke.side_effect = RuntimeError("provider timeout")
+        mock_create_llm.return_value = mock_llm
+
+        resp = client.post("/generate", json={
+            "prompt": "hello",
+            "llm_provider": "openai",
+            "llm_model": "gpt-4o-mini",
+        })
+    assert resp.status_code == 500
