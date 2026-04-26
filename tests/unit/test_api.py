@@ -43,7 +43,8 @@ def test_delete_by_source_removes_chunks(mock_psycopg2, client):
 def test_delete_table_not_found_returns_404(mock_psycopg2, client):
     mock_conn = MagicMock()
     mock_cursor = MagicMock()
-    mock_cursor.execute.side_effect = psycopg2.errors.UndefinedTable('relation "nonexistent" does not exist')
+    err = psycopg2.errors.UndefinedTable('relation "nonexistent" does not exist')
+    mock_cursor.execute.side_effect = err
     mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
     mock_psycopg2.connect.return_value.__enter__.return_value = mock_conn
     mock_psycopg2.errors.UndefinedTable = psycopg2.errors.UndefinedTable
@@ -87,7 +88,7 @@ def test_rag_query_passes_api_key_to_llm(client):
             mock_vs.return_value = MagicMock(
                 similarity_search_with_score=MagicMock(return_value=[])
             )
-            resp = client.post("/rag/query", json={
+            client.post("/rag/query", json={
                 "question": "What is X?",
                 "connection_string": "postgresql://test/db",
                 "table_name": "docs",

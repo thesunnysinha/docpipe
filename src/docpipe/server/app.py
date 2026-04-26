@@ -449,9 +449,10 @@ def create_app() -> Any:
 
     @app.post("/generate", response_model=GenerateResponse)
     async def generate(req: GenerateRequest) -> GenerateResponse:
+        from langchain_core.messages import HumanMessage
+
         from docpipe.core.errors import ConfigurationError
         from docpipe.rag.pipeline import create_llm
-        from langchain_core.messages import HumanMessage
 
         try:
             llm = create_llm(req.llm_provider, req.llm_model, req.api_key)

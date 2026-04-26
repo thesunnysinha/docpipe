@@ -256,6 +256,7 @@ Endpoints:
 | `POST` | `/search` | Vector similarity search (supports `filters`) |
 | `POST` | `/rag/query` | RAG question answering (supports `history`, `filters`) |
 | `POST` | `/rag/stream` | Streaming RAG via Server-Sent Events (SSE) |
+| `POST` | `/generate` | Plain LLM completion (no retrieval) |
 | `POST` | `/evaluate/run` | Evaluate RAG quality |
 | `GET` | `/plugins` | List registered plugins |
 
@@ -292,6 +293,27 @@ for event in sseclient.SSEClient(resp):
         break
     print(event.data, end="", flush=True)
 ```
+
+### Plain LLM completion
+
+Call any configured LLM provider without retrieval:
+
+```python
+response = requests.post(f"{BASE}/generate", json={
+    "prompt": "Generate a 5-word title for a document about photosynthesis",
+    "llm_provider": "openai",
+    "llm_model": "gpt-4o-mini",
+    "api_key": "sk-...",   # optional — falls back to server env var
+})
+print(response.json()["content"])
+```
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `prompt` | str | ✓ | The prompt to send to the LLM |
+| `llm_provider` | str | ✓ | Provider name (`openai`, `anthropic`, `google`, `ollama`) |
+| `llm_model` | str | ✓ | Model name (e.g. `gpt-4o-mini`, `claude-3-5-haiku-latest`) |
+| `api_key` | str | — | Per-request API key; overrides server-level env var |
 
 ### Delete a document
 

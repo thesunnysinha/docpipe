@@ -52,7 +52,6 @@ def test_rag_query_passes_filters_to_rag_config(client):
         mock_pipeline = MagicMock()
         MockPipeline.return_value = mock_pipeline
 
-        import asyncio
 
         async def fake_aquery(question):
             return _make_fake_result()
