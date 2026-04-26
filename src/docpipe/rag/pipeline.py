@@ -25,6 +25,37 @@ LLM_PROVIDERS: dict[str, tuple[str, str]] = {
     "anthropic": ("langchain_anthropic", "ChatAnthropic"),
 }
 
+# Maps provider name → kwarg name for the API key, or None if no key needed
+LLM_API_KEY_PARAMS: dict[str, str | None] = {
+    "openai": "api_key",
+    "anthropic": "api_key",
+    "google": "google_api_key",
+    "ollama": None,
+}
+
+
+def create_llm(llm_provider: str, llm_model: str, api_key: str | None = None) -> Any:
+    """Instantiate an LLM from provider name + model, optionally with a per-request api_key."""
+    if llm_provider not in LLM_PROVIDERS:
+        raise ConfigurationError(
+            f"Unknown LLM provider: '{llm_provider}'. Available: {list(LLM_PROVIDERS)}"
+        )
+    module_name, class_name = LLM_PROVIDERS[llm_provider]
+    try:
+        module = importlib.import_module(module_name)
+        cls = getattr(module, class_name)
+    except ImportError as err:
+        raise ConfigurationError(
+            f"LLM provider '{llm_provider}' requires '{module_name}'. "
+            f"Install with: pip install {module_name}"
+        ) from err
+    kwargs: dict[str, Any] = {"model": llm_model}
+    if api_key is not None:
+        param = LLM_API_KEY_PARAMS.get(llm_provider)
+        if param:
+            kwargs[param] = api_key
+    return cls(**kwargs)
+
 DEFAULT_SYSTEM_PROMPT = """\
 You are a helpful assistant. Answer the question using ONLY the provided context.
 If the context does not contain enough information to answer, say so explicitly.
@@ -535,18 +566,4 @@ class RAGPipeline:
 
     @staticmethod
     def _create_llm(config: RAGConfig) -> Any:
-        if config.llm_provider not in LLM_PROVIDERS:
-            raise ConfigurationError(
-                f"Unknown LLM provider: '{config.llm_provider}'. "
-                f"Available: {list(LLM_PROVIDERS)}"
-            )
-        module_name, class_name = LLM_PROVIDERS[config.llm_provider]
-        try:
-            module = importlib.import_module(module_name)
-            cls = getattr(module, class_name)
-        except ImportError as err:
-            raise ConfigurationError(
-                f"LLM provider '{config.llm_provider}' requires '{module_name}'. "
-                f"Install with: pip install {module_name}"
-            ) from err
-        return cls(model=config.llm_model)
+        return create_llm(config.llm_provider, config.llm_model, config.llm_api_key)
