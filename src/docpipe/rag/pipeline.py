@@ -11,11 +11,12 @@ from typing import Any
 from docpipe.core.errors import ConfigurationError, RAGError
 from docpipe.core.types import RAGChunk, RAGConfig, RAGResult
 
-EMBEDDING_PROVIDERS: dict[str, tuple[str, str, dict[str, str]]] = {
-    "openai": ("langchain_openai", "OpenAIEmbeddings", {"model": "model"}),
-    "google": ("langchain_google_genai", "GoogleGenerativeAIEmbeddings", {"model": "model"}),
-    "ollama": ("langchain_ollama", "OllamaEmbeddings", {"model": "model"}),
-    "huggingface": ("langchain_huggingface", "HuggingFaceEmbeddings", {"model_name": "model"}),
+# Tuple: (module, class, param_map, api_key_kwarg | None)
+EMBEDDING_PROVIDERS: dict[str, tuple[str, str, dict[str, str], str | None]] = {
+    "openai": ("langchain_openai", "OpenAIEmbeddings", {"model": "model"}, "openai_api_key"),
+    "google": ("langchain_google_genai", "GoogleGenerativeAIEmbeddings", {"model": "model"}, "google_api_key"),
+    "ollama": ("langchain_ollama", "OllamaEmbeddings", {"model": "model"}, None),
+    "huggingface": ("langchain_huggingface", "HuggingFaceEmbeddings", {"model_name": "model"}, None),
 }
 
 LLM_PROVIDERS: dict[str, tuple[str, str]] = {
@@ -552,7 +553,7 @@ class RAGPipeline:
                 f"Unknown embedding provider: '{config.embedding_provider}'. "
                 f"Available: {list(EMBEDDING_PROVIDERS)}"
             )
-        module_name, class_name, param_map = EMBEDDING_PROVIDERS[config.embedding_provider]
+        module_name, class_name, param_map, api_key_kwarg = EMBEDDING_PROVIDERS[config.embedding_provider]
         try:
             module = importlib.import_module(module_name)
             cls = getattr(module, class_name)
@@ -561,7 +562,9 @@ class RAGPipeline:
                 f"Embedding provider '{config.embedding_provider}' requires '{module_name}'. "
                 f"Install with: pip install {module_name}"
             ) from err
-        kwargs = {param_key: config.embedding_model for param_key in param_map}
+        kwargs: dict[str, Any] = {param_key: config.embedding_model for param_key in param_map}
+        if api_key_kwarg and config.embedding_api_key:
+            kwargs[api_key_kwarg] = config.embedding_api_key
         return cls(**kwargs)
 
     @staticmethod

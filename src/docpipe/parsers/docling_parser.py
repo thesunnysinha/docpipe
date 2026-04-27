@@ -3,9 +3,13 @@
 from __future__ import annotations
 
 import asyncio
+import ipaddress
 import logging
+import socket
+from io import BytesIO
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from docpipe.core.errors import ParseError, ParserNotInstalledError
 from docpipe.core.types import DocumentFormat, PageContent, ParsedDocument
@@ -44,10 +48,57 @@ class DoclingParser:
 
         self._converter = DocumentConverter(**options)
 
+    @staticmethod
+    def _is_private_url(url: str) -> bool:
+        """Return True if the URL hostname resolves to a private/non-global IP."""
+        try:
+            parsed = urlparse(url)
+            hostname = parsed.hostname
+            if not hostname:
+                return False
+            try:
+                ip = ipaddress.ip_address(hostname)
+            except ValueError:
+                ip = ipaddress.ip_address(socket.gethostbyname(hostname))
+            return not ip.is_global or ip.is_private or ip.is_loopback or ip.is_link_local
+        except Exception:
+            return False
+
+    def _resolve_source(self, source: str) -> "str | Any":
+        """Pre-fetch private-network URLs as a DocumentStream when allowed.
+
+        docling_core rejects URLs that resolve to private IPs as an SSRF
+        protection. When DOCPIPE_ALLOW_PRIVATE_URLS=true (e.g. Docker Compose
+        where MinIO shares the same network), we fetch the content ourselves and
+        hand docling a DocumentStream instead of a URL, bypassing the check.
+        """
+        from docpipe.config import get_settings
+
+        cfg = get_settings()
+        if (
+            cfg.allow_private_urls
+            and isinstance(source, str)
+            and source.startswith(("http://", "https://"))
+            and self._is_private_url(source)
+        ):
+            import requests
+            from docling_core.types.io import DocumentStream
+
+            try:
+                resp = requests.get(source, timeout=60, stream=True)
+                resp.raise_for_status()
+                filename = Path(urlparse(source).path).name or "document"
+                return DocumentStream(name=filename, stream=BytesIO(resp.content))
+            except Exception as exc:
+                logger.warning("Pre-fetch of private URL failed, letting docling try: %s", exc)
+
+        return source
+
     def parse(self, source: str, **kwargs: Any) -> ParsedDocument:
         """Parse a single document."""
+        resolved = self._resolve_source(source)
         try:
-            result = self._converter.convert(source, **kwargs)
+            result = self._converter.convert(resolved, **kwargs)
         except Exception as e:
             raise ParseError(f"Failed to parse '{source}': {e}") from e
 

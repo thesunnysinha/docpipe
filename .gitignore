@@ -18,5 +18,8 @@ htmlcov/
 *.log
 .vercel
 .worktrees/
-graphify-out/
 tsconfig.tsbuildinfo
+
+# Graphify intermediates + cache (rebuildable)
+graphify-out/cache/
+graphify-out/.graphify_*.json

@@ -101,6 +101,9 @@ class IngestionConfig(BaseModel):
     table_name: str
     embedding_provider: str
     embedding_model: str
+    # Optional per-request API key for the embedding provider.
+    # Falls back to the provider's standard environment variable when None.
+    embedding_api_key: str | None = None
     chunk_size: int = 1000
     chunk_overlap: int = 200
     ingest_mode: Literal["chunks", "extractions", "both"] = "both"
@@ -166,6 +169,8 @@ class RAGConfig(BaseModel):
     table_name: str
     embedding_provider: str
     embedding_model: str
+    # Per-request API keys. When None, falls back to provider env vars.
+    embedding_api_key: str | None = None
     llm_provider: str
     llm_model: str
     llm_api_key: str | None = None
