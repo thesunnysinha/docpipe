@@ -18,11 +18,14 @@ from docpipe.core.types import (
 
 logger = logging.getLogger(__name__)
 
+# Tuple: (module, class, param_map, api_key_kwarg | None)
+# param_map maps constructor kwarg → config attribute suffix (embedding_{suffix})
+# api_key_kwarg is the constructor kwarg name for the API key, or None if not applicable
 EMBEDDING_PROVIDERS = {
-    "openai": ("langchain_openai", "OpenAIEmbeddings", {"model": "model"}),
-    "google": ("langchain_google_genai", "GoogleGenerativeAIEmbeddings", {"model": "model"}),
-    "ollama": ("langchain_ollama", "OllamaEmbeddings", {"model": "model"}),
-    "huggingface": ("langchain_huggingface", "HuggingFaceEmbeddings", {"model_name": "model"}),
+    "openai": ("langchain_openai", "OpenAIEmbeddings", {"model": "model"}, "openai_api_key"),
+    "google": ("langchain_google_genai", "GoogleGenerativeAIEmbeddings", {"model": "model"}, "google_api_key"),
+    "ollama": ("langchain_ollama", "OllamaEmbeddings", {"model": "model"}, None),
+    "huggingface": ("langchain_huggingface", "HuggingFaceEmbeddings", {"model_name": "model"}, None),
 }
 
 LLM_PROVIDERS: dict[str, tuple[str, str]] = {
@@ -283,11 +286,9 @@ class IngestionPipeline:
                 f"Available: {list(EMBEDDING_PROVIDERS.keys())}"
             )
 
-        module_name, class_name, param_map = EMBEDDING_PROVIDERS[config.embedding_provider]
+        module_name, class_name, param_map, api_key_kwarg = EMBEDDING_PROVIDERS[config.embedding_provider]
 
         try:
-            import importlib
-
             module = importlib.import_module(module_name)
             embeddings_cls = getattr(module, class_name)
         except ImportError as err:
@@ -296,9 +297,12 @@ class IngestionPipeline:
                 f"Install with: pip install {module_name}"
             ) from err
 
-        kwargs = {}
+        kwargs: dict[str, Any] = {}
         for param_key, config_key in param_map.items():
             kwargs[param_key] = getattr(config, f"embedding_{config_key}")
+
+        if api_key_kwarg and config.embedding_api_key:
+            kwargs[api_key_kwarg] = config.embedding_api_key
 
         return embeddings_cls(**kwargs)
 

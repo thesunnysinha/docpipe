@@ -4,15 +4,19 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Any
+from typing import Annotated, Any
 
 import psycopg2
+from fastapi import Depends
 from pydantic import BaseModel, Field, field_validator
 
 from docpipe.core.types import DeleteRequest, DeleteResponse, RAGConfig, validate_table_name
 from docpipe.rag.pipeline import RAGPipeline
+from docpipe.server.auth import require_auth
 
 logger = logging.getLogger(__name__)
+
+Auth = Annotated[None, Depends(require_auth)]
 
 
 # --- Request/Response models ---
@@ -60,6 +64,9 @@ class IngestRequest(BaseModel):
     table_name: str
     embedding_provider: str
     embedding_model: str
+    # Optional per-request API key for the embedding provider.
+    # When omitted, docpipe falls back to the provider's env var (e.g. GOOGLE_API_KEY).
+    api_key: str | None = None
     parser: str = "docling"
     chunk_size: int = 1000
     chunk_overlap: int = 200
@@ -81,6 +88,7 @@ class SearchRequest(BaseModel):
     table_name: str
     embedding_provider: str
     embedding_model: str
+    api_key: str | None = None
     top_k: int = 10
     filters: dict[str, Any] = Field(default_factory=dict)
 
@@ -105,7 +113,11 @@ class RAGQueryRequest(BaseModel):
     embedding_model: str
     llm_provider: str
     llm_model: str
+    # api_key applies to the LLM. embedding_api_key applies to the retrieval
+    # embeddings; falls back to api_key when not provided (convenient when both
+    # use the same provider and key, e.g. Google).
     api_key: str | None = None
+    embedding_api_key: str | None = None
     strategy: str = "naive"
     top_k: int = 5
     system_prompt: str | None = None
@@ -176,21 +188,33 @@ class GenerateResponse(BaseModel):
 def create_app() -> Any:
     """Create the FastAPI application."""
     from fastapi import FastAPI, HTTPException
-    from fastapi.responses import StreamingResponse
+    from fastapi.responses import HTMLResponse, StreamingResponse
 
     from docpipe._version import __version__
     from docpipe.core.errors import DocpipeError
     from docpipe.core.types import ExtractionSchema, IngestionConfig
     from docpipe.registry.registry import PluginRegistry
+    from docpipe.server.homepage import render_homepage
 
     app = FastAPI(
         title="docpipe",
-        description="Unified document parsing, extraction, and ingestion API",
+        description="Unified document parsing, extraction, and RAG ingestion API.",
         version=__version__,
     )
 
+    @app.get("/", response_class=HTMLResponse, include_in_schema=False)
+    async def homepage(_: Auth) -> HTMLResponse:
+        registry = PluginRegistry.get()
+        html = render_homepage(
+            version=__version__,
+            parsers=registry.list_parsers(),
+            extractors=registry.list_extractors(),
+        )
+        return HTMLResponse(content=html)
+
     @app.get("/health", response_model=HealthResponse)
     async def health() -> HealthResponse:
+        """Server health — no auth required (used by Docker healthcheck)."""
         registry = PluginRegistry.get()
         return HealthResponse(
             status="ok",
@@ -202,7 +226,7 @@ def create_app() -> Any:
         )
 
     @app.post("/parse", response_model=ParseResponse)
-    async def parse_document(req: ParseRequest) -> ParseResponse:
+    async def parse_document(req: ParseRequest, _: Auth) -> ParseResponse:
         try:
             registry = PluginRegistry.get()
             parser = registry.get_parser(req.parser)
@@ -225,7 +249,7 @@ def create_app() -> Any:
             raise HTTPException(status_code=400, detail=str(e)) from e
 
     @app.post("/extract", response_model=ExtractResponse)
-    async def extract_data(req: ExtractRequest) -> ExtractResponse:
+    async def extract_data(req: ExtractRequest, _: Auth) -> ExtractResponse:
         try:
             registry = PluginRegistry.get()
             extractor = registry.get_extractor(req.extractor)
@@ -243,7 +267,7 @@ def create_app() -> Any:
             raise HTTPException(status_code=400, detail=str(e)) from e
 
     @app.post("/run")
-    async def run_pipeline(req: RunRequest) -> dict[str, Any]:
+    async def run_pipeline(req: RunRequest, _: Auth) -> dict[str, Any]:
         try:
             from docpipe.core.pipeline import Pipeline
 
@@ -260,7 +284,7 @@ def create_app() -> Any:
             raise HTTPException(status_code=400, detail=str(e)) from e
 
     @app.post("/ingest", response_model=IngestResponse)
-    async def ingest_document(req: IngestRequest) -> IngestResponse:
+    async def ingest_document(req: IngestRequest, _: Auth) -> IngestResponse:
         try:
             from docpipe.ingestion.pipeline import IngestionPipeline
 
@@ -273,6 +297,7 @@ def create_app() -> Any:
                 table_name=req.table_name,
                 embedding_provider=req.embedding_provider,
                 embedding_model=req.embedding_model,
+                embedding_api_key=req.api_key,
                 chunk_size=req.chunk_size,
                 chunk_overlap=req.chunk_overlap,
                 ingest_mode=req.ingest_mode,
@@ -289,7 +314,7 @@ def create_app() -> Any:
             raise HTTPException(status_code=400, detail=str(e)) from e
 
     @app.delete("/ingest", response_model=DeleteResponse)
-    async def delete_document(req: DeleteRequest) -> DeleteResponse:
+    async def delete_document(req: DeleteRequest, _: Auth) -> DeleteResponse:
         try:
             with psycopg2.connect(req.connection_string) as conn, conn.cursor() as cur:
                 sql = (
@@ -311,7 +336,7 @@ def create_app() -> Any:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     @app.post("/search", response_model=SearchResponse)
-    async def search_documents(req: SearchRequest) -> SearchResponse:
+    async def search_documents(req: SearchRequest, _: Auth) -> SearchResponse:
         try:
             from docpipe.ingestion.pipeline import IngestionPipeline
 
@@ -320,6 +345,7 @@ def create_app() -> Any:
                 table_name=req.table_name,
                 embedding_provider=req.embedding_provider,
                 embedding_model=req.embedding_model,
+                embedding_api_key=req.api_key,
             )
             ingestion = IngestionPipeline(config)
             results = ingestion.search(req.query, top_k=req.top_k, filters=req.filters)
@@ -328,7 +354,7 @@ def create_app() -> Any:
             raise HTTPException(status_code=400, detail=str(e)) from e
 
     @app.get("/plugins")
-    async def list_plugins() -> dict[str, Any]:
+    async def list_plugins(_: Auth) -> dict[str, Any]:
         registry = PluginRegistry.get()
         return {
             "parsers": {
@@ -340,13 +366,14 @@ def create_app() -> Any:
         }
 
     @app.post("/rag/query", response_model=RAGQueryResponse)
-    async def rag_query(req: RAGQueryRequest) -> RAGQueryResponse:
+    async def rag_query(req: RAGQueryRequest, _: Auth) -> RAGQueryResponse:
         try:
             config = RAGConfig(
                 connection_string=req.connection_string,
                 table_name=req.table_name,
                 embedding_provider=req.embedding_provider,
                 embedding_model=req.embedding_model,
+                embedding_api_key=req.embedding_api_key or req.api_key,
                 llm_provider=req.llm_provider,
                 llm_model=req.llm_model,
                 llm_api_key=req.api_key,
@@ -377,13 +404,14 @@ def create_app() -> Any:
             raise HTTPException(status_code=400, detail=str(e)) from e
 
     @app.post("/rag/stream", response_class=StreamingResponse)
-    async def rag_stream(req: RAGQueryRequest) -> StreamingResponse:
+    async def rag_stream(req: RAGQueryRequest, _: Auth) -> StreamingResponse:
         try:
             config = RAGConfig(
                 connection_string=req.connection_string,
                 table_name=req.table_name,
                 embedding_provider=req.embedding_provider,
                 embedding_model=req.embedding_model,
+                embedding_api_key=req.embedding_api_key or req.api_key,
                 llm_provider=req.llm_provider,
                 llm_model=req.llm_model,
                 llm_api_key=req.api_key,
@@ -419,7 +447,7 @@ def create_app() -> Any:
         return StreamingResponse(generate(), media_type="text/event-stream")
 
     @app.post("/evaluate/run", response_model=EvaluateResponse)
-    async def evaluate_run(req: EvaluateRequest) -> EvaluateResponse:
+    async def evaluate_run(req: EvaluateRequest, _: Auth) -> EvaluateResponse:
         try:
             from docpipe.core.types import EvalConfig, EvalQuestion, RAGConfig
             from docpipe.eval.pipeline import EvalPipeline
@@ -448,7 +476,7 @@ def create_app() -> Any:
             raise HTTPException(status_code=400, detail=str(e)) from e
 
     @app.post("/generate", response_model=GenerateResponse)
-    async def generate(req: GenerateRequest) -> GenerateResponse:
+    async def generate(req: GenerateRequest, _: Auth) -> GenerateResponse:
         from langchain_core.messages import HumanMessage
 
         from docpipe.core.errors import ConfigurationError
