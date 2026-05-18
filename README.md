@@ -8,6 +8,12 @@ Unified document parsing, structured extraction, vector ingestion, and RAG pipel
 [![Docker](https://img.shields.io/badge/ghcr.io-docpipe-6366f1?logo=docker&logoColor=white)](https://ghcr.io/thesunnysinha/docpipe)
 [![Website](https://img.shields.io/badge/website-docpipe.sunnysinha.online-6366f1)](https://docpipe.sunnysinha.online)
 
+> **PyPI vs `main`:** [PyPI](https://pypi.org/project/docpipe-sdk/) ships **v0.4.5**. The latest on GitHub `main` adds `docpipe.query()` (renamed from `docpipe.rag()`), optional **turbovec**, OpenTelemetry/Prometheus observability, `/generate`, and richer `/health`. Install from git until the next release:
+>
+> ```bash
+> pip install "git+https://github.com/thesunnysinha/docpipe.git@main#egg=docpipe-sdk[server,observability]"
+> ```
+
 ## Overview
 
 docpipe connects document parsing (Docling / GLM-OCR), LLM-based structured extraction (LangExtract + LangChain), vector ingestion (pgvector), and RAG querying into a single composable pipeline.
@@ -34,12 +40,21 @@ pip install "docpipe-sdk[openai]"        # + OpenAI embeddings & LLM
 pip install "docpipe-sdk[anthropic]"     # + Anthropic Claude
 pip install "docpipe-sdk[google]"        # + Google Gemini
 pip install "docpipe-sdk[ollama]"        # + Ollama (local models)
+pip install "docpipe-sdk[huggingface]"   # + HuggingFace embeddings
 pip install "docpipe-sdk[pgvector]"      # + PostgreSQL vector store (default)
 pip install "docpipe-sdk[turbovec]"      # + Optional local turbovec file indices
 pip install "docpipe-sdk[rag]"           # + Hybrid search (BM25 + langchain-classic)
 pip install "docpipe-sdk[rerank]"        # + Local reranking (FlashRank)
 pip install "docpipe-sdk[server]"        # + FastAPI server
-pip install "docpipe-sdk[all]"           # Everything
+pip install "docpipe-sdk[observability]" # + OpenTelemetry OTLP export
+pip install "docpipe-sdk[http]"          # + httpx client (`docpipe.http.DocpipeClient`)
+pip install "docpipe-sdk[all]"           # All extras except turbovec & huggingface (install those separately)
+```
+
+Install latest `main` (features not yet on PyPI):
+
+```bash
+pip install "git+https://github.com/thesunnysinha/docpipe.git@main#egg=docpipe-sdk[all,turbovec,observability,http]"
 ```
 
 ---
@@ -134,6 +149,8 @@ docpipe.ingest("invoice.pdf", config=config)
 **When to use:** local prototypes, air-gapped RAG, or memory-constrained search without running pgvector. **Jingo and other production Postgres deployments should keep the default `pgvector` backend.**
 
 ### RAG — ask questions against your documents
+
+Use **`docpipe.query()`** for programmatic RAG (v0.4.5 on PyPI exposed `docpipe.rag()`, which shadowed the `docpipe.rag` package — removed on `main`).
 
 ```python
 rag_config = docpipe.RAGConfig(
@@ -349,11 +366,22 @@ pip install "docpipe-sdk[server,observability]"
 | `DOCPIPE_OTEL_ENABLED` | `false` | Export traces via OTLP/HTTP |
 | `DOCPIPE_OTEL_SERVICE_NAME` | `docpipe` | `service.name` resource |
 | `DOCPIPE_OTEL_EXPORTER_OTLP_ENDPOINT` | — | e.g. `http://localhost:4318/v1/traces` |
+| `DOCPIPE_OTEL_EXPORTER_OTLP_HEADERS` | — | Optional OTLP auth (`key=value`, comma-separated) |
+| `DOCPIPE_OTEL_TRACES_SAMPLER` | `parentbased_traceidratio` | OpenTelemetry sampler name |
 | `DOCPIPE_OTEL_TRACES_SAMPLER_ARG` | `1.0` | Trace sample ratio (0.0–1.0) |
 | `OTEL_SEMCONV_STABILITY_OPT_IN` | — | Set to `gen_ai_latest_experimental` for GenAI semconv |
+| `DOCPIPE_LOG_LEVEL` | `INFO` | Logging level |
 | `DOCPIPE_LOG_FORMAT` | `text` | `json` for one JSON object per log line |
 | `DOCPIPE_HEALTH_CHECK_DB` | `true` | `SELECT 1` when `DOCPIPE_DB_CONNECTION_STRING` is set |
 | `DOCPIPE_HEALTH_CHECK_EMBEDDING` | `false` | Optional embed probe |
+| `DOCPIPE_VECTOR_BACKEND` | `pgvector` | `pgvector` or `turbovec` (server default) |
+| `DOCPIPE_TURBVEC_INDEX_DIR` | `.docpipe/indices` | On-disk turbovec index root |
+| `DOCPIPE_TURBVEC_BIT_WIDTH` | `4` | turbovec quantization bit width |
+| `DOCPIPE_ALLOW_PRIVATE_URLS` | `false` | Allow ingest sources on private IPs (Docker/MinIO) |
+| `DOCPIPE_AUTH_ENABLED` | `true` | HTTP Basic Auth on API routes |
+| `DOCPIPE_USERNAME` / `DOCPIPE_PASSWORD` | `admin` / `docpipe` | Basic Auth credentials |
+
+See [`.env.example`](.env.example) for a full template used by `docker compose`.
 
 **Local OTLP (Jaeger all-in-one):**
 
@@ -518,8 +546,19 @@ A full-stack variant with Adminer (DB UI) is in [`docker-compose.full.yml`](dock
 | Tag | Description |
 |---|---|
 | `latest` | Most recent build from `main` |
-| `0.4.1`, `0.4` | Specific release versions |
+| `0.4.5`, `0.4` | Specific release versions |
 | `sha-<hash>` | Exact commit build |
+
+### Jingo sidecar (production pattern)
+
+[Jingo](https://github.com/thesunnysinha/jingo) runs docpipe as a **sidecar** on the same Docker network as Django, PostgreSQL (pgvector), and MinIO:
+
+- Backend calls `http://docpipe:8000` with HTTP Basic Auth (`DocpipeClient` or raw REST).
+- Each knowledge library maps to a pgvector table (`docpipe_<library_uuid>`).
+- Ingest `source` is often a MinIO presigned URL; set `DOCPIPE_ALLOW_PRIVATE_URLS=true` on the docpipe container so Docling can fetch internal URLs.
+- Vector backend stays **pgvector** (shared Postgres) — not turbovec.
+
+See Jingo’s `docker-compose.yml` `docpipe` service and `services/backend/chat/docpipe/client.py`.
 
 ---
 
@@ -559,7 +598,7 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for a full walkthrough.
 | **Parsing** | Docling (PDF, DOCX, XLSX, PPTX, HTML, images), GLM-OCR (state-of-the-art multimodal OCR) |
 | **Extraction** | LangExtract (Google), LangChain `with_structured_output` |
 | **Embeddings** | OpenAI, Google Gemini, Ollama, HuggingFace |
-| **Vector store** | PostgreSQL + pgvector |
+| **Vector store** | PostgreSQL + pgvector (default), optional turbovec on-disk indices |
 | **LLM (RAG)** | OpenAI, Anthropic Claude, Google Gemini, Ollama |
 | **Reranking** | FlashRank (local), Cohere |
 

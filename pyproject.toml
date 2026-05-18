@@ -11,7 +11,7 @@ license = "MIT"
 license-files = ["LICENSE"]
 requires-python = ">=3.10"
 authors = [{ name = "Sunny Sinha", email = "thesunnysinha@gmail.com" }]
-keywords = ["document", "parsing", "extraction", "llm", "pipeline", "vector", "ingestion", "rag", "docling", "langextract", "langchain", "pgvector", "embeddings", "retrieval"]
+keywords = ["document", "parsing", "extraction", "llm", "pipeline", "vector", "ingestion", "rag", "docling", "langextract", "langchain", "pgvector", "turbovec", "embeddings", "retrieval", "opentelemetry", "observability"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
