@@ -9,6 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+### Changed
+
+### Fixed
+
+
+## [0.5.0] - 2026-05-19
+
+### Added
+
 - Optional **turbovec** vector backend (`DOCPIPE_VECTOR_BACKEND`, `[turbovec]` extra, per-request `vector_backend`)
 - OpenTelemetry tracing (`[observability]`), Prometheus `/metrics`, token `usage` on RAG responses
 - `POST /generate` plain LLM completion; `docpipe.http.DocpipeClient` (`[http]` extra)
@@ -25,6 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Docling parser: `doc.pages` dict iteration (`pages.items()`)
 - Upstream embedding failures return HTTP 502 with structured `detail`
+
 
 ## [0.4.5] - 2026-04-26
 
@@ -115,7 +125,8 @@ PyPI release (predates items in Unreleased above; install from `main` for latest
 - Dockerfile for containerized deployment
 - 34 unit tests with mock parser/extractor
 
-[Unreleased]: https://github.com/thesunnysinha/docpipe/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/thesunnysinha/docpipe/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/thesunnysinha/docpipe/compare/v0.4.5...v0.5.0
 [0.3.0]: https://github.com/thesunnysinha/docpipe/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/thesunnysinha/docpipe/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/thesunnysinha/docpipe/compare/v0.1.0...v0.2.0
