@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any
+from pathlib import Path
+from typing import Any, Literal
 
 from pydantic import Field
 from pydantic_settings import BaseSettings
@@ -24,6 +25,10 @@ class DocpipeSettings(BaseSettings):
     # Ingestion settings
     db_connection_string: str | None = None
     db_table_name: str = "docpipe_documents"
+    # Vector store: pgvector (default) or optional local turbovec file indices
+    vector_backend: Literal["pgvector", "turbovec"] = "pgvector"
+    turbovec_index_dir: Path = Field(default=Path(".docpipe/indices"))
+    turbovec_bit_width: int = 4
     embedding_provider: str | None = None
     embedding_model: str | None = None
     chunk_size: int = 1000

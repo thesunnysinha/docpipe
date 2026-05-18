@@ -15,6 +15,8 @@ from docpipe.core.types import (
     IngestionResult,
     ParsedDocument,
 )
+from docpipe.vectorstores.base import resolve_vector_backend
+from docpipe.vectorstores.factory import create_vectorstore, ingest_documents, resolve_index_dir
 
 logger = logging.getLogger(__name__)
 
@@ -162,17 +164,19 @@ class IngestionPipeline:
             context_llm = self._create_context_llm(self._config)
             chunks = self._inject_context(chunks, full_text, context_llm)
 
-        # Ingest via LangChain PGVector
         try:
-            from langchain_postgres import PGVector
-
-            PGVector.from_documents(
+            ingest_documents(
                 documents=chunks,
-                embedding=self._embeddings,
-                collection_name=self._config.table_name,
-                connection=self._config.connection_string,
+                embeddings=self._embeddings,
+                table_name=self._config.table_name,
+                connection_string=self._config.connection_string,
+                vector_backend=self._vector_backend(),
+                turbovec_index_dir=self._turbovec_index_dir(),
+                turbovec_bit_width=self._turbovec_bit_width(),
             )
             table_created = True
+        except ConfigurationError:
+            raise
         except Exception as e:
             raise IngestionError(f"Failed to ingest into vector store: {e}") from e
 
@@ -197,12 +201,13 @@ class IngestionPipeline:
     ) -> list[dict[str, Any]]:
         """Similarity search against the user's vector DB."""
         try:
-            from langchain_postgres import PGVector
-
-            vectorstore = PGVector(
+            vectorstore = create_vectorstore(
                 embeddings=self._embeddings,
-                collection_name=self._config.table_name,
-                connection=self._config.connection_string,
+                table_name=self._config.table_name,
+                connection_string=self._config.connection_string,
+                vector_backend=self._vector_backend(),
+                turbovec_index_dir=self._turbovec_index_dir(),
+                turbovec_bit_width=self._turbovec_bit_width(),
             )
             results = vectorstore.similarity_search_with_score(
                 query, k=top_k, filter=filters or None
@@ -230,17 +235,43 @@ class IngestionPipeline:
     def _hash_exists(self, source_hash: str) -> bool:
         """Check if a source_hash already exists in the vector store metadata."""
         try:
-            from langchain_postgres import PGVector
-
-            vs = PGVector(
+            vs = create_vectorstore(
                 embeddings=self._embeddings,
-                collection_name=self._config.table_name,
-                connection=self._config.connection_string,
+                table_name=self._config.table_name,
+                connection_string=self._config.connection_string,
+                vector_backend=self._vector_backend(),
+                turbovec_index_dir=self._turbovec_index_dir(),
+                turbovec_bit_width=self._turbovec_bit_width(),
             )
             results = vs.similarity_search("", k=1, filter={"source_hash": source_hash})
             return len(results) > 0
         except Exception:  # noqa: BLE001
             return False
+
+    def _vector_backend(self) -> str:
+        from docpipe.config import get_settings
+
+        settings = get_settings()
+        return resolve_vector_backend(
+            config=self._config.vector_backend,
+            default=settings.vector_backend,
+        )
+
+    def _turbovec_index_dir(self) -> str:
+        from docpipe.config import get_settings
+
+        settings = get_settings()
+        return str(
+            resolve_index_dir(
+                config=self._config.turbovec_index_dir,
+                default=settings.turbovec_index_dir,
+            )
+        )
+
+    def _turbovec_bit_width(self) -> int:
+        from docpipe.config import get_settings
+
+        return get_settings().turbovec_bit_width
 
     @staticmethod
     def _parsed_to_lc_docs(parsed: ParsedDocument) -> list[Any]:

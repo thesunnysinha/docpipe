@@ -12,6 +12,8 @@ def test_default_settings():
     assert settings.chunk_overlap == 200
     assert settings.server_port == 8000
     assert settings.log_level == "INFO"
+    assert settings.vector_backend == "pgvector"
+    assert settings.turbovec_bit_width == 4
 
 
 def test_env_override(monkeypatch):

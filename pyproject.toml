@@ -46,6 +46,7 @@ google = ["langchain-google-genai>=2.0"]
 ollama = ["langchain-ollama>=0.3"]
 huggingface = ["langchain-huggingface>=0.1"]
 pgvector = ["langchain-postgres>=0.0.12", "psycopg2-binary>=2.9"]
+turbovec = ["turbovec[langchain]>=0.1"]
 server = [
     "fastapi>=0.100",
     "uvicorn[standard]>=0.20",
@@ -124,4 +125,5 @@ markers = [
     "requires_pgvector: needs pgvector DB available",
     "requires_api_key: needs LLM API key configured",
     "requires_rag: needs rag extra, DB, and API key available",
+    "requires_turbovec: needs docpipe-sdk[turbovec] installed",
 ]

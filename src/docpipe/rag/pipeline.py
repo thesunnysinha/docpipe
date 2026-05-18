@@ -16,6 +16,8 @@ from docpipe.observability.tokens import (
     extract_usage_from_langchain_response,
     merge_usage,
 )
+from docpipe.vectorstores.base import resolve_vector_backend
+from docpipe.vectorstores.factory import create_vectorstore, resolve_index_dir
 
 # Tuple: (module, class, param_map, api_key_kwarg | None)
 EMBEDDING_PROVIDERS: dict[str, tuple[str, str, dict[str, str], str | None]] = {
@@ -212,12 +214,24 @@ class RAGPipeline:
     # ── Shared helpers ───────────────────────────────────────────────────────
 
     def _get_vectorstore(self) -> Any:
-        from langchain_postgres import PGVector
+        from docpipe.config import get_settings
 
-        return PGVector(
+        settings = get_settings()
+        return create_vectorstore(
             embeddings=self._embeddings,
-            collection_name=self._config.table_name,
-            connection=self._config.connection_string,
+            table_name=self._config.table_name,
+            connection_string=self._config.connection_string,
+            vector_backend=resolve_vector_backend(
+                config=self._config.vector_backend,
+                default=settings.vector_backend,
+            ),
+            turbovec_index_dir=str(
+                resolve_index_dir(
+                    config=self._config.turbovec_index_dir,
+                    default=settings.turbovec_index_dir,
+                )
+            ),
+            turbovec_bit_width=settings.turbovec_bit_width,
         )
 
     def _docs_to_chunks(self, docs_with_scores: list[tuple[Any, float]]) -> list[RAGChunk]:
