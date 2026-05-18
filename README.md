@@ -247,7 +247,8 @@ Endpoints:
 
 | Method | Path | Description |
 |---|---|---|
-| `GET` | `/health` | Health check + plugin listing |
+| `GET` | `/health` | Health check, plugins, dependency status |
+| `GET` | `/metrics` | Prometheus metrics (no auth) |
 | `POST` | `/parse` | Parse a document |
 | `POST` | `/extract` | Extract structured data |
 | `POST` | `/run` | Parse + extract |
@@ -291,7 +292,66 @@ resp = requests.post(f"{BASE}/rag/stream", json={...}, stream=True)
 for event in sseclient.SSEClient(resp):
     if event.data == "[DONE]":
         break
+    if event.event == "metadata":
+        continue  # optional: parse usage JSON before [DONE]
     print(event.data, end="", flush=True)
+```
+
+Before `data: [DONE]`, the server may emit a non-breaking metadata event:
+
+```
+event: metadata
+data: {"type":"usage","usage":{"input_tokens":123,"output_tokens":45,"total_tokens":168}}
+```
+
+`/rag/query` includes the same `usage` object on the JSON body when the provider returns token counts.
+
+### Observability
+
+Install optional extras:
+
+```bash
+pip install "docpipe-sdk[server,observability]"
+```
+
+| Variable | Default | Purpose |
+|----------|---------|---------|
+| `DOCPIPE_OTEL_ENABLED` | `false` | Export traces via OTLP/HTTP |
+| `DOCPIPE_OTEL_SERVICE_NAME` | `docpipe` | `service.name` resource |
+| `DOCPIPE_OTEL_EXPORTER_OTLP_ENDPOINT` | — | e.g. `http://localhost:4318/v1/traces` |
+| `DOCPIPE_OTEL_TRACES_SAMPLER_ARG` | `1.0` | Trace sample ratio (0.0–1.0) |
+| `OTEL_SEMCONV_STABILITY_OPT_IN` | — | Set to `gen_ai_latest_experimental` for GenAI semconv |
+| `DOCPIPE_LOG_FORMAT` | `text` | `json` for one JSON object per log line |
+| `DOCPIPE_HEALTH_CHECK_DB` | `true` | `SELECT 1` when `DOCPIPE_DB_CONNECTION_STRING` is set |
+| `DOCPIPE_HEALTH_CHECK_EMBEDDING` | `false` | Optional embed probe |
+
+**Local OTLP (Jaeger all-in-one):**
+
+```bash
+docker run -d --name jaeger \
+  -p 16686:16686 -p 4318:4318 \
+  jaegertracing/all-in-one:latest
+
+export DOCPIPE_OTEL_ENABLED=true
+export DOCPIPE_OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4318/v1/traces
+docpipe serve
+```
+
+Scrape Prometheus at `GET /metrics`. Error responses increment `docpipe_errors_total` with `error_type` and `phase` labels.
+
+### Python HTTP client
+
+```bash
+pip install "docpipe-sdk[http]"
+```
+
+```python
+from docpipe.http import DocpipeClient
+
+with DocpipeClient("http://localhost:8000", username="admin", password="docpipe") as client:
+    print(client.health())
+    result = client.rag_query({...})
+    print(result.get("usage"))
 ```
 
 ### Plain LLM completion
@@ -315,9 +375,21 @@ print(response.json()["content"])
 | `llm_model` | str | ✓ | Model name (e.g. `gpt-4o-mini`, `claude-3-5-haiku-latest`) |
 | `api_key` | str | — | Per-request API key; overrides server-level env var |
 
+### Google (Gemini) embedding models
+
+Google retired `models/embedding-001` on the Gemini API (v1beta returns `404 NOT_FOUND`).
+Use one of these model IDs with `embedding_provider="google"`:
+
+| Model | Notes |
+|-------|--------|
+| `models/text-embedding-004` | Recommended default for new integrations (768-dim, stable on v1beta) |
+| `models/gemini-embedding-001` | Newer unified embedding model when you need the latest Google embedding API |
+
+Docpipe returns **502** with structured `detail` (`phase: embedding`, plus a `hint`) when the upstream provider rejects the model or key, instead of a generic 400.
+
 ### Delete a document
 
-Remove all ingested chunks for a source:
+Remove all ingested chunks for a source (exact match) or path fragment (`contains`):
 
 ```python
 requests.delete(f"{BASE}/ingest", json={
@@ -325,7 +397,18 @@ requests.delete(f"{BASE}/ingest", json={
     "table_name": "docs",
     "source": "reports/q1.pdf",
 })
+
+# Partial source match (e.g. MinIO path prefix)
+requests.delete(f"{BASE}/ingest", json={
+    "connection_string": "postgresql://...",
+    "table_name": "docs",
+    "match_mode": "contains",
+    "source_contains": "reports/",
+})
 ```
+
+`POST /ingest` accepts `"incremental": true` to skip unchanged sources (see `skipped` in the response).
+`POST /rag/query` accepts `"response_format": {...}` (JSON schema) for structured answers when the LLM supports it.
 
 ---
 

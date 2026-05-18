@@ -1,7 +1,5 @@
 """Tests for configuration loading."""
 
-
-
 from docpipe.config.loader import load_config
 from docpipe.config.settings import DocpipeSettings
 
@@ -27,9 +25,7 @@ def test_env_override(monkeypatch):
 
 def test_load_config_from_yaml(tmp_path):
     config_file = tmp_path / "docpipe.yaml"
-    config_file.write_text(
-        "default_parser: custom\nchunk_size: 2000\nlog_level: DEBUG\n"
-    )
+    config_file.write_text("default_parser: custom\nchunk_size: 2000\nlog_level: DEBUG\n")
 
     settings = load_config(config_file)
     assert settings.default_parser == "custom"

@@ -29,8 +29,12 @@ def client():
 @patch("docpipe.server.app.RAGConfig")
 def test_rag_stream_returns_event_stream(MockConfig, MockPipeline, client):
     """Endpoint returns 200 with text/event-stream content type and SSE tokens."""
+    mock_config = MagicMock()
+    mock_config.model_copy.return_value = mock_config
+    MockConfig.return_value = mock_config
     mock_pipeline = MagicMock()
     mock_pipeline.stream_query.return_value = iter(["Hello", " world", "!"])
+    mock_pipeline.last_usage = None
     MockPipeline.return_value = mock_pipeline
 
     resp = client.post("/rag/stream", json=VALID_REQUEST)
@@ -39,8 +43,23 @@ def test_rag_stream_returns_event_stream(MockConfig, MockPipeline, client):
     assert "text/event-stream" in resp.headers["content-type"]
     assert "data: Hello\n\n" in resp.text
     assert "data: [DONE]\n\n" in resp.text
-    # Verify stream=True is passed to RAGConfig
-    assert MockConfig.call_args.kwargs.get("stream") is True
+    mock_config.model_copy.assert_called_once_with(update={"stream": True})
+
+
+@patch("docpipe.server.app.RAGPipeline")
+@patch("docpipe.server.app.RAGConfig")
+def test_rag_stream_emits_usage_metadata_before_done(MockConfig, MockPipeline, client):
+    from docpipe.core.types import TokenUsage
+
+    mock_pipeline = MagicMock()
+    mock_pipeline.stream_query.return_value = iter(["Hi"])
+    mock_pipeline.last_usage = TokenUsage(input_tokens=1, output_tokens=2, total_tokens=3)
+    MockPipeline.return_value = mock_pipeline
+
+    resp = client.post("/rag/stream", json=VALID_REQUEST)
+    assert "event: metadata" in resp.text
+    assert '"input_tokens": 1' in resp.text
+    assert resp.text.index("event: metadata") < resp.text.index("data: [DONE]")
 
 
 @patch("docpipe.server.app.RAGPipeline")
@@ -68,6 +87,7 @@ def test_rag_stream_done_sentinel_at_end(client):
     ):
         mock_pipeline = MagicMock()
         mock_pipeline.stream_query.return_value = iter(["Hello", " world", "!"])
+        mock_pipeline.last_usage = None
         mock_pipeline_cls.return_value = mock_pipeline
 
         resp = client.post("/rag/stream", json=VALID_REQUEST)
@@ -89,15 +109,18 @@ def test_rag_stream_error_mid_stream_yields_error_event(MockConfig, MockPipeline
     mock_pipeline.stream_query.side_effect = RuntimeError("boom")
     MockPipeline.return_value = mock_pipeline
 
-    resp = client.post("/rag/stream", json={
-        "question": "What is docpipe?",
-        "connection_string": "postgresql://test/db",
-        "table_name": "docs",
-        "embedding_provider": "openai",
-        "embedding_model": "text-embedding-3-small",
-        "llm_provider": "openai",
-        "llm_model": "gpt-4o-mini",
-    })
+    resp = client.post(
+        "/rag/stream",
+        json={
+            "question": "What is docpipe?",
+            "connection_string": "postgresql://test/db",
+            "table_name": "docs",
+            "embedding_provider": "openai",
+            "embedding_model": "text-embedding-3-small",
+            "llm_provider": "openai",
+            "llm_model": "gpt-4o-mini",
+        },
+    )
 
     assert resp.status_code == 200
     assert "event: error" in resp.text

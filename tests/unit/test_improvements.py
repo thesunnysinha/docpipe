@@ -77,6 +77,7 @@ class TestContextualInjection:
     ) -> None:
         """When contextual_injection=True, _inject_context must be called."""
         import sys
+
         mock_emb.return_value = MagicMock()
         mock_llm.return_value = MagicMock()
         mock_inject.side_effect = lambda chunks, full_text, llm: chunks
@@ -109,6 +110,7 @@ class TestContextualInjection:
         mock_emb: MagicMock,
     ) -> None:
         import sys
+
         mock_emb.return_value = MagicMock()
         config = _make_ingest_config(contextual_injection=False)
         pipeline = IngestionPipeline(config)
@@ -222,9 +224,7 @@ class TestSemanticQueryCache:
 
     @patch.object(RAGPipeline, "_create_embeddings")
     @patch.object(RAGPipeline, "_create_llm")
-    def test_cache_evicts_oldest_when_full(
-        self, mock_llm: MagicMock, mock_emb: MagicMock
-    ) -> None:
+    def test_cache_evicts_oldest_when_full(self, mock_llm: MagicMock, mock_emb: MagicMock) -> None:
         mock_emb.return_value = MagicMock()
         mock_emb.return_value.embed_query.return_value = [0.0, 0.0, 1.0]
         mock_llm.return_value = MagicMock()
@@ -298,9 +298,7 @@ class TestChunkMethods:
 class TestStreamingRAG:
     @patch.object(RAGPipeline, "_create_embeddings")
     @patch.object(RAGPipeline, "_create_llm")
-    def test_query_raises_when_stream_true(
-        self, mock_llm: MagicMock, mock_emb: MagicMock
-    ) -> None:
+    def test_query_raises_when_stream_true(self, mock_llm: MagicMock, mock_emb: MagicMock) -> None:
         mock_emb.return_value = MagicMock()
         mock_llm.return_value = MagicMock()
 
@@ -311,17 +309,16 @@ class TestStreamingRAG:
 
     @patch.object(RAGPipeline, "_create_embeddings")
     @patch.object(RAGPipeline, "_create_llm")
-    def test_stream_query_returns_iterator(
-        self, mock_llm: MagicMock, mock_emb: MagicMock
-    ) -> None:
+    def test_stream_query_returns_iterator(self, mock_llm: MagicMock, mock_emb: MagicMock) -> None:
         mock_emb.return_value = MagicMock()
         mock_llm.return_value = MagicMock()
 
         config = _make_rag_config(stream=True)
         pipeline = RAGPipeline(config)
 
-        with patch.object(pipeline, "_retrieve_naive", return_value=[]), patch.object(
-            pipeline, "_generate_stream", return_value=iter(["Hello", " world"])
+        with (
+            patch.object(pipeline, "_retrieve_naive", return_value=[]),
+            patch.object(pipeline, "_generate_stream", return_value=iter(["Hello", " world"])),
         ):
             result = pipeline.stream_query("What is X?")
 
@@ -329,9 +326,7 @@ class TestStreamingRAG:
 
     @patch.object(RAGPipeline, "_create_embeddings")
     @patch.object(RAGPipeline, "_create_llm")
-    def test_stream_query_yields_strings(
-        self, mock_llm: MagicMock, mock_emb: MagicMock
-    ) -> None:
+    def test_stream_query_yields_strings(self, mock_llm: MagicMock, mock_emb: MagicMock) -> None:
         mock_emb.return_value = MagicMock()
         mock_llm.return_value = MagicMock()
 

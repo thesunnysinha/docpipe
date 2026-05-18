@@ -91,9 +91,7 @@ class EvalPipeline:
             row["faithfulness"] = self._llm_judge_faithfulness(result.answer, context)
 
         if "answer_similarity" in metrics:
-            row["answer_similarity"] = self._llm_judge_similarity(
-                q.expected_answer, result.answer
-            )
+            row["answer_similarity"] = self._llm_judge_similarity(q.expected_answer, result.answer)
 
         return row
 

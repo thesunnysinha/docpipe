@@ -51,9 +51,7 @@ class LangExtractExtractor:
         for e in raw:
             source_span = None
             if e.char_interval is not None:
-                source_span = SourceSpan(
-                    start=e.char_interval.start, end=e.char_interval.end
-                )
+                source_span = SourceSpan(start=e.char_interval.start, end=e.char_interval.end)
 
             results.append(
                 ExtractionResult(

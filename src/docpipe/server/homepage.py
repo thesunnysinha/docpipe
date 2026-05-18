@@ -4,12 +4,8 @@ from __future__ import annotations
 
 
 def render_homepage(version: str, parsers: list[str], extractors: list[str]) -> str:
-    parser_items = "".join(
-        f'<div class="chip">{p}</div>' for p in parsers
-    )
-    extractor_items = "".join(
-        f'<div class="chip">{e}</div>' for e in extractors
-    )
+    parser_items = "".join(f'<div class="chip">{p}</div>' for p in parsers)
+    extractor_items = "".join(f'<div class="chip">{e}</div>' for e in extractors)
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -55,12 +51,15 @@ def render_homepage(version: str, parsers: list[str], extractors: list[str]) -> 
       filter: blur(120px);
       opacity: 0.15;
     }}
-    .blob-1 {{ width: 600px; height: 600px; top: -200px; left: -150px; background: var(--primary); }}
+    .blob-1 {{ width: 600px; height: 600px; top: -200px; left: -150px;
+      background: var(--primary); }}
     .blob-2 {{ width: 500px; height: 500px; bottom: -150px; right: -100px; background: #8b5cf6; }}
-    .blob-3 {{ width: 400px; height: 400px; top: 40%; left: 55%; background: var(--accent); opacity: 0.08; }}
+    .blob-3 {{ width: 400px; height: 400px; top: 40%; left: 55%;
+      background: var(--accent); opacity: 0.08; }}
 
     /* Layout */
-    .page {{ position: relative; z-index: 1; max-width: 900px; margin: 0 auto; padding: 40px 24px 80px; width: 100%; }}
+    .page {{ position: relative; z-index: 1; max-width: 900px; margin: 0 auto;
+      padding: 40px 24px 80px; width: 100%; }}
 
     /* Header */
     .header {{ display: flex; align-items: center; gap: 16px; margin-bottom: 48px; }}
@@ -117,7 +116,8 @@ def render_homepage(version: str, parsers: list[str], extractors: list[str]) -> 
     }}
 
     /* Links */
-    .link-grid {{ display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }}
+    .link-grid {{ display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px; }}
     .link-card {{
       display: flex; align-items: center; gap: 12px;
       background: var(--surfaceHi);

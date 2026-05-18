@@ -14,6 +14,7 @@ from docpipe.core.types import DocumentFormat, ParsedDocument
 # Fake glmocr module (not installed in dev)
 # ---------------------------------------------------------------------------
 
+
 def _make_fake_glmocr() -> ModuleType:
     mod = ModuleType("glmocr")
 

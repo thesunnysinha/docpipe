@@ -41,8 +41,7 @@ class LangChainExtractor:
 
         if self._provider not in PROVIDER_MAP:
             raise ConfigurationError(
-                f"Unknown LLM provider: '{self._provider}'. "
-                f"Available: {list(PROVIDER_MAP.keys())}"
+                f"Unknown LLM provider: '{self._provider}'. Available: {list(PROVIDER_MAP.keys())}"
             )
 
         module_name, class_name = PROVIDER_MAP[self._provider]

@@ -24,6 +24,12 @@ def _reset_registry():
     PluginRegistry.reset()
 
 
+@pytest.fixture(autouse=True)
+def _disable_server_auth(monkeypatch: pytest.MonkeyPatch) -> None:
+    """API tests use TestClient without Basic Auth credentials."""
+    monkeypatch.setenv("DOCPIPE_AUTH_ENABLED", "false")
+
+
 class MockParser:
     """Mock parser for testing."""
 
@@ -64,9 +70,7 @@ class MockExtractor:
     def __init__(self, **kwargs: Any) -> None:
         self._options = kwargs
 
-    def extract(
-        self, text: str, schema: ExtractionSchema, **kwargs: Any
-    ) -> list[ExtractionResult]:
+    def extract(self, text: str, schema: ExtractionSchema, **kwargs: Any) -> list[ExtractionResult]:
         return [
             ExtractionResult(
                 entity_class="mock_entity",

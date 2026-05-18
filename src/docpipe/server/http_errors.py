@@ -13,9 +13,7 @@ from docpipe.core.errors import (
 )
 
 # Google retired models/embedding-001 on v1beta; callers still copy old examples.
-DEPRECATED_GOOGLE_EMBEDDING_MODELS = frozenset(
-    {"models/embedding-001", "embedding-001"}
-)
+DEPRECATED_GOOGLE_EMBEDDING_MODELS = frozenset({"models/embedding-001", "embedding-001"})
 
 
 def _infer_phase(exc: DocpipeError, message: str) -> str:
@@ -86,3 +84,13 @@ def docpipe_http_exception(exc: DocpipeError) -> HTTPException:
                 break
 
     return HTTPException(status_code=status, detail=detail)
+
+
+def record_http_error_metrics(error_type: str, phase: str, handler: str = "unknown") -> None:
+    """Increment Prometheus error counter when metrics are available."""
+    try:
+        from docpipe.observability.metrics import record_error
+
+        record_error(error_type, phase, handler)
+    except ImportError:
+        return

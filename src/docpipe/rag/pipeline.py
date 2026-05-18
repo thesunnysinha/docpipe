@@ -9,14 +9,30 @@ from collections.abc import Iterator
 from typing import Any
 
 from docpipe.core.errors import ConfigurationError, RAGError
-from docpipe.core.types import RAGChunk, RAGConfig, RAGResult
+from docpipe.core.types import RAGChunk, RAGConfig, RAGResult, TokenUsage
+from docpipe.observability.spans import set_gen_ai_usage, trace_operation
+from docpipe.observability.tokens import (
+    UsageCallbackHandler,
+    extract_usage_from_langchain_response,
+    merge_usage,
+)
 
 # Tuple: (module, class, param_map, api_key_kwarg | None)
 EMBEDDING_PROVIDERS: dict[str, tuple[str, str, dict[str, str], str | None]] = {
     "openai": ("langchain_openai", "OpenAIEmbeddings", {"model": "model"}, "openai_api_key"),
-    "google": ("langchain_google_genai", "GoogleGenerativeAIEmbeddings", {"model": "model"}, "google_api_key"),
+    "google": (
+        "langchain_google_genai",
+        "GoogleGenerativeAIEmbeddings",
+        {"model": "model"},
+        "google_api_key",
+    ),
     "ollama": ("langchain_ollama", "OllamaEmbeddings", {"model": "model"}, None),
-    "huggingface": ("langchain_huggingface", "HuggingFaceEmbeddings", {"model_name": "model"}, None),
+    "huggingface": (
+        "langchain_huggingface",
+        "HuggingFaceEmbeddings",
+        {"model_name": "model"},
+        None,
+    ),
 }
 
 LLM_PROVIDERS: dict[str, tuple[str, str]] = {
@@ -56,6 +72,7 @@ def create_llm(llm_provider: str, llm_model: str, api_key: str | None = None) ->
         if param:
             kwargs[param] = api_key
     return cls(**kwargs)
+
 
 DEFAULT_SYSTEM_PROMPT = """\
 You are a helpful assistant. Answer the question using ONLY the provided context.
@@ -105,6 +122,8 @@ class RAGPipeline:
         self._embeddings = self._create_embeddings(config)
         self._llm = self._create_llm(config)
         self._cache: list[tuple[list[float], RAGResult]] = []
+        self._usage_handler = UsageCallbackHandler()
+        self.last_usage: TokenUsage | None = None
 
     # ── Public API ───────────────────────────────────────────────────────────
 
@@ -116,6 +135,8 @@ class RAGPipeline:
                 "Use: pipeline.stream_query(question)"
             )
         start = time.perf_counter()
+        self._usage_handler.reset()
+        self.last_usage = None
 
         # Semantic cache lookup
         if self._config.cache_enabled:
@@ -134,7 +155,19 @@ class RAGPipeline:
         strategy = self._config.strategy
         if strategy not in dispatch:
             raise RAGError(f"Unknown strategy '{strategy}'. Available: {self.STRATEGIES}")
-        result = dispatch[strategy](question)
+        with trace_operation(
+            "docpipe.rag.query",
+            gen_ai_operation="chat",
+            provider=self._config.llm_provider,
+            model=self._config.llm_model,
+            docpipe_strategy=strategy,
+            docpipe_table_name=self._config.table_name,
+        ) as span:
+            result = dispatch[strategy](question)
+            result.usage = merge_usage(result.usage, self._usage_handler.usage)
+            self.last_usage = result.usage
+            if span is not None and result.usage is not None:
+                set_gen_ai_usage(span, result.usage.model_dump())
         result.timing_seconds = time.perf_counter() - start
 
         if self._config.cache_enabled:
@@ -144,6 +177,8 @@ class RAGPipeline:
 
     def stream_query(self, question: str) -> Iterator[str]:
         """Retrieve chunks (blocking), then stream answer tokens."""
+        self._usage_handler.reset()
+        self.last_usage = None
         dispatch = {
             "naive": self._retrieve_naive,
             "hyde": self._retrieve_hyde,
@@ -155,9 +190,18 @@ class RAGPipeline:
         strategy = self._config.strategy
         if strategy not in dispatch:
             raise RAGError(f"Unknown strategy '{strategy}'. Available: {self.STRATEGIES}")
-        chunks = dispatch[strategy](question)
-        context = self._build_context(chunks)
-        return self._generate_stream(question, context)
+        with trace_operation(
+            "docpipe.rag.stream",
+            gen_ai_operation="chat",
+            provider=self._config.llm_provider,
+            model=self._config.llm_model,
+            docpipe_strategy=strategy,
+            docpipe_table_name=self._config.table_name,
+        ):
+            chunks = dispatch[strategy](question)
+            context = self._build_context(chunks)
+            yield from self._generate_stream(question, context)
+        self.last_usage = self._usage_handler.usage
 
     async def aquery(self, question: str) -> RAGResult:
         """Async variant — runs query() in a thread."""
@@ -197,8 +241,11 @@ class RAGPipeline:
             parts.append(f"[{i}] (Source: {citation})\n{chunk.content}")
         return "\n\n---\n\n".join(parts)
 
-    def _generate(self, question: str, context: str) -> tuple[str, Any]:
-        """Generate an answer. Returns (text, structured_or_None)."""
+    def _llm_callbacks(self) -> list[Any]:
+        return [self._usage_handler]
+
+    def _generate(self, question: str, context: str) -> tuple[str, Any, TokenUsage | None]:
+        """Generate an answer. Returns (text, structured_or_None, usage)."""
         from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
         system_text = (self._config.system_prompt or DEFAULT_SYSTEM_PROMPT).format(
@@ -212,13 +259,27 @@ class RAGPipeline:
                 messages.append(AIMessage(content=turn["content"]))
         messages.append(HumanMessage(content=question))
 
+        invoke_config = {"callbacks": self._llm_callbacks()}
+
         if self._config.output_model is not None:
             structured_llm = self._llm.with_structured_output(self._config.output_model)
-            result = structured_llm.invoke(messages)
-            return result.model_dump_json(), result
+            result = structured_llm.invoke(messages, config=invoke_config)
+            usage = self._usage_handler.usage
+            return result.model_dump_json(), result, usage
 
-        response = self._llm.invoke(messages)
-        return response.content, None
+        if self._config.response_format is not None:
+            structured_llm = self._llm.with_structured_output(self._config.response_format)
+            result = structured_llm.invoke(messages, config=invoke_config)
+            usage = self._usage_handler.usage
+            text = result.model_dump_json() if hasattr(result, "model_dump_json") else str(result)
+            return text, result, usage
+
+        response = self._llm.invoke(messages, config=invoke_config)
+        usage = merge_usage(
+            self._usage_handler.usage,
+            extract_usage_from_langchain_response(response),
+        )
+        return response.content, None, usage
 
     def _generate_stream(self, question: str, context: str) -> Iterator[str]:
         """Stream answer tokens from the LLM."""
@@ -235,8 +296,16 @@ class RAGPipeline:
                 messages.append(AIMessage(content=turn["content"]))
         messages.append(HumanMessage(content=question))
 
-        for chunk in self._llm.stream(messages):
-            yield chunk.content
+        last_chunk: Any = None
+        for chunk in self._llm.stream(messages, config={"callbacks": self._llm_callbacks()}):
+            last_chunk = chunk
+            if chunk.content:
+                yield chunk.content
+        if last_chunk is not None:
+            self.last_usage = merge_usage(
+                self._usage_handler.usage,
+                extract_usage_from_langchain_response(last_chunk),
+            )
 
     def _rerank(self, chunks: list[RAGChunk], question: str) -> list[RAGChunk]:
         """Optional cross-encoder reranking after retrieval."""
@@ -255,9 +324,7 @@ class RAGPipeline:
                 ) from err
             model = self._config.reranker_model or "ms-marco-MiniLM-L-12-v2"
             ranker = FlashRanker(model_name=model)
-            request = RerankRequest(
-                query=question, passages=[{"text": c.content} for c in chunks]
-            )
+            request = RerankRequest(query=question, passages=[{"text": c.content} for c in chunks])
             results = ranker.rerank(request)
             reranked = [chunks[r["index"]] for r in results]
             return reranked[:top_n]
@@ -278,7 +345,12 @@ class RAGPipeline:
         raise RAGError(f"Unknown reranker '{reranker}'. Available: none, flashrank, cohere")
 
     def _make_result(
-        self, question: str, answer: str, chunks: list[RAGChunk], structured: Any = None
+        self,
+        question: str,
+        answer: str,
+        chunks: list[RAGChunk],
+        structured: Any = None,
+        usage: TokenUsage | None = None,
     ) -> RAGResult:
         sources = list(dict.fromkeys(c.source for c in chunks))
         result = RAGResult(
@@ -288,6 +360,7 @@ class RAGPipeline:
             chunks=chunks,
             sources=sources,
             timing_seconds=0.0,
+            usage=usage,
         )
         result.structured = structured
         return result
@@ -328,9 +401,7 @@ class RAGPipeline:
     def _retrieve_hyde(self, question: str) -> list[RAGChunk]:
         from langchain_core.messages import HumanMessage
 
-        hyde_prompt = (self._config.hyde_prompt or HYDE_GENERATION_PROMPT).format(
-            question=question
-        )
+        hyde_prompt = (self._config.hyde_prompt or HYDE_GENERATION_PROMPT).format(question=question)
         hypothetical_doc = self._llm.invoke([HumanMessage(content=hyde_prompt)]).content
         vs = self._get_vectorstore()
         docs_scores = vs.similarity_search_with_score(
@@ -467,15 +538,13 @@ class RAGPipeline:
 
     def _naive_query(self, question: str) -> RAGResult:
         chunks = self._retrieve_naive(question)
-        answer, structured = self._generate(question, self._build_context(chunks))
-        return self._make_result(question, answer, chunks, structured)
+        answer, structured, usage = self._generate(question, self._build_context(chunks))
+        return self._make_result(question, answer, chunks, structured, usage)
 
     def _hyde_query(self, question: str) -> RAGResult:
         from langchain_core.messages import HumanMessage
 
-        hyde_prompt = (self._config.hyde_prompt or HYDE_GENERATION_PROMPT).format(
-            question=question
-        )
+        hyde_prompt = (self._config.hyde_prompt or HYDE_GENERATION_PROMPT).format(question=question)
         hypothetical_doc = self._llm.invoke([HumanMessage(content=hyde_prompt)]).content
 
         vs = self._get_vectorstore()
@@ -483,8 +552,8 @@ class RAGPipeline:
             hypothetical_doc, k=self._config.top_k, filter=self._config.filters or None
         )
         chunks = self._rerank(self._docs_to_chunks(docs_scores), question)
-        answer, structured = self._generate(question, self._build_context(chunks))
-        result = self._make_result(question, answer, chunks, structured)
+        answer, structured, usage = self._generate(question, self._build_context(chunks))
+        result = self._make_result(question, answer, chunks, structured, usage)
         result.metadata["hypothetical_doc"] = hypothetical_doc
         return result
 
@@ -510,20 +579,20 @@ class RAGPipeline:
 
         merged.sort(key=lambda x: x[1], reverse=True)
         chunks = self._rerank(self._docs_to_chunks(merged[: self._config.top_k]), question)
-        answer, structured = self._generate(question, self._build_context(chunks))
-        result = self._make_result(question, answer, chunks, structured)
+        answer, structured, usage = self._generate(question, self._build_context(chunks))
+        result = self._make_result(question, answer, chunks, structured, usage)
         result.metadata["query_variants"] = variants
         return result
 
     def _parent_document_query(self, question: str) -> RAGResult:
         chunks = self._retrieve_parent_document(question)
-        answer, structured = self._generate(question, self._build_context(chunks))
-        return self._make_result(question, answer, chunks, structured)
+        answer, structured, usage = self._generate(question, self._build_context(chunks))
+        return self._make_result(question, answer, chunks, structured, usage)
 
     def _hybrid_query(self, question: str) -> RAGResult:
         chunks = self._retrieve_hybrid(question)
-        answer, structured = self._generate(question, self._build_context(chunks))
-        return self._make_result(question, answer, chunks, structured)
+        answer, structured, usage = self._generate(question, self._build_context(chunks))
+        return self._make_result(question, answer, chunks, structured, usage)
 
     def _auto_query(self, question: str) -> RAGResult:
         from langchain_core.messages import HumanMessage
@@ -553,7 +622,8 @@ class RAGPipeline:
                 f"Unknown embedding provider: '{config.embedding_provider}'. "
                 f"Available: {list(EMBEDDING_PROVIDERS)}"
             )
-        module_name, class_name, param_map, api_key_kwarg = EMBEDDING_PROVIDERS[config.embedding_provider]
+        provider_entry = EMBEDDING_PROVIDERS[config.embedding_provider]
+        module_name, class_name, param_map, api_key_kwarg = provider_entry
         try:
             module = importlib.import_module(module_name)
             cls = getattr(module, class_name)
