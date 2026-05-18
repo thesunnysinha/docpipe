@@ -235,7 +235,7 @@ curl -u admin:docpipe -X POST http://localhost:8000/ingest \\
     "connection_string": "postgresql://user:pass@db:5432/mydb",
     "table_name": "my_docs",
     "embedding_provider": "google",
-    "embedding_model": "models/embedding-001",
+    "embedding_model": "models/text-embedding-004",
     "api_key": "YOUR_API_KEY"
   }}'
 
@@ -247,7 +247,7 @@ curl -u admin:docpipe -X POST http://localhost:8000/rag/query \\
     "connection_string": "postgresql://user:pass@db:5432/mydb",
     "table_name": "my_docs",
     "embedding_provider": "google",
-    "embedding_model": "models/embedding-001",
+    "embedding_model": "models/text-embedding-004",
     "llm_provider": "google",
     "llm_model": "gemini-2.0-flash",
     "api_key": "YOUR_API_KEY"
