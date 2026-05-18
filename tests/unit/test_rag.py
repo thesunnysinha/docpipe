@@ -96,7 +96,10 @@ def test_invalid_strategy_raises(mock_llm: MagicMock, mock_emb: MagicMock) -> No
 def test_naive_query(mock_llm: MagicMock, mock_emb: MagicMock) -> None:
     mock_emb.return_value = MagicMock()
     llm = MagicMock()
-    llm.invoke.return_value = MagicMock(content="The answer is 42.")
+    llm.invoke.return_value = MagicMock(
+        content="The answer is 42.",
+        usage_metadata={"input_tokens": 20, "output_tokens": 8, "total_tokens": 28},
+    )
     mock_llm.return_value = llm
 
     pipeline = RAGPipeline(_make_config(strategy="naive"))
@@ -109,6 +112,8 @@ def test_naive_query(mock_llm: MagicMock, mock_emb: MagicMock) -> None:
         result = pipeline.query("What is the answer?")
 
     assert result.answer == "The answer is 42."
+    assert result.usage is not None
+    assert result.usage.input_tokens == 20
     assert result.strategy == "naive"
     assert len(result.chunks) == 1
     assert result.chunks[0].source == "report.pdf"
@@ -256,7 +261,9 @@ def test_hybrid_missing_dep_raises(mock_llm: MagicMock, mock_emb: MagicMock) -> 
 
     with (
         patch.object(pipeline, "_get_vectorstore", return_value=vs),
-        patch.dict(sys.modules, {"langchain_community": None, "langchain_community.retrievers": None}),  # noqa: E501
+        patch.dict(
+            sys.modules, {"langchain_community": None, "langchain_community.retrievers": None}
+        ),  # noqa: E501
         pytest.raises(RAGError, match="langchain-community"),
     ):
         pipeline.query("test")

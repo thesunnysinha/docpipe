@@ -85,15 +85,11 @@ def test_extraction_schema():
 
 
 def test_pipeline_result():
-    parsed = ParsedDocument(
-        source="test.pdf", format=DocumentFormat.PDF, text="Hello"
-    )
+    parsed = ParsedDocument(source="test.pdf", format=DocumentFormat.PDF, text="Hello")
     result = PipelineResult(
         source="test.pdf",
         parsed=parsed,
-        extractions=[
-            ExtractionResult(entity_class="test", text="hello")
-        ],
+        extractions=[ExtractionResult(entity_class="test", text="hello")],
     )
     assert result.source == "test.pdf"
     assert len(result.extractions) == 1

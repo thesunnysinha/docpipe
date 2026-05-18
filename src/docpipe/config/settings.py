@@ -39,6 +39,20 @@ class DocpipeSettings(BaseSettings):
 
     # Logging
     log_level: str = "INFO"
+    log_format: str = "text"
+
+    # OpenTelemetry (optional — install docpipe-sdk[observability])
+    otel_enabled: bool = False
+    otel_service_name: str = "docpipe"
+    otel_exporter_otlp_endpoint: str | None = None
+    otel_exporter_otlp_headers: str | None = None
+    otel_traces_sampler: str = "parentbased_traceidratio"
+    otel_traces_sampler_arg: float = 1.0
+    otel_semconv_stability_opt_in: str = "gen_ai_latest_experimental"
+
+    # Health probes
+    health_check_db: bool = True
+    health_check_embedding: bool = False
 
     # Security
     # Set DOCPIPE_ALLOW_PRIVATE_URLS=true in environments where document sources

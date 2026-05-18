@@ -3,14 +3,22 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
+from contextlib import asynccontextmanager
 from typing import Annotated, Any
 
 import psycopg2
-from fastapi import Depends
+from fastapi import Depends, Request
 from pydantic import BaseModel, Field, field_validator
 
-from docpipe.core.types import DeleteRequest, DeleteResponse, RAGConfig, validate_table_name
+from docpipe.core.types import (
+    DeleteRequest,
+    DeleteResponse,
+    RAGConfig,
+    TokenUsage,
+    validate_table_name,
+)
 from docpipe.rag.pipeline import RAGPipeline
 from docpipe.server.auth import require_auth
 
@@ -71,6 +79,7 @@ class IngestRequest(BaseModel):
     chunk_size: int = 1000
     chunk_overlap: int = 200
     ingest_mode: str = "both"
+    incremental: bool = False
 
     _validate_table_name = field_validator("table_name")(validate_table_name)
 
@@ -78,6 +87,7 @@ class IngestRequest(BaseModel):
 class IngestResponse(BaseModel):
     source: str
     chunks_ingested: int
+    skipped: int = 0
     table_name: str
     table_created: bool
 
@@ -99,10 +109,18 @@ class SearchResponse(BaseModel):
     results: list[dict[str, Any]]
 
 
+class DependencyStatusResponse(BaseModel):
+    name: str
+    status: str
+    latency_ms: float | None = None
+    detail: str | None = None
+
+
 class HealthResponse(BaseModel):
     status: str
     version: str
     plugins: dict[str, list[str]]
+    dependencies: list[DependencyStatusResponse] = Field(default_factory=list)
 
 
 class RAGQueryRequest(BaseModel):
@@ -130,6 +148,7 @@ class RAGQueryRequest(BaseModel):
     reranker_model: str | None = None
     rerank_top_n: int | None = None
     filters: dict[str, Any] = Field(default_factory=dict)
+    response_format: dict[str, Any] | None = None
 
     _validate_table_name = field_validator("table_name")(validate_table_name)
 
@@ -149,6 +168,7 @@ class RAGQueryResponse(BaseModel):
     chunks: list[RAGChunkResponse]
     sources: list[str]
     timing_seconds: float
+    usage: TokenUsage | None = None
 
 
 class EvaluateRequest(BaseModel):
@@ -191,17 +211,85 @@ def create_app() -> Any:
     from fastapi.responses import HTMLResponse, StreamingResponse
 
     from docpipe._version import __version__
+    from docpipe.config import get_settings
     from docpipe.core.errors import DocpipeError
     from docpipe.core.types import ExtractionSchema, IngestionConfig
+    from docpipe.observability import (
+        configure_logging,
+        configure_observability,
+        shutdown_observability,
+    )
+    from docpipe.observability.metrics import (
+        observe_rag,
+        record_ingest,
+        setup_prometheus_instrumentation,
+    )
+    from docpipe.observability.middleware import enrich_http_exception_span
+    from docpipe.observability.spans import trace_operation
+    from docpipe.observability.tracing import instrument_fastapi
     from docpipe.registry.registry import PluginRegistry
+    from docpipe.server.health import build_health_response
     from docpipe.server.homepage import render_homepage
-    from docpipe.server.http_errors import docpipe_http_exception
+    from docpipe.server.http_errors import docpipe_http_exception, record_http_error_metrics
+
+    settings = get_settings()
+    configure_logging(settings)
+    configure_observability()
+
+    @asynccontextmanager
+    async def lifespan(app: FastAPI):  # noqa: ARG001
+        yield
+        shutdown_observability()
 
     app = FastAPI(
         title="docpipe",
         description="Unified document parsing, extraction, and RAG ingestion API.",
         version=__version__,
+        lifespan=lifespan,
     )
+    setup_prometheus_instrumentation(app)
+    instrument_fastapi(app)
+
+    @app.exception_handler(HTTPException)
+    async def http_exception_handler(request: Request, exc: HTTPException) -> Any:
+        enrich_http_exception_span(request, exc)
+        detail = exc.detail
+        if isinstance(detail, dict):
+            route = request.scope.get("route")
+            handler = getattr(route, "path", "unknown") if route else "unknown"
+            record_http_error_metrics(
+                str(detail.get("error_type", "docpipe")),
+                str(detail.get("phase", "unknown")),
+                handler,
+            )
+        from fastapi.responses import JSONResponse
+
+        return JSONResponse(status_code=exc.status_code, content={"detail": detail})
+
+    def _rag_config_from_request(req: RAGQueryRequest) -> RAGConfig:
+        return RAGConfig(
+            connection_string=req.connection_string,
+            table_name=req.table_name,
+            embedding_provider=req.embedding_provider,
+            embedding_model=req.embedding_model,
+            embedding_api_key=req.embedding_api_key or req.api_key,
+            llm_provider=req.llm_provider,
+            llm_model=req.llm_model,
+            llm_api_key=req.api_key,
+            strategy=req.strategy,  # type: ignore[arg-type]
+            top_k=req.top_k,
+            system_prompt=req.system_prompt,
+            history=req.history,
+            hyde_prompt=req.hyde_prompt,
+            multi_query_count=req.multi_query_count,
+            parent_window_size=req.parent_window_size,
+            hybrid_bm25_weight=req.hybrid_bm25_weight,
+            reranker=req.reranker,  # type: ignore[arg-type]
+            reranker_model=req.reranker_model,
+            rerank_top_n=req.rerank_top_n,
+            filters=req.filters,
+            response_format=req.response_format,
+        )
 
     @app.get("/", response_class=HTMLResponse, include_in_schema=False)
     async def homepage(_: Auth) -> HTMLResponse:
@@ -217,17 +305,28 @@ def create_app() -> Any:
     async def health() -> HealthResponse:
         """Server health — no auth required (used by Docker healthcheck)."""
         registry = PluginRegistry.get()
-        return HealthResponse(
-            status="ok",
-            version=__version__,
-            plugins={
+        payload = build_health_response(
+            __version__,
+            {
                 "parsers": registry.list_parsers(),
                 "extractors": registry.list_extractors(),
             },
         )
+        return HealthResponse(
+            status=payload.status,
+            version=payload.version,
+            plugins=payload.plugins,
+            dependencies=[
+                DependencyStatusResponse(**dep.model_dump()) for dep in payload.dependencies
+            ],
+        )
 
     @app.post("/parse", response_model=ParseResponse)
     async def parse_document(req: ParseRequest, _: Auth) -> ParseResponse:
+        with trace_operation("docpipe.parse"):
+            return await _parse_document(req)
+
+    async def _parse_document(req: ParseRequest) -> ParseResponse:
         try:
             registry = PluginRegistry.get()
             parser = registry.get_parser(req.parser)
@@ -261,9 +360,7 @@ def create_app() -> Any:
                 entity_classes=req.entity_classes,
             )
             results = await extractor.aextract(req.text, schema)
-            return ExtractResponse(
-                extractions=[r.model_dump() for r in results]
-            )
+            return ExtractResponse(extractions=[r.model_dump() for r in results])
         except DocpipeError as e:
             raise docpipe_http_exception(e) from e
 
@@ -286,55 +383,74 @@ def create_app() -> Any:
 
     @app.post("/ingest", response_model=IngestResponse)
     async def ingest_document(req: IngestRequest, _: Auth) -> IngestResponse:
-        try:
-            from docpipe.ingestion.pipeline import IngestionPipeline
+        with trace_operation(
+            "docpipe.ingest",
+            docpipe_table_name=req.table_name,
+            docpipe_incremental=req.incremental,
+        ):
+            try:
+                from docpipe.ingestion.pipeline import IngestionPipeline
 
-            registry = PluginRegistry.get()
-            parser = registry.get_parser(req.parser)
-            parsed = await parser.aparse(req.source)
+                registry = PluginRegistry.get()
+                parser = registry.get_parser(req.parser)
+                parsed = await parser.aparse(req.source)
 
-            config = IngestionConfig(
-                connection_string=req.connection_string,
-                table_name=req.table_name,
-                embedding_provider=req.embedding_provider,
-                embedding_model=req.embedding_model,
-                embedding_api_key=req.api_key,
-                chunk_size=req.chunk_size,
-                chunk_overlap=req.chunk_overlap,
-                ingest_mode=req.ingest_mode,
-            )
-            ingestion = IngestionPipeline(config)
-            result = await ingestion.aingest(parsed)
-            return IngestResponse(
-                source=result.source,
-                chunks_ingested=result.chunks_ingested,
-                table_name=result.table_name,
-                table_created=result.table_created,
-            )
-        except DocpipeError as e:
-            raise docpipe_http_exception(e) from e
+                config = IngestionConfig(
+                    connection_string=req.connection_string,
+                    table_name=req.table_name,
+                    embedding_provider=req.embedding_provider,
+                    embedding_model=req.embedding_model,
+                    embedding_api_key=req.api_key,
+                    chunk_size=req.chunk_size,
+                    chunk_overlap=req.chunk_overlap,
+                    ingest_mode=req.ingest_mode,  # type: ignore[arg-type]
+                    incremental=req.incremental,
+                )
+                ingestion = IngestionPipeline(config)
+                result = await ingestion.aingest(parsed)
+                record_ingest(req.table_name, result.chunks_ingested)
+                return IngestResponse(
+                    source=result.source,
+                    chunks_ingested=result.chunks_ingested,
+                    skipped=result.skipped,
+                    table_name=result.table_name,
+                    table_created=result.table_created,
+                )
+            except DocpipeError as e:
+                raise docpipe_http_exception(e) from e
 
     @app.delete("/ingest", response_model=DeleteResponse)
     async def delete_document(req: DeleteRequest, _: Auth) -> DeleteResponse:
-        try:
-            with psycopg2.connect(req.connection_string) as conn, conn.cursor() as cur:
-                sql = (
-                    f"DELETE FROM {req.table_name} "  # noqa: S608
-                    "WHERE cmetadata->>'source' = %s"
+        with trace_operation("docpipe.ingest.delete", docpipe_table_name=req.table_name):
+            try:
+                with psycopg2.connect(req.connection_string) as conn, conn.cursor() as cur:
+                    if req.match_mode == "contains":
+                        pattern = f"%{req.source_contains}%"
+                        sql = (
+                            f"DELETE FROM {req.table_name} "  # noqa: S608
+                            "WHERE cmetadata->>'source' LIKE %s"
+                        )
+                        cur.execute(sql, [pattern])
+                        source_label = req.source_contains or ""
+                    else:
+                        sql = (
+                            f"DELETE FROM {req.table_name} "  # noqa: S608
+                            "WHERE cmetadata->>'source' = %s"
+                        )
+                        cur.execute(sql, [req.source])
+                        source_label = req.source or ""
+                    deleted = cur.rowcount
+                return DeleteResponse(
+                    table_name=req.table_name,
+                    source=source_label,
+                    chunks_deleted=deleted,
                 )
-                cur.execute(sql, [req.source])
-                deleted = cur.rowcount
-            return DeleteResponse(
-                table_name=req.table_name,
-                source=req.source,
-                chunks_deleted=deleted,
-            )
-        except psycopg2.errors.UndefinedTable as exc:
-            raise HTTPException(
-                status_code=404, detail=f"Table '{req.table_name}' not found"
-            ) from exc
-        except Exception as exc:
-            raise HTTPException(status_code=500, detail=str(exc)) from exc
+            except psycopg2.errors.UndefinedTable as exc:
+                raise HTTPException(
+                    status_code=404, detail=f"Table '{req.table_name}' not found"
+                ) from exc
+            except Exception as exc:
+                raise HTTPException(status_code=500, detail=str(exc)) from exc
 
     @app.post("/search", response_model=SearchResponse)
     async def search_documents(req: SearchRequest, _: Auth) -> SearchResponse:
@@ -358,9 +474,7 @@ def create_app() -> Any:
     async def list_plugins(_: Auth) -> dict[str, Any]:
         registry = PluginRegistry.get()
         return {
-            "parsers": {
-                name: registry.parser_info(name) for name in registry.list_parsers()
-            },
+            "parsers": {name: registry.parser_info(name) for name in registry.list_parsers()},
             "extractors": {
                 name: registry.extractor_info(name) for name in registry.list_extractors()
             },
@@ -368,68 +482,29 @@ def create_app() -> Any:
 
     @app.post("/rag/query", response_model=RAGQueryResponse)
     async def rag_query(req: RAGQueryRequest, _: Auth) -> RAGQueryResponse:
-        try:
-            config = RAGConfig(
-                connection_string=req.connection_string,
-                table_name=req.table_name,
-                embedding_provider=req.embedding_provider,
-                embedding_model=req.embedding_model,
-                embedding_api_key=req.embedding_api_key or req.api_key,
-                llm_provider=req.llm_provider,
-                llm_model=req.llm_model,
-                llm_api_key=req.api_key,
-                strategy=req.strategy,
-                top_k=req.top_k,
-                system_prompt=req.system_prompt,
-                history=req.history,
-                hyde_prompt=req.hyde_prompt,
-                multi_query_count=req.multi_query_count,
-                parent_window_size=req.parent_window_size,
-                hybrid_bm25_weight=req.hybrid_bm25_weight,
-                reranker=req.reranker,  # type: ignore[arg-type]
-                reranker_model=req.reranker_model,
-                rerank_top_n=req.rerank_top_n,
-                filters=req.filters,
-            )
-            pipeline = RAGPipeline(config)
-            result = await pipeline.aquery(req.question)
-            return RAGQueryResponse(
-                query=result.query,
-                answer=result.answer,
-                strategy=result.strategy,
-                chunks=[RAGChunkResponse(**c.model_dump()) for c in result.chunks],
-                sources=result.sources,
-                timing_seconds=result.timing_seconds,
-            )
-        except DocpipeError as e:
-            raise docpipe_http_exception(e) from e
+        with observe_rag(req.strategy):
+            try:
+                config = _rag_config_from_request(req)
+                pipeline = RAGPipeline(config)
+                result = await pipeline.aquery(req.question)
+                usage = result.usage if isinstance(result.usage, TokenUsage) else None
+                return RAGQueryResponse(
+                    query=result.query,
+                    answer=result.answer,
+                    strategy=result.strategy,
+                    chunks=[RAGChunkResponse(**c.model_dump()) for c in result.chunks],
+                    sources=result.sources,
+                    timing_seconds=result.timing_seconds,
+                    usage=usage,
+                )
+            except DocpipeError as e:
+                raise docpipe_http_exception(e) from e
 
     @app.post("/rag/stream", response_class=StreamingResponse)
     async def rag_stream(req: RAGQueryRequest, _: Auth) -> StreamingResponse:
         try:
-            config = RAGConfig(
-                connection_string=req.connection_string,
-                table_name=req.table_name,
-                embedding_provider=req.embedding_provider,
-                embedding_model=req.embedding_model,
-                embedding_api_key=req.embedding_api_key or req.api_key,
-                llm_provider=req.llm_provider,
-                llm_model=req.llm_model,
-                llm_api_key=req.api_key,
-                strategy=req.strategy,
-                top_k=req.top_k,
-                system_prompt=req.system_prompt,
-                history=req.history,
-                hyde_prompt=req.hyde_prompt,
-                multi_query_count=req.multi_query_count,
-                parent_window_size=req.parent_window_size,
-                hybrid_bm25_weight=req.hybrid_bm25_weight,
-                reranker=req.reranker,  # type: ignore[arg-type]
-                reranker_model=req.reranker_model,
-                rerank_top_n=req.rerank_top_n,
-                filters=req.filters,
-                stream=True,
-            )
+            config = _rag_config_from_request(req)
+            config = config.model_copy(update={"stream": True})
             pipeline = RAGPipeline(config)
         except DocpipeError as e:
             raise docpipe_http_exception(e) from e
@@ -438,8 +513,13 @@ def create_app() -> Any:
         # Acceptable for single-worker deployments; for async scale, wrap with asyncio.to_thread.
         def generate():
             try:
-                for token in pipeline.stream_query(req.question):
-                    yield f"data: {token}\n\n"
+                with observe_rag(req.strategy):
+                    for token in pipeline.stream_query(req.question):
+                        yield f"data: {token}\n\n"
+                usage = pipeline.last_usage
+                if isinstance(usage, TokenUsage):
+                    meta = {"type": "usage", "usage": usage.model_dump(exclude_none=True)}
+                    yield f"event: metadata\ndata: {json.dumps(meta)}\n\n"
                 yield "data: [DONE]\n\n"
             except Exception as exc:  # noqa: BLE001
                 logger.exception("stream_query failed")
@@ -464,7 +544,9 @@ def create_app() -> Any:
             )
             questions = [EvalQuestion(**q) for q in req.questions]
             cfg = EvalConfig(
-                rag_config=rag_config, questions=questions, metrics=req.metrics  # type: ignore[arg-type]
+                rag_config=rag_config,
+                questions=questions,
+                metrics=req.metrics,  # type: ignore[arg-type]
             )
             runner = EvalPipeline(cfg)
             result = await runner.arun()
@@ -483,17 +565,23 @@ def create_app() -> Any:
         from docpipe.core.errors import ConfigurationError
         from docpipe.rag.pipeline import create_llm
 
-        try:
-            llm = create_llm(req.llm_provider, req.llm_model, req.api_key)
-        except ConfigurationError as e:
-            raise HTTPException(status_code=400, detail=str(e)) from e
+        with trace_operation(
+            "docpipe.generate",
+            gen_ai_operation="chat",
+            provider=req.llm_provider,
+            model=req.llm_model,
+        ):
+            try:
+                llm = create_llm(req.llm_provider, req.llm_model, req.api_key)
+            except ConfigurationError as e:
+                raise docpipe_http_exception(e) from e
 
-        try:
-            response = await asyncio.to_thread(llm.invoke, [HumanMessage(content=req.prompt)])
-            return GenerateResponse(content=response.content)
-        except Exception as e:
-            logger.exception("LLM invocation failed")
-            raise HTTPException(status_code=500, detail="LLM invocation failed") from e
+            try:
+                response = await asyncio.to_thread(llm.invoke, [HumanMessage(content=req.prompt)])
+                return GenerateResponse(content=response.content)
+            except Exception as e:
+                logger.exception("LLM invocation failed")
+                raise HTTPException(status_code=500, detail="LLM invocation failed") from e
 
     return app
 

@@ -6,7 +6,7 @@ import re
 from enum import Enum
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class DocumentFormat(str, Enum):
@@ -120,6 +120,14 @@ class IngestionConfig(BaseModel):
     _validate_table_name = field_validator("table_name")(validate_table_name)
 
 
+class TokenUsage(BaseModel):
+    """LLM token usage from provider responses."""
+
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    total_tokens: int | None = None
+
+
 class IngestionResult(BaseModel):
     """Result of an ingestion operation."""
 
@@ -136,7 +144,9 @@ class DeleteRequest(BaseModel):
 
     connection_string: str
     table_name: str
-    source: str
+    source: str | None = None
+    source_contains: str | None = None
+    match_mode: Literal["exact", "contains"] = "exact"
 
     @field_validator("table_name")
     @classmethod
@@ -147,6 +157,17 @@ class DeleteRequest(BaseModel):
                 " (letters, digits, underscores only)"
             )
         return v
+
+    @model_validator(mode="after")
+    def _validate_source_fields(self) -> DeleteRequest:
+        if self.match_mode == "contains":
+            if not self.source_contains:
+                raise ValueError("source_contains is required when match_mode='contains'")
+            if self.source:
+                raise ValueError("source must not be set when match_mode='contains'")
+        elif not self.source:
+            raise ValueError("source is required when match_mode='exact'")
+        return self
 
 
 class DeleteResponse(BaseModel):
@@ -193,6 +214,10 @@ class RAGConfig(BaseModel):
         description="Pydantic model class for structured RAG output",
         exclude=True,
     )
+    response_format: dict[str, Any] | None = Field(
+        default=None,
+        description="JSON schema dict for structured output (REST-friendly)",
+    )
     stream: bool = False
     # Semantic query cache
     cache_enabled: bool = False
@@ -223,6 +248,7 @@ class RAGResult(BaseModel):
     chunks: list[RAGChunk]
     sources: list[str]
     timing_seconds: float
+    usage: TokenUsage | None = None
     structured: Any = Field(default=None, exclude=True)
     metadata: dict[str, Any] = Field(default_factory=dict)
 

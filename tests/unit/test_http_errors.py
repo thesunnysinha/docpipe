@@ -1,8 +1,5 @@
 from __future__ import annotations
 
-import pytest
-from fastapi import HTTPException
-
 from docpipe.core.errors import ConfigurationError, IngestionError, ParseError
 from docpipe.server.http_errors import docpipe_http_exception
 

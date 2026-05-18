@@ -27,7 +27,9 @@ def cli(log_level: str) -> None:
 @click.argument("file")
 @click.option("--parser", default="docling", help="Parser to use")
 @click.option(
-    "--format", "output_format", default="markdown",
+    "--format",
+    "output_format",
+    default="markdown",
     type=click.Choice(["markdown", "text", "json"]),
 )
 @click.option("--output", "-o", default=None, help="Output file (default: stdout)")
@@ -138,7 +140,8 @@ def run_pipeline(
 @click.option("--db", required=True, help="Database connection string")
 @click.option("--table", required=True, help="Target table name")
 @click.option(
-    "--embedding-provider", required=True,
+    "--embedding-provider",
+    required=True,
     help="Embedding provider (openai, ollama, huggingface, google)",
 )
 @click.option("--embedding-model", required=True, help="Embedding model name")
@@ -326,7 +329,9 @@ def rag() -> None:
     show_default=True,
     help="Retrieval strategy",
 )
-@click.option("--llm-provider", required=True, help="LLM provider (openai, google, ollama, anthropic)")  # noqa: E501
+@click.option(
+    "--llm-provider", required=True, help="LLM provider (openai, google, ollama, anthropic)"
+)  # noqa: E501
 @click.option("--llm-model", required=True, help="LLM model name")
 @click.option("--embedding-provider", required=True, help="Embedding provider")
 @click.option("--embedding-model", required=True, help="Embedding model name")
