@@ -8,12 +8,6 @@ Unified document parsing, structured extraction, vector ingestion, and RAG pipel
 [![Docker](https://img.shields.io/badge/ghcr.io-docpipe-6366f1?logo=docker&logoColor=white)](https://ghcr.io/thesunnysinha/docpipe)
 [![Website](https://img.shields.io/badge/website-docpipe.sunnysinha.online-6366f1)](https://docpipe.sunnysinha.online)
 
-> **PyPI vs `main`:** [PyPI](https://pypi.org/project/docpipe-sdk/) ships **v0.4.5**. The latest on GitHub `main` adds `docpipe.query()` (renamed from `docpipe.rag()`), optional **turbovec**, OpenTelemetry/Prometheus observability, `/generate`, and richer `/health`. Install from git until the next release:
->
-> ```bash
-> pip install "git+https://github.com/thesunnysinha/docpipe.git@main#egg=docpipe-sdk[server,observability]"
-> ```
-
 ## Overview
 
 docpipe connects document parsing (Docling / GLM-OCR), LLM-based structured extraction (LangExtract + LangChain), vector ingestion (pgvector), and RAG querying into a single composable pipeline.
@@ -30,6 +24,11 @@ docpipe connects document parsing (Docling / GLM-OCR), LLM-based structured extr
 ---
 
 ## Install
+
+```bash
+pip install docpipe-sdk
+pip install "docpipe-sdk[server,observability]"   # API server + OpenTelemetry traces & JSON logs
+```
 
 ```bash
 pip install docpipe-sdk                  # Core only
@@ -51,11 +50,7 @@ pip install "docpipe-sdk[http]"          # + httpx client (`docpipe.http.Docpipe
 pip install "docpipe-sdk[all]"           # All extras except turbovec & huggingface (install those separately)
 ```
 
-Install latest `main` (features not yet on PyPI):
-
-```bash
-pip install "git+https://github.com/thesunnysinha/docpipe.git@main#egg=docpipe-sdk[all,turbovec,observability,http]"
-```
+For unreleased commits: `pip install git+https://github.com/thesunnysinha/docpipe.git`
 
 ---
 
@@ -150,7 +145,7 @@ docpipe.ingest("invoice.pdf", config=config)
 
 ### RAG — ask questions against your documents
 
-Use **`docpipe.query()`** for programmatic RAG (v0.4.5 on PyPI exposed `docpipe.rag()`, which shadowed the `docpipe.rag` package — removed on `main`).
+Use **`docpipe.query()`** for programmatic RAG. In v0.4.x, `docpipe.rag()` shadowed the `docpipe.rag` package; use `docpipe.query()` instead (removed in v0.5.0).
 
 ```python
 rag_config = docpipe.RAGConfig(
