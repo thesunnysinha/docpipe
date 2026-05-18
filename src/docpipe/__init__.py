@@ -132,7 +132,7 @@ def ingest(
     return ingestion.ingest(parsed)
 
 
-def rag(question: str, *, config: RAGConfig) -> RAGResult:
+def query(question: str, *, config: RAGConfig) -> RAGResult:
     """Answer a question using RAG against the user's vector store."""
     pipeline = RAGPipeline(config)
     return pipeline.query(question)
@@ -192,7 +192,7 @@ __all__ = [
     "extract",
     "ingest",
     "parse",
-    "rag",
+    "query",
     "run",
     "stream_query",
 ]
