@@ -143,6 +143,8 @@ def test_generate_unknown_provider_returns_400(client):
         "llm_model": "some-model",
     })
     assert resp.status_code == 400
+    detail = resp.json()["detail"]
+    assert detail["error_type"] == "configuration"
 
 
 def test_generate_llm_error_returns_500(client):

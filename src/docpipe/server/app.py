@@ -195,6 +195,7 @@ def create_app() -> Any:
     from docpipe.core.types import ExtractionSchema, IngestionConfig
     from docpipe.registry.registry import PluginRegistry
     from docpipe.server.homepage import render_homepage
+    from docpipe.server.http_errors import docpipe_http_exception
 
     app = FastAPI(
         title="docpipe",
@@ -246,7 +247,7 @@ def create_app() -> Any:
                 metadata=result.metadata,
             )
         except DocpipeError as e:
-            raise HTTPException(status_code=400, detail=str(e)) from e
+            raise docpipe_http_exception(e) from e
 
     @app.post("/extract", response_model=ExtractResponse)
     async def extract_data(req: ExtractRequest, _: Auth) -> ExtractResponse:
@@ -264,7 +265,7 @@ def create_app() -> Any:
                 extractions=[r.model_dump() for r in results]
             )
         except DocpipeError as e:
-            raise HTTPException(status_code=400, detail=str(e)) from e
+            raise docpipe_http_exception(e) from e
 
     @app.post("/run")
     async def run_pipeline(req: RunRequest, _: Auth) -> dict[str, Any]:
@@ -281,7 +282,7 @@ def create_app() -> Any:
             result = await pipeline.arun(req.source, schema)
             return result.model_dump()
         except DocpipeError as e:
-            raise HTTPException(status_code=400, detail=str(e)) from e
+            raise docpipe_http_exception(e) from e
 
     @app.post("/ingest", response_model=IngestResponse)
     async def ingest_document(req: IngestRequest, _: Auth) -> IngestResponse:
@@ -311,7 +312,7 @@ def create_app() -> Any:
                 table_created=result.table_created,
             )
         except DocpipeError as e:
-            raise HTTPException(status_code=400, detail=str(e)) from e
+            raise docpipe_http_exception(e) from e
 
     @app.delete("/ingest", response_model=DeleteResponse)
     async def delete_document(req: DeleteRequest, _: Auth) -> DeleteResponse:
@@ -351,7 +352,7 @@ def create_app() -> Any:
             results = ingestion.search(req.query, top_k=req.top_k, filters=req.filters)
             return SearchResponse(results=results)
         except DocpipeError as e:
-            raise HTTPException(status_code=400, detail=str(e)) from e
+            raise docpipe_http_exception(e) from e
 
     @app.get("/plugins")
     async def list_plugins(_: Auth) -> dict[str, Any]:
@@ -401,7 +402,7 @@ def create_app() -> Any:
                 timing_seconds=result.timing_seconds,
             )
         except DocpipeError as e:
-            raise HTTPException(status_code=400, detail=str(e)) from e
+            raise docpipe_http_exception(e) from e
 
     @app.post("/rag/stream", response_class=StreamingResponse)
     async def rag_stream(req: RAGQueryRequest, _: Auth) -> StreamingResponse:
@@ -431,7 +432,7 @@ def create_app() -> Any:
             )
             pipeline = RAGPipeline(config)
         except DocpipeError as e:
-            raise HTTPException(status_code=400, detail=str(e)) from e
+            raise docpipe_http_exception(e) from e
 
         # NOTE: stream_query() is synchronous and blocks the event loop.
         # Acceptable for single-worker deployments; for async scale, wrap with asyncio.to_thread.
@@ -473,7 +474,7 @@ def create_app() -> Any:
                 timing_seconds=result.timing_seconds,
             )
         except DocpipeError as e:
-            raise HTTPException(status_code=400, detail=str(e)) from e
+            raise docpipe_http_exception(e) from e
 
     @app.post("/generate", response_model=GenerateResponse)
     async def generate(req: GenerateRequest, _: Auth) -> GenerateResponse:
