@@ -115,7 +115,7 @@ rag_config = docpipe.RAGConfig(
     llm_model="gpt-4o",
     strategy="hyde",   # naive | hyde | multi_query | parent_document | hybrid | auto
 )
-result = docpipe.rag("What is the total amount on the invoice?", config=rag_config)
+result = docpipe.query("What is the total amount on the invoice?", config=rag_config)
 print(result.answer)   # grounded answer with inline citations
 print(result.sources)  # ["invoice.pdf"]
 print(result.chunks)   # retrieved chunks with scores
@@ -131,7 +131,7 @@ class InvoiceSummary(BaseModel):
     currency: str
     vendor: str
 
-result = docpipe.rag(
+result = docpipe.query(
     "Summarize the invoice",
     config=docpipe.RAGConfig(..., output_model=InvoiceSummary),
 )
