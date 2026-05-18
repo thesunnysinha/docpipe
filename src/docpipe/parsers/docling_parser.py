@@ -64,7 +64,7 @@ class DoclingParser:
         except Exception:
             return False
 
-    def _resolve_source(self, source: str) -> "str | Any":
+    def _resolve_source(self, source: str) -> str | Any:
         """Pre-fetch private-network URLs as a DocumentStream when allowed.
 
         docling_core rejects URLs that resolve to private IPs as an SSRF
@@ -103,11 +103,26 @@ class DoclingParser:
             raise ParseError(f"Failed to parse '{source}': {e}") from e
 
         doc = result.document
+        full_text = doc.export_to_text()
         pages: list[PageContent] = []
         if hasattr(doc, "pages") and doc.pages:
-            for i, page in enumerate(doc.pages):
-                page_text = page.export_to_text() if hasattr(page, "export_to_text") else ""
-                pages.append(PageContent(page_number=i + 1, text=page_text))
+            # Docling stores pages as dict[int, PageItem]; PageItem has no export_to_text.
+            page_items = (
+                sorted(doc.pages.items(), key=lambda item: item[0])
+                if isinstance(doc.pages, dict)
+                else list(enumerate(doc.pages, start=1))
+            )
+            for page_no, _page_item in page_items:
+                if hasattr(doc, "export_to_text"):
+                    page_text = doc.export_to_text(page_no=page_no)
+                else:
+                    page_text = ""
+                if page_text.strip():
+                    pages.append(PageContent(page_number=int(page_no), text=page_text))
+
+        if not pages and full_text.strip():
+            # Single-page or parsers that only expose document-level text.
+            pages = [PageContent(page_number=1, text=full_text)]
 
         return ParsedDocument(
             source=source,
@@ -176,8 +191,16 @@ class DoclingParser:
     def supported_formats(cls) -> list[str]:
         """Return supported format strings."""
         return [
-            "pdf", "docx", "xlsx", "pptx", "html",
-            "image", "audio", "video", "text", "markdown",
+            "pdf",
+            "docx",
+            "xlsx",
+            "pptx",
+            "html",
+            "image",
+            "audio",
+            "video",
+            "text",
+            "markdown",
         ]
 
     @staticmethod
