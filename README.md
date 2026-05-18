@@ -34,7 +34,8 @@ pip install "docpipe-sdk[openai]"        # + OpenAI embeddings & LLM
 pip install "docpipe-sdk[anthropic]"     # + Anthropic Claude
 pip install "docpipe-sdk[google]"        # + Google Gemini
 pip install "docpipe-sdk[ollama]"        # + Ollama (local models)
-pip install "docpipe-sdk[pgvector]"      # + PostgreSQL vector store
+pip install "docpipe-sdk[pgvector]"      # + PostgreSQL vector store (default)
+pip install "docpipe-sdk[turbovec]"      # + Optional local turbovec file indices
 pip install "docpipe-sdk[rag]"           # + Hybrid search (BM25 + langchain-classic)
 pip install "docpipe-sdk[rerank]"        # + Local reranking (FlashRank)
 pip install "docpipe-sdk[server]"        # + FastAPI server
@@ -102,6 +103,35 @@ config = docpipe.IngestionConfig(
 docpipe.ingest("invoice.pdf", config=config)
 # → Skipped 'invoice.pdf' (unchanged, incremental mode)
 ```
+
+### Optional turbovec backend (local file indices)
+
+By default docpipe uses **pgvector** in your PostgreSQL database. For standalone or edge deployments where you want a compressed on-disk index (no Postgres for vectors), install the turbovec extra:
+
+```bash
+pip install "docpipe-sdk[turbovec,openai]"   # or your embedding provider extra
+```
+
+Set the backend via environment or per request (`vector_backend` on ingest/search/RAG bodies):
+
+```bash
+export DOCPIPE_VECTOR_BACKEND=turbovec
+export DOCPIPE_TURBVEC_INDEX_DIR=./.docpipe/indices   # default
+```
+
+```python
+config = docpipe.IngestionConfig(
+    connection_string="postgresql://unused",  # still accepted; ignored for vectors
+    table_name="my_library",                  # used as the on-disk index folder name
+    embedding_provider="openai",
+    embedding_model="text-embedding-3-small",
+    vector_backend="turbovec",
+)
+docpipe.ingest("invoice.pdf", config=config)
+# → writes ./.docpipe/indices/my_library/index.tvim + docstore.json
+```
+
+**When to use:** local prototypes, air-gapped RAG, or memory-constrained search without running pgvector. **Jingo and other production Postgres deployments should keep the default `pgvector` backend.**
 
 ### RAG — ask questions against your documents
 

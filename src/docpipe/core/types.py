@@ -116,6 +116,9 @@ class IngestionConfig(BaseModel):
     contextual_injection: bool = False
     contextual_llm_provider: str = "openai"
     contextual_llm_model: str = "gpt-4o-mini"
+    # Vector store backend (per-request override; server default from DOCPIPE_VECTOR_BACKEND)
+    vector_backend: Literal["pgvector", "turbovec"] | None = None
+    turbovec_index_dir: str | None = None
 
     _validate_table_name = field_validator("table_name")(validate_table_name)
 
@@ -147,6 +150,12 @@ class DeleteRequest(BaseModel):
     source: str | None = None
     source_contains: str | None = None
     match_mode: Literal["exact", "contains"] = "exact"
+    vector_backend: Literal["pgvector", "turbovec"] | None = None
+    turbovec_index_dir: str | None = None
+    # Required when vector_backend=turbovec (to load the on-disk index for delete)
+    embedding_provider: str | None = None
+    embedding_model: str | None = None
+    embedding_api_key: str | None = None
 
     @field_validator("table_name")
     @classmethod
@@ -225,6 +234,8 @@ class RAGConfig(BaseModel):
     cache_max_size: int = 100
     # Metadata filtering
     filters: dict[str, Any] = Field(default_factory=dict)
+    vector_backend: Literal["pgvector", "turbovec"] | None = None
+    turbovec_index_dir: str | None = None
 
     _validate_table_name = field_validator("table_name")(validate_table_name)
 

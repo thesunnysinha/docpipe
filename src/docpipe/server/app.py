@@ -80,6 +80,8 @@ class IngestRequest(BaseModel):
     chunk_overlap: int = 200
     ingest_mode: str = "both"
     incremental: bool = False
+    vector_backend: str | None = None
+    turbovec_index_dir: str | None = None
 
     _validate_table_name = field_validator("table_name")(validate_table_name)
 
@@ -101,6 +103,8 @@ class SearchRequest(BaseModel):
     api_key: str | None = None
     top_k: int = 10
     filters: dict[str, Any] = Field(default_factory=dict)
+    vector_backend: str | None = None
+    turbovec_index_dir: str | None = None
 
     _validate_table_name = field_validator("table_name")(validate_table_name)
 
@@ -149,6 +153,8 @@ class RAGQueryRequest(BaseModel):
     rerank_top_n: int | None = None
     filters: dict[str, Any] = Field(default_factory=dict)
     response_format: dict[str, Any] | None = None
+    vector_backend: str | None = None
+    turbovec_index_dir: str | None = None
 
     _validate_table_name = field_validator("table_name")(validate_table_name)
 
@@ -266,6 +272,15 @@ def create_app() -> Any:
 
         return JSONResponse(status_code=exc.status_code, content={"detail": detail})
 
+    def _vector_fields_from_request(
+        req: IngestRequest | SearchRequest | RAGQueryRequest,
+    ) -> dict[str, Any]:
+        backend = req.vector_backend or settings.vector_backend
+        return {
+            "vector_backend": backend,
+            "turbovec_index_dir": req.turbovec_index_dir,
+        }
+
     def _rag_config_from_request(req: RAGQueryRequest) -> RAGConfig:
         return RAGConfig(
             connection_string=req.connection_string,
@@ -289,6 +304,7 @@ def create_app() -> Any:
             rerank_top_n=req.rerank_top_n,
             filters=req.filters,
             response_format=req.response_format,
+            **_vector_fields_from_request(req),
         )
 
     @app.get("/", response_class=HTMLResponse, include_in_schema=False)
@@ -405,6 +421,7 @@ def create_app() -> Any:
                     chunk_overlap=req.chunk_overlap,
                     ingest_mode=req.ingest_mode,  # type: ignore[arg-type]
                     incremental=req.incremental,
+                    **_vector_fields_from_request(req),
                 )
                 ingestion = IngestionPipeline(config)
                 result = await ingestion.aingest(parsed)
@@ -423,32 +440,71 @@ def create_app() -> Any:
     async def delete_document(req: DeleteRequest, _: Auth) -> DeleteResponse:
         with trace_operation("docpipe.ingest.delete", docpipe_table_name=req.table_name):
             try:
-                with psycopg2.connect(req.connection_string) as conn, conn.cursor() as cur:
-                    if req.match_mode == "contains":
-                        pattern = f"%{req.source_contains}%"
-                        sql = (
-                            f"DELETE FROM {req.table_name} "  # noqa: S608
-                            "WHERE cmetadata->>'source' LIKE %s"
+                from docpipe.ingestion.pipeline import IngestionPipeline
+                from docpipe.vectorstores.base import resolve_vector_backend
+                from docpipe.vectorstores.factory import delete_by_source
+
+                backend = resolve_vector_backend(
+                    config=req.vector_backend,
+                    default=settings.vector_backend,
+                )
+                source_label = (
+                    req.source_contains or ""
+                    if req.match_mode == "contains"
+                    else (req.source or "")
+                )
+                if backend == "turbovec":
+                    if not req.embedding_provider or not req.embedding_model:
+                        raise HTTPException(
+                            status_code=400,
+                            detail=(
+                                "embedding_provider and embedding_model are required "
+                                "when vector_backend=turbovec"
+                            ),
                         )
-                        cur.execute(sql, [pattern])
-                        source_label = req.source_contains or ""
-                    else:
-                        sql = (
-                            f"DELETE FROM {req.table_name} "  # noqa: S608
-                            "WHERE cmetadata->>'source' = %s"
-                        )
-                        cur.execute(sql, [req.source])
-                        source_label = req.source or ""
-                    deleted = cur.rowcount
+                    emb_config = IngestionConfig(
+                        connection_string=req.connection_string,
+                        table_name=req.table_name,
+                        embedding_provider=req.embedding_provider,
+                        embedding_model=req.embedding_model,
+                        embedding_api_key=req.embedding_api_key,
+                        vector_backend=backend,
+                        turbovec_index_dir=req.turbovec_index_dir,
+                    )
+                    embeddings = IngestionPipeline._create_embeddings(emb_config)
+                    deleted = delete_by_source(
+                        embeddings=embeddings,
+                        table_name=req.table_name,
+                        connection_string=req.connection_string,
+                        vector_backend=backend,
+                        turbovec_index_dir=req.turbovec_index_dir,
+                        source=req.source,
+                        source_contains=req.source_contains,
+                        match_mode=req.match_mode,
+                    )
+                else:
+                    deleted = delete_by_source(
+                        embeddings=None,
+                        table_name=req.table_name,
+                        connection_string=req.connection_string,
+                        vector_backend=backend,
+                        source=req.source,
+                        source_contains=req.source_contains,
+                        match_mode=req.match_mode,
+                    )
                 return DeleteResponse(
                     table_name=req.table_name,
                     source=source_label,
                     chunks_deleted=deleted,
                 )
+            except HTTPException:
+                raise
             except psycopg2.errors.UndefinedTable as exc:
                 raise HTTPException(
                     status_code=404, detail=f"Table '{req.table_name}' not found"
                 ) from exc
+            except DocpipeError as e:
+                raise docpipe_http_exception(e) from e
             except Exception as exc:
                 raise HTTPException(status_code=500, detail=str(exc)) from exc
 
@@ -463,6 +519,7 @@ def create_app() -> Any:
                 embedding_provider=req.embedding_provider,
                 embedding_model=req.embedding_model,
                 embedding_api_key=req.api_key,
+                **_vector_fields_from_request(req),
             )
             ingestion = IngestionPipeline(config)
             results = ingestion.search(req.query, top_k=req.top_k, filters=req.filters)

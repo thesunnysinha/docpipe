@@ -14,13 +14,13 @@ def client():
     return TestClient(create_app())
 
 
-@patch("docpipe.server.app.psycopg2")
-def test_delete_by_source_removes_chunks(mock_psycopg2, client):
+@patch("psycopg2.connect")
+def test_delete_by_source_removes_chunks(mock_connect, client):
     mock_conn = MagicMock()
     mock_cursor = MagicMock()
     mock_cursor.rowcount = 3
     mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
-    mock_psycopg2.connect.return_value.__enter__.return_value = mock_conn
+    mock_connect.return_value.__enter__.return_value = mock_conn
 
     resp = client.request(
         "DELETE",
@@ -39,15 +39,14 @@ def test_delete_by_source_removes_chunks(mock_psycopg2, client):
     assert "docs" in call_args[0]
 
 
-@patch("docpipe.server.app.psycopg2")
-def test_delete_table_not_found_returns_404(mock_psycopg2, client):
+@patch("psycopg2.connect")
+def test_delete_table_not_found_returns_404(mock_connect, client):
     mock_conn = MagicMock()
     mock_cursor = MagicMock()
     err = psycopg2.errors.UndefinedTable('relation "nonexistent" does not exist')
     mock_cursor.execute.side_effect = err
     mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
-    mock_psycopg2.connect.return_value.__enter__.return_value = mock_conn
-    mock_psycopg2.errors.UndefinedTable = psycopg2.errors.UndefinedTable
+    mock_connect.return_value.__enter__.return_value = mock_conn
 
     resp = client.request(
         "DELETE",
@@ -173,13 +172,13 @@ def test_metrics_endpoint(client):
     assert "docpipe" in resp.text or "python_info" in resp.text
 
 
-@patch("docpipe.server.app.psycopg2")
-def test_delete_source_contains(mock_psycopg2, client):
+@patch("psycopg2.connect")
+def test_delete_source_contains(mock_connect, client):
     mock_conn = MagicMock()
     mock_cursor = MagicMock()
     mock_cursor.rowcount = 2
     mock_conn.cursor.return_value.__enter__.return_value = mock_cursor
-    mock_psycopg2.connect.return_value.__enter__.return_value = mock_conn
+    mock_connect.return_value.__enter__.return_value = mock_conn
 
     resp = client.request(
         "DELETE",
