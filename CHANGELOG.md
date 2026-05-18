@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Optional **turbovec** vector backend (`DOCPIPE_VECTOR_BACKEND`, `[turbovec]` extra, per-request `vector_backend`)
+- OpenTelemetry tracing (`[observability]`), Prometheus `/metrics`, token `usage` on RAG responses
+- `POST /generate` plain LLM completion; `docpipe.http.DocpipeClient` (`[http]` extra)
+- Richer `/health` with optional DB and embedding probes
+- HTTP Basic Auth (`DOCPIPE_AUTH_ENABLED`, `DOCPIPE_USERNAME`, `DOCPIPE_PASSWORD`)
+- `DOCPIPE_ALLOW_PRIVATE_URLS` for Docker/MinIO presigned ingest sources
+
+### Changed
+
+- **Breaking:** top-level `docpipe.rag()` renamed to `docpipe.query()` (avoid shadowing `docpipe.rag` package)
+- README, `.env.example`: document all `DOCPIPE_*` settings; fix compose env var names
+
+### Fixed
+
+- Docling parser: `doc.pages` dict iteration (`pages.items()`)
+- Upstream embedding failures return HTTP 502 with structured `detail`
+
+## [0.4.5] - 2026-04-26
+
+PyPI release (predates items in Unreleased above; install from `main` for latest).
+
 ## [0.4.2] - 2026-04-12
 
 ### Changed
