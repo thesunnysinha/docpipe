@@ -23,9 +23,19 @@ logger = logging.getLogger(__name__)
 # api_key_kwarg is the constructor kwarg name for the API key, or None if not applicable
 EMBEDDING_PROVIDERS = {
     "openai": ("langchain_openai", "OpenAIEmbeddings", {"model": "model"}, "openai_api_key"),
-    "google": ("langchain_google_genai", "GoogleGenerativeAIEmbeddings", {"model": "model"}, "google_api_key"),
+    "google": (
+        "langchain_google_genai",
+        "GoogleGenerativeAIEmbeddings",
+        {"model": "model"},
+        "google_api_key",
+    ),
     "ollama": ("langchain_ollama", "OllamaEmbeddings", {"model": "model"}, None),
-    "huggingface": ("langchain_huggingface", "HuggingFaceEmbeddings", {"model_name": "model"}, None),
+    "huggingface": (
+        "langchain_huggingface",
+        "HuggingFaceEmbeddings",
+        {"model_name": "model"},
+        None,
+    ),
 }
 
 LLM_PROVIDERS: dict[str, tuple[str, str]] = {
@@ -238,7 +248,7 @@ class IngestionPipeline:
         from langchain_core.documents import Document as LCDocument
 
         if parsed.pages:
-            return [
+            page_docs = [
                 LCDocument(
                     page_content=page.text,
                     metadata={
@@ -250,17 +260,26 @@ class IngestionPipeline:
                 for page in parsed.pages
                 if page.text.strip()
             ]
-        return [
-            LCDocument(
-                page_content=parsed.text,
-                metadata={"source": parsed.source, "source_type": "parsed"},
+            if page_docs:
+                return page_docs
+            logger.warning(
+                "Parsed document has %d pages but no non-empty page text; "
+                "falling back to document-level text for %s",
+                len(parsed.pages),
+                parsed.source,
             )
-        ]
+
+        if parsed.text.strip():
+            return [
+                LCDocument(
+                    page_content=parsed.text,
+                    metadata={"source": parsed.source, "source_type": "parsed"},
+                )
+            ]
+        return []
 
     @staticmethod
-    def _extractions_to_lc_docs(
-        extractions: list[ExtractionResult], source: str
-    ) -> list[Any]:
+    def _extractions_to_lc_docs(extractions: list[ExtractionResult], source: str) -> list[Any]:
         """Convert ExtractionResults to LangChain Documents."""
         from langchain_core.documents import Document as LCDocument
 
@@ -286,7 +305,8 @@ class IngestionPipeline:
                 f"Available: {list(EMBEDDING_PROVIDERS.keys())}"
             )
 
-        module_name, class_name, param_map, api_key_kwarg = EMBEDDING_PROVIDERS[config.embedding_provider]
+        provider_entry = EMBEDDING_PROVIDERS[config.embedding_provider]
+        module_name, class_name, param_map, api_key_kwarg = provider_entry
 
         try:
             module = importlib.import_module(module_name)

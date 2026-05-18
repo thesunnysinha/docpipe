@@ -6,6 +6,7 @@ from docpipe.core.types import (
     DocumentFormat,
     ExtractionResult,
     IngestionConfig,
+    PageContent,
     ParsedDocument,
     SourceSpan,
 )
@@ -55,6 +56,31 @@ def test_parsed_to_lc_docs(mock_splitter, mock_embeddings):
     assert docs[0].page_content == "Test content"
     assert docs[0].metadata["source"] == "test.pdf"
     assert docs[0].metadata["source_type"] == "parsed"
+
+
+@patch("docpipe.ingestion.pipeline.IngestionPipeline._create_embeddings")
+@patch("docpipe.ingestion.pipeline.IngestionPipeline._create_splitter")
+def test_parsed_to_lc_docs_empty_pages_falls_back_to_document_text(mock_splitter, mock_embeddings):
+    """When page metadata exists but page texts are blank, use parsed.text."""
+    from docpipe.ingestion.pipeline import IngestionPipeline
+
+    mock_embeddings.return_value = MagicMock()
+    mock_splitter.return_value = MagicMock()
+
+    parsed = ParsedDocument(
+        source="payslip.pdf",
+        format=DocumentFormat.PDF,
+        text="Net pay: $4,200.00",
+        pages=[
+            PageContent(page_number=1, text=""),
+            PageContent(page_number=2, text="   "),
+        ],
+    )
+    pipeline = IngestionPipeline(_make_config())
+    docs = pipeline._parsed_to_lc_docs(parsed)
+
+    assert len(docs) == 1
+    assert docs[0].page_content == "Net pay: $4,200.00"
 
 
 @patch("docpipe.ingestion.pipeline.IngestionPipeline._create_embeddings")
