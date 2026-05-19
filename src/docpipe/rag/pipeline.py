@@ -76,6 +76,25 @@ def create_llm(llm_provider: str, llm_model: str, api_key: str | None = None) ->
     return cls(**kwargs)
 
 
+def _stream_chunk_to_text(content: Any) -> str:
+    """Normalize LangChain stream chunks (Gemini returns list blocks, not str)."""
+    if content is None:
+        return ""
+    if isinstance(content, str):
+        return content
+    if isinstance(content, list):
+        parts: list[str] = []
+        for block in content:
+            if isinstance(block, str):
+                parts.append(block)
+            elif isinstance(block, dict):
+                text = block.get("text") or block.get("content")
+                if text:
+                    parts.append(str(text))
+        return "".join(parts)
+    return str(content)
+
+
 DEFAULT_SYSTEM_PROMPT = """\
 You are a helpful assistant. Answer the question using ONLY the provided context.
 If the context does not contain enough information to answer, say so explicitly.
@@ -293,7 +312,7 @@ class RAGPipeline:
             self._usage_handler.usage,
             extract_usage_from_langchain_response(response),
         )
-        return response.content, None, usage
+        return _stream_chunk_to_text(response.content), None, usage
 
     def _generate_stream(self, question: str, context: str) -> Iterator[str]:
         """Stream answer tokens from the LLM."""
@@ -313,8 +332,9 @@ class RAGPipeline:
         last_chunk: Any = None
         for chunk in self._llm.stream(messages, config={"callbacks": self._llm_callbacks()}):
             last_chunk = chunk
-            if chunk.content:
-                yield chunk.content
+            text = _stream_chunk_to_text(chunk.content)
+            if text:
+                yield text
         if last_chunk is not None:
             self.last_usage = merge_usage(
                 self._usage_handler.usage,
