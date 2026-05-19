@@ -79,7 +79,7 @@ print(result.answer)
 
 **CLI:** `docpipe parse`, `docpipe ingest`, `docpipe rag query`, `docpipe serve` — see **[CLI & API server](https://docpipe.sunnysinha.online/docs)**.
 
-**Docker:** `docker pull ghcr.io/thesunnysinha/docpipe:latest` — compose examples and env vars are in the **[Docker guide](https://docpipe.sunnysinha.online/docs)** and [`.env.example`](.env.example).
+**Docker:** `docker pull ghcr.io/thesunnysinha/docpipe:latest` — compose examples and env vars are in the **[Docker guide](https://docpipe.sunnysinha.online/docs)** and [`.env.example`](.env.example). Compose files set **CPU/RAM limits** (4 CPU / 4 GiB standalone; Jingo sidecar uses 2 CPU / 2 GiB) and `DOCPIPE_MAX_CONCURRENCY=2` so ingest/RAG cannot exhaust the host.
 
 ---
 
