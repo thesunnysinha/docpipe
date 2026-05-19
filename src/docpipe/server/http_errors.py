@@ -74,7 +74,7 @@ def docpipe_http_exception(exc: DocpipeError) -> HTTPException:
     }
 
     if phase == "embedding" and "embedding_model" not in message:
-        # Hint when Google model id is stale (common Jingo default).
+        # Hint when Google model id is stale (common default in older configs).
         for deprecated in DEPRECATED_GOOGLE_EMBEDDING_MODELS:
             if deprecated in message:
                 detail["hint"] = (

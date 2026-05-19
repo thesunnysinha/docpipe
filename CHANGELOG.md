@@ -14,11 +14,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 
+## [0.5.2] - 2026-05-19
+
+### Changed
+
+- README and CONTRIBUTING: documentation links use [docpipe.sunnysinha.online](https://docpipe.sunnysinha.online/docs); remove product-specific integration links from README
+- CONTRIBUTING: reference in-repo files (README, `.env.example`, CHANGELOG) and current release workflow
+
 ## [0.5.1] - 2026-05-19
 
 ### Changed
 
-- README streamlined (~102 lines); full documentation on [docpipe docs](https://docpipe-thesunnysinhas-projects.vercel.app/docs) (install, API, env vars)
+- README streamlined (~102 lines); full documentation on [docpipe docs](https://docpipe.sunnysinha.online/docs) (install, API, env vars)
 - README: drop redundant git install URLs now that `docpipe-sdk` is on PyPI
 
 ## [0.5.0] - 2026-05-19
