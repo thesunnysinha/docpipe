@@ -82,6 +82,7 @@ class IngestRequest(BaseModel):
     incremental: bool = False
     vector_backend: str | None = None
     turbovec_index_dir: str | None = None
+    chunk_metadata: dict[str, Any] = Field(default_factory=dict)
 
     _validate_table_name = field_validator("table_name")(validate_table_name)
 
@@ -421,6 +422,7 @@ def create_app() -> Any:
                     chunk_overlap=req.chunk_overlap,
                     ingest_mode=req.ingest_mode,  # type: ignore[arg-type]
                     incremental=req.incremental,
+                    chunk_metadata=req.chunk_metadata,
                     **_vector_fields_from_request(req),
                 )
                 ingestion = IngestionPipeline(config)
