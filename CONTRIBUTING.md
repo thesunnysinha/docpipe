@@ -1,34 +1,52 @@
 # Contributing to docpipe
 
-Thanks for your interest in contributing. docpipe is a plugin-based Python SDK — most contributions fall into one of: adding a new parser, adding a new extractor, improving the RAG pipeline, or improving the core infrastructure.
+Thanks for your interest in contributing. docpipe is a plugin-based Python SDK — most contributions fall into one of: adding a parser, adding an extractor, improving the RAG pipeline, or improving the HTTP server and observability.
 
-## Development Setup
+## Documentation in this repo
+
+| Doc | Purpose |
+|-----|---------|
+| [README.md](README.md) | Overview, install, quick start |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | This file — development and PR workflow |
+| [.env.example](.env.example) | All `DOCPIPE_*` environment variables |
+| [CHANGELOG.md](CHANGELOG.md) | Release history |
+| [pyproject.toml](pyproject.toml) | Package metadata and optional extras |
+
+**User-facing guides** (install extras, Docker, REST API, RAG strategies, observability, turbovec): **[docpipe docs](https://docpipe.sunnysinha.online/docs)** on the marketing site. Keep detailed tables and compose examples there; update [`lib/docs-content.ts`](https://github.com/thesunnysinha/docpipe-site/blob/main/lib/docs-content.ts) in the [docpipe-site](https://github.com/thesunnysinha/docpipe-site) repo when the public API changes.
+
+Canonical source on GitHub: [github.com/thesunnysinha/docpipe](https://github.com/thesunnysinha/docpipe)
+
+## Development setup
 
 ```bash
-git clone https://github.com/thesunnysinha/docpipe
+git clone https://github.com/thesunnysinha/docpipe.git
 cd docpipe
 python -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"        # installs pytest, ruff, mypy, httpx
-pytest tests/unit/ -v          # confirm all 53 tests pass
+pip install -e ".[dev,all]"
+python run.py test    # or: pytest tests/unit/ -v
+python run.py lint
 ```
 
-## Project Structure
+## Project structure
 
 ```
 src/docpipe/
-├── core/          # Pydantic types, protocols, pipeline orchestrator, errors
-├── parsers/       # Document parsing plugins (DoclingParser)
-├── extractors/    # Extraction plugins (LangExtract, LangChain)
-├── ingestion/     # Chunk → embed → vector DB pipeline (IngestionPipeline)
-├── rag/           # RAG query pipeline (RAGPipeline, 5 strategies)
-├── eval/          # RAG evaluation pipeline (EvalPipeline)
-├── cli/           # Click commands
-├── server/        # FastAPI endpoints
-├── registry/      # Plugin auto-discovery via Python entry points
-└── config/        # Pydantic settings + YAML loader
+├── core/           # Pydantic types, protocols, pipeline orchestrator, errors
+├── parsers/        # Document parsing plugins (Docling, GLM-OCR, …)
+├── extractors/     # Extraction plugins (LangExtract, LangChain)
+├── ingestion/      # Chunk → embed → vector store
+├── vectorstores/   # pgvector (default) and optional turbovec backends
+├── rag/            # RAG pipeline (six retrieval strategies)
+├── observability/  # OTEL, metrics, structured logging
+├── http/           # DocpipeClient for the REST API
+├── eval/           # RAG evaluation pipeline
+├── cli/            # Click commands
+├── server/         # FastAPI app
+├── registry/       # Plugin discovery
+└── config/         # Settings (DOCPIPE_* env vars)
 ```
 
-## Adding a New Parser Plugin
+## Adding a new parser plugin
 
 Implement the `BaseParser` protocol from `docpipe.core.parser`. Structural subtyping means **no inheritance** is required — just implement the right methods.
 
@@ -41,7 +59,6 @@ class MyParser:
     name = "my_parser"
 
     def parse(self, source: str, **kwargs) -> ParsedDocument:
-        # Do your parsing here
         return ParsedDocument(
             source=source,
             format=DocumentFormat.PDF,
@@ -66,7 +83,7 @@ class MyParser:
         return ["pdf", "docx"]
 ```
 
-Register it in your package's `pyproject.toml`:
+Register in your package's `pyproject.toml`:
 
 ```toml
 [project.entry-points."docpipe.parsers"]
@@ -77,125 +94,90 @@ After `pip install my_package`, docpipe auto-discovers it:
 
 ```bash
 docpipe plugins list
-# Parsers:
-#   - docling (available)
-#   - my_parser (available)
 ```
 
-Add a unit test that mocks the underlying library so no external dep is needed:
+Add a unit test that mocks the underlying library so no external dep is needed.
 
-```python
-from unittest.mock import patch, MagicMock
+## Adding a new extractor plugin
 
-@patch("my_package.my_parser.my_dependency")
-def test_my_parser(mock_dep):
-    from my_package.my_parser import MyParser
-    parser = MyParser()
-    result = parser.parse("test.pdf")
-    assert result.format.value == "pdf"
-```
+Same pattern — implement `BaseExtractor` from `docpipe.core.extractor` and register under `[project.entry-points."docpipe.extractors"]`. See an existing extractor under `src/docpipe/extractors/` for reference.
 
-## Adding a New Extractor Plugin
-
-Same pattern, implement `BaseExtractor` from `docpipe.core.extractor`:
-
-```python
-class MyExtractor:
-    name = "my_extractor"
-
-    def extract(self, text: str, schema, **kwargs) -> list:
-        # Return list[ExtractionResult]
-        ...
-
-    async def aextract(self, text: str, schema, **kwargs) -> list:
-        return await asyncio.to_thread(self.extract, text, schema, **kwargs)
-
-    def is_available(self) -> bool: ...
-```
-
-Register:
-
-```toml
-[project.entry-points."docpipe.extractors"]
-my_extractor = "my_package:MyExtractor"
-```
-
-## Running Tests
+## Running tests
 
 ```bash
-# Unit tests — no external deps, no API keys needed
+python run.py test
+# or
 pytest tests/unit/ -v
-
-# Skip tests that need real infrastructure
 pytest tests/integration/ -m "not requires_api_key and not requires_pgvector"
-
-# With coverage
 pytest tests/ --cov=src/docpipe --cov-report=term-missing
 ```
 
 Test markers:
 
 | Marker | Requires |
-|---|---|
-| `requires_docling` | `docpipe-sdk[docling]` installed |
-| `requires_langextract` | `docpipe-sdk[langextract]` installed |
-| `requires_pgvector` | Running PostgreSQL with pgvector |
+|--------|----------|
+| `requires_docling` | `docpipe-sdk[docling]` |
+| `requires_langextract` | `docpipe-sdk[langextract]` |
+| `requires_pgvector` | PostgreSQL with pgvector |
 | `requires_api_key` | LLM API key in environment |
 | `requires_rag` | RAG extra, DB, and API key |
+| `requires_turbovec` | `docpipe-sdk[turbovec]` |
 
-## Code Style
+## Code style
 
 ```bash
-ruff check src/           # lint
-ruff format src/          # format (line length 100)
-mypy src/docpipe/ --ignore-missing-imports  # type check
+python run.py lint
+# or
+ruff check src/
+ruff format src/
+mypy src/docpipe/ --ignore-missing-imports
 ```
 
-All three must pass before opening a PR. CI enforces this on Python 3.10–3.13.
+All must pass before opening a PR. CI runs on Python 3.10–3.13.
 
-Key conventions:
-- Use `from __future__ import annotations` in all source files
-- Lazy-import optional deps inside methods (not at module level) with helpful `ImportError` messages
-- Follow the `EMBEDDING_PROVIDERS` / `LLM_PROVIDERS` dict pattern for dynamic provider loading
-- All pipeline classes expose both `method()` and `amethod()` (async via `asyncio.to_thread`)
-- Raise `ConfigurationError` with an install hint when an optional dep is missing
+Conventions:
 
-## Commit Message Convention
+- `from __future__ import annotations` in source files
+- Lazy-import optional deps inside methods with clear `ImportError` messages
+- Pipeline classes expose sync and async (`asyncio.to_thread`) where applicable
+- Raise `ConfigurationError` with an install hint when an optional extra is missing
+
+## Commit messages
 
 ```
-feat: add ColBERT retrieval strategy to RAGPipeline
+feat: add example retrieval strategy
 fix: handle empty ParsedDocument in IngestionPipeline
-docs: add example for incremental ingestion
-chore: bump langchain-core to 0.4
-refactor: extract _create_embeddings into shared util
-test: add unit tests for hybrid RAG strategy
+docs: update .env.example for new setting
 ```
 
 Prefix: `feat | fix | docs | chore | refactor | test`
 
-## Opening a Pull Request
+## Opening a pull request
 
-1. Fork the repo and create a branch from `main`
-2. Make your changes — all unit tests must pass, ruff and mypy must be clean
-3. Describe what changed and **why** in the PR description
-4. Link the issue it closes (`Closes #123`)
-5. CI runs automatically on push — wait for it to go green
+1. Fork [thesunnysinha/docpipe](https://github.com/thesunnysinha/docpipe) and branch from `main`
+2. Run `python run.py lint` and `python run.py test`
+3. Describe what changed and **why**
+4. Link issues (`Closes #123`)
+5. Wait for CI to pass
+
+If you change HTTP fields or env vars, mention whether [docpipe-site](https://github.com/thesunnysinha/docpipe-site) docs need a follow-up PR.
 
 ## Releasing (maintainers only)
 
+See [CLAUDE.md](CLAUDE.md) in this repo:
+
 ```bash
-./scripts/release.sh 0.2.0
+python run.py lint
+python run.py test
+python run.py release <version>   # bumps version, updates CHANGELOG, tags
 git push origin main --tags
+gh release create v<version> --title "v<version>" --notes "..."
 ```
 
-GitHub Actions publishes to PyPI automatically via trusted publisher (OIDC) when a `v*` tag is pushed. No token needed.
+PyPI publish runs via GitHub Actions on `v*` tags (trusted publishing).
 
-## Reporting Bugs / Requesting Features
+## Bugs and feature requests
 
 Open a [GitHub issue](https://github.com/thesunnysinha/docpipe/issues).
 
-For bugs, include:
-- Python version and OS
-- Exact install command (`pip install docpipe-sdk[...]`)
-- Minimal reproduction snippet
-- Full traceback
+For bugs, include Python version, install command, minimal reproduction, and full traceback.
