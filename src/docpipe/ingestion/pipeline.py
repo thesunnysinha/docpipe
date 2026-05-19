@@ -156,6 +156,9 @@ class IngestionPipeline:
 
         # Split documents into chunks
         chunks = self._splitter.split_documents(lc_docs)
+        if self._config.chunk_metadata:
+            for chunk in chunks:
+                chunk.metadata.update(self._config.chunk_metadata)
         logger.info("Split into %d chunks from %d documents", len(chunks), len(lc_docs))
 
         # Contextual chunk injection

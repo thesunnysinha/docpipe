@@ -119,6 +119,8 @@ class IngestionConfig(BaseModel):
     # Vector store backend (per-request override; server default from DOCPIPE_VECTOR_BACKEND)
     vector_backend: Literal["pgvector", "turbovec"] | None = None
     turbovec_index_dir: str | None = None
+    # Merged into every chunk's vector metadata (e.g. document_id, title for citations).
+    chunk_metadata: dict[str, Any] = Field(default_factory=dict)
 
     _validate_table_name = field_validator("table_name")(validate_table_name)
 

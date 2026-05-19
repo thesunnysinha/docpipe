@@ -99,3 +99,30 @@ def test_extractions_to_lc_docs(mock_splitter, mock_embeddings):
     assert "person: John Doe" in docs[0].page_content
     assert docs[0].metadata["source_type"] == "extraction"
     assert docs[0].metadata["entity_class"] == "person"
+
+
+@patch("docpipe.ingestion.pipeline.ingest_documents")
+@patch("docpipe.ingestion.pipeline.IngestionPipeline._create_embeddings")
+@patch("docpipe.ingestion.pipeline.IngestionPipeline._create_splitter")
+def test_ingest_merges_chunk_metadata(mock_splitter, mock_embeddings, mock_ingest_docs):
+    from langchain_core.documents import Document as LCDocument
+
+    from docpipe.ingestion.pipeline import IngestionPipeline
+
+    mock_embeddings.return_value = MagicMock()
+    chunk = LCDocument(page_content="chunk text", metadata={"source": "test.pdf"})
+    mock_splitter.return_value.split_documents.return_value = [chunk]
+
+    config = _make_config()
+    config.chunk_metadata = {
+        "document_id": "doc-uuid",
+        "document_title": "My Doc",
+    }
+    pipeline = IngestionPipeline(config)
+    result = pipeline.ingest(_make_parsed_doc(), extractions=None)
+
+    assert result.chunks_ingested == 1
+    mock_ingest_docs.assert_called_once()
+    ingested = mock_ingest_docs.call_args.kwargs["documents"]
+    assert ingested[0].metadata["document_id"] == "doc-uuid"
+    assert ingested[0].metadata["document_title"] == "My Doc"
