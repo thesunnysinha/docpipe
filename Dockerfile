@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM python:3.13-slim-bookworm
 
 LABEL org.opencontainers.image.title="docpipe"
 LABEL org.opencontainers.image.description="Unified document parsing, structured extraction, vector ingestion, and RAG pipeline SDK"
