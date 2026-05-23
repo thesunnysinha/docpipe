@@ -26,6 +26,9 @@ class JsonFormatter(logging.Formatter):
             payload["trace_id"] = trace_id
         if span_id:
             payload["span_id"] = span_id
+        request_id = getattr(record, "request_id", None)
+        if request_id and request_id != "-":
+            payload["request_id"] = request_id
         if record.exc_info:
             payload["exception"] = self.formatException(record.exc_info)
         return json.dumps(payload, default=str)
@@ -54,12 +57,17 @@ def configure_logging(settings: Any) -> None:
     root = logging.getLogger()
     root.setLevel(level)
     if not root.handlers:
+        from docpipe.observability.request_context import RequestIdLogFilter
+
         handler = logging.StreamHandler(sys.stdout)
+        handler.addFilter(RequestIdLogFilter())
         if getattr(settings, "log_format", "text") == "json":
             handler.setFormatter(JsonFormatter())
         else:
             handler.setFormatter(
-                logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+                logging.Formatter(
+                    "%(asctime)s [%(levelname)s] [req=%(request_id)s] %(name)s: %(message)s"
+                )
             )
         root.addHandler(handler)
     _CONFIGURED = True

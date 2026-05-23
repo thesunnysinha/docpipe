@@ -10,6 +10,7 @@ from docpipe.core.errors import (
     IngestionError,
     ParseError,
     RAGError,
+    TranscriptionError,
 )
 
 # Google retired models/embedding-001 on v1beta; callers still copy old examples.
@@ -30,6 +31,8 @@ def _infer_phase(exc: DocpipeError, message: str) -> str:
         if "generat" in lower or "llm" in lower:
             return "generation"
         return "rag"
+    if isinstance(exc, TranscriptionError):
+        return "transcription"
     return "unknown"
 
 

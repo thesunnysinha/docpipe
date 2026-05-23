@@ -208,8 +208,12 @@ class RAGConfig(BaseModel):
     llm_api_key: str | None = None
     strategy: Literal["naive", "hyde", "multi_query", "parent_document", "hybrid", "auto"] = "naive"
     top_k: int = 5
-    # Strategy-specific
+    # Cap chunks per source so multi-document libraries surface in retrieval (0 = no cap).
+    max_chunks_per_source: int = 2
+    # Strategy-specific (caller must supply when using matching strategy / auto)
     hyde_prompt: str | None = None
+    multi_query_prompt: str | None = None
+    auto_strategy_prompt: str | None = None
     multi_query_count: int = 3
     parent_window_size: int = 3
     hybrid_bm25_weight: float = 0.5
@@ -217,7 +221,7 @@ class RAGConfig(BaseModel):
     reranker: Literal["none", "flashrank", "cohere"] = "none"
     reranker_model: str | None = None
     rerank_top_n: int | None = None
-    # Generation
+    # Generation (required for any answer synthesis)
     system_prompt: str | None = None
     history: list[dict[str, str]] = Field(default_factory=list)
     output_model: Any = Field(

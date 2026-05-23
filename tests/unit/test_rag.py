@@ -10,6 +10,15 @@ from docpipe.core.errors import ConfigurationError, RAGError
 from docpipe.core.types import RAGChunk, RAGConfig, RAGResult
 from docpipe.rag.pipeline import RAGPipeline
 
+_TEST_SYSTEM_PROMPT = "Context:\n{context}\n\nQuestion: {question}\n\nAnswer:"
+_TEST_HYDE_PROMPT = "Hypothetical passage for: {question}"
+_TEST_MULTI_QUERY_PROMPT = (
+    "Generate {n} variants of: {question}\nOne per line."
+)
+_TEST_AUTO_STRATEGY_PROMPT = (
+    "Reply naive for: {question}"
+)
+
 
 def _make_config(**overrides: object) -> RAGConfig:
     defaults = dict(
@@ -19,6 +28,10 @@ def _make_config(**overrides: object) -> RAGConfig:
         embedding_model="text-embedding-3-small",
         llm_provider="openai",
         llm_model="gpt-4o",
+        system_prompt=_TEST_SYSTEM_PROMPT,
+        hyde_prompt=_TEST_HYDE_PROMPT,
+        multi_query_prompt=_TEST_MULTI_QUERY_PROMPT,
+        auto_strategy_prompt=_TEST_AUTO_STRATEGY_PROMPT,
     )
     defaults.update(overrides)
     return RAGConfig(**defaults)  # type: ignore[arg-type]
@@ -36,6 +49,20 @@ def _mock_doc(content: str = "chunk text", source: str = "doc.pdf", page: int = 
 # ---------------------------------------------------------------------------
 
 
+def test_rag_query_requires_system_prompt() -> None:
+    with (
+        patch.object(RAGPipeline, "_create_embeddings") as mock_emb,
+        patch.object(RAGPipeline, "_create_llm") as mock_llm,
+        patch.object(RAGPipeline, "_retrieve_naive", return_value=[]),
+    ):
+        mock_emb.return_value = MagicMock()
+        mock_llm.return_value = MagicMock()
+        config = _make_config(system_prompt=None)
+        pipeline = RAGPipeline(config)
+        with pytest.raises(ConfigurationError, match="system_prompt"):
+            pipeline.query("What is the answer?")
+
+
 def test_rag_config_defaults() -> None:
     config = _make_config()
     assert config.strategy == "naive"
@@ -44,6 +71,7 @@ def test_rag_config_defaults() -> None:
     assert config.parent_window_size == 3
     assert config.hybrid_bm25_weight == 0.5
     assert config.reranker == "none"
+    assert config.max_chunks_per_source == 2
     assert config.output_model is None
 
 
@@ -364,3 +392,22 @@ def test_history_messages_prepended_before_current_question(
     assert "RAG stands for retrieval-augmented generation." in contents
     assert call_messages[-1].content == "Tell me more about it"
     assert isinstance(call_messages[-1], HumanMessage)
+
+
+def test_cap_chunks_per_source_limits_each_source() -> None:
+    with (
+        patch.object(RAGPipeline, "_create_embeddings") as mock_emb,
+        patch.object(RAGPipeline, "_create_llm") as mock_llm,
+    ):
+        mock_emb.return_value = MagicMock()
+        mock_llm.return_value = MagicMock()
+        pipeline = RAGPipeline(_make_config(max_chunks_per_source=1, top_k=4))
+        chunks = [
+            RAGChunk(content="a1", score=0.9, source="docA.pdf"),
+            RAGChunk(content="a2", score=0.8, source="docA.pdf"),
+            RAGChunk(content="b1", score=0.7, source="docB.pdf"),
+            RAGChunk(content="b2", score=0.6, source="docB.pdf"),
+        ]
+        capped = pipeline._cap_chunks_per_source(chunks)
+        assert len(capped) == 2
+        assert {c.source for c in capped} == {"docA.pdf", "docB.pdf"}

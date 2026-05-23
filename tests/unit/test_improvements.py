@@ -25,6 +25,10 @@ def _make_rag_config(**overrides: object) -> RAGConfig:
         embedding_model="text-embedding-3-small",
         llm_provider="openai",
         llm_model="gpt-4o",
+        system_prompt="Context:\n{context}\n\nQuestion: {question}\n\nAnswer:",
+        hyde_prompt="Hypothetical passage for: {question}",
+        multi_query_prompt="Generate {n} variants of: {question}",
+        auto_strategy_prompt="Reply naive for: {question}",
     )
     defaults.update(overrides)
     return RAGConfig(**defaults)  # type: ignore[arg-type]

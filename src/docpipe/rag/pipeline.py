@@ -95,44 +95,6 @@ def _stream_chunk_to_text(content: Any) -> str:
     return str(content)
 
 
-DEFAULT_SYSTEM_PROMPT = """\
-You are a helpful assistant. Answer the question using ONLY the provided context.
-If the context does not contain enough information to answer, say so explicitly.
-Cite the source documents by name when making claims.
-
-Context:
-{context}
-
-Question: {question}
-
-Answer:"""
-
-HYDE_GENERATION_PROMPT = """\
-Generate a detailed document passage that would answer the following question.
-Write the passage as if it were an excerpt from an authoritative reference document.
-Do not start with "Here is..." — write the passage directly.
-
-Question: {question}"""
-
-MULTI_QUERY_PROMPT = """\
-Generate {n} different phrasings of the following question.
-Each phrasing should approach the same information need from a different angle.
-Output one question per line, no numbering or bullets.
-
-Original question: {question}"""
-
-AUTO_STRATEGY_PROMPT = """\
-Given this question, which retrieval strategy is best?
-- naive: simple factual lookup
-- hyde: complex or abstract questions benefiting from hypothetical framing
-- multi_query: ambiguous questions that benefit from multiple phrasings
-- parent_document: questions needing broader surrounding context
-- hybrid: keyword-heavy or technical queries
-
-Question: {question}
-Reply with exactly one word: naive, hyde, multi_query, parent_document, or hybrid."""
-
-
 class RAGPipeline:
     """Retrieve relevant chunks from a vector DB and generate grounded answers."""
 
@@ -265,6 +227,17 @@ class RAGPipeline:
             for doc, score in docs_with_scores
         ]
 
+    @staticmethod
+    def _require_prompt(name: str, value: str | None, **format_kwargs: object) -> str:
+        if value is None or not str(value).strip():
+            raise ConfigurationError(
+                f"{name} is required. The calling application must set RAGConfig.{name} "
+                f"(or pass {name} on POST /rag/query)."
+            )
+        if format_kwargs:
+            return str(value).format(**format_kwargs)
+        return str(value)
+
     def _build_context(self, chunks: list[RAGChunk]) -> str:
         parts = []
         for i, chunk in enumerate(chunks, 1):
@@ -281,8 +254,11 @@ class RAGPipeline:
         """Generate an answer. Returns (text, structured_or_None, usage)."""
         from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
-        system_text = (self._config.system_prompt or DEFAULT_SYSTEM_PROMPT).format(
-            context=context, question=question
+        system_text = self._require_prompt(
+            "system_prompt",
+            self._config.system_prompt,
+            context=context,
+            question=question,
         )
         messages: list[Any] = [SystemMessage(content=system_text)]
         for turn in self._config.history:
@@ -318,8 +294,11 @@ class RAGPipeline:
         """Stream answer tokens from the LLM."""
         from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 
-        system_text = (self._config.system_prompt or DEFAULT_SYSTEM_PROMPT).format(
-            context=context, question=question
+        system_text = self._require_prompt(
+            "system_prompt",
+            self._config.system_prompt,
+            context=context,
+            question=question,
         )
         messages: list[Any] = [SystemMessage(content=system_text)]
         for turn in self._config.history:
@@ -340,6 +319,24 @@ class RAGPipeline:
                 self._usage_handler.usage,
                 extract_usage_from_langchain_response(last_chunk),
             )
+
+    def _cap_chunks_per_source(self, chunks: list[RAGChunk]) -> list[RAGChunk]:
+        """Limit chunks per source so multi-document libraries retain coverage."""
+        cap = self._config.max_chunks_per_source
+        if cap <= 0 or len(chunks) <= cap:
+            return chunks
+        per_source: dict[str, list[RAGChunk]] = {}
+        for chunk in chunks:
+            per_source.setdefault(chunk.source, []).append(chunk)
+        capped: list[RAGChunk] = []
+        for source_chunks in per_source.values():
+            source_chunks.sort(key=lambda c: c.score, reverse=True)
+            capped.extend(source_chunks[:cap])
+        capped.sort(key=lambda c: c.score, reverse=True)
+        return capped[: self._config.top_k]
+
+    def _finalize_retrieval(self, chunks: list[RAGChunk], question: str) -> list[RAGChunk]:
+        return self._cap_chunks_per_source(self._rerank(chunks, question))
 
     def _rerank(self, chunks: list[RAGChunk], question: str) -> list[RAGChunk]:
         """Optional cross-encoder reranking after retrieval."""
@@ -430,23 +427,32 @@ class RAGPipeline:
         docs_scores = vs.similarity_search_with_score(
             question, k=self._config.top_k, filter=self._config.filters or None
         )
-        return self._rerank(self._docs_to_chunks(docs_scores), question)
+        return self._finalize_retrieval(self._docs_to_chunks(docs_scores), question)
 
     def _retrieve_hyde(self, question: str) -> list[RAGChunk]:
         from langchain_core.messages import HumanMessage
 
-        hyde_prompt = (self._config.hyde_prompt or HYDE_GENERATION_PROMPT).format(question=question)
+        hyde_prompt = self._require_prompt(
+            "hyde_prompt",
+            self._config.hyde_prompt,
+            question=question,
+        )
         hypothetical_doc = self._llm.invoke([HumanMessage(content=hyde_prompt)]).content
         vs = self._get_vectorstore()
         docs_scores = vs.similarity_search_with_score(
             hypothetical_doc, k=self._config.top_k, filter=self._config.filters or None
         )
-        return self._rerank(self._docs_to_chunks(docs_scores), question)
+        return self._finalize_retrieval(self._docs_to_chunks(docs_scores), question)
 
     def _retrieve_multi_query(self, question: str) -> list[RAGChunk]:
         from langchain_core.messages import HumanMessage
 
-        prompt = MULTI_QUERY_PROMPT.format(n=self._config.multi_query_count, question=question)
+        prompt = self._require_prompt(
+            "multi_query_prompt",
+            self._config.multi_query_prompt,
+            n=self._config.multi_query_count,
+            question=question,
+        )
         variants_text = self._llm.invoke([HumanMessage(content=prompt)]).content
         variants = [q.strip() for q in variants_text.strip().splitlines() if q.strip()]
         all_queries = [question] + variants[: self._config.multi_query_count]
@@ -463,7 +469,10 @@ class RAGPipeline:
                     seen.add(key)
                     merged.append((doc, score))
         merged.sort(key=lambda x: x[1], reverse=True)
-        return self._rerank(self._docs_to_chunks(merged[: self._config.top_k]), question)
+        return self._finalize_retrieval(
+            self._docs_to_chunks(merged[: self._config.top_k]),
+            question,
+        )
 
     def _retrieve_parent_document(self, question: str) -> list[RAGChunk]:
         vs = self._get_vectorstore()
@@ -503,7 +512,7 @@ class RAGPipeline:
                         )
             except Exception:  # noqa: BLE001
                 pass
-        return self._rerank(expanded, question)
+        return self._finalize_retrieval(expanded, question)
 
     def _retrieve_hybrid(self, question: str) -> list[RAGChunk]:
         try:
@@ -549,12 +558,16 @@ class RAGPipeline:
             )
             for doc in docs[: self._config.top_k]
         ]
-        return self._rerank(chunks_raw, question)
+        return self._finalize_retrieval(chunks_raw, question)
 
     def _retrieve_auto(self, question: str) -> list[RAGChunk]:
         from langchain_core.messages import HumanMessage
 
-        prompt = AUTO_STRATEGY_PROMPT.format(question=question)
+        prompt = self._require_prompt(
+            "auto_strategy_prompt",
+            self._config.auto_strategy_prompt,
+            question=question,
+        )
         chosen = self._llm.invoke([HumanMessage(content=prompt)]).content.strip().lower()
         valid = ["naive", "hyde", "multi_query", "parent_document", "hybrid"]
         if chosen not in valid:
@@ -578,7 +591,11 @@ class RAGPipeline:
     def _hyde_query(self, question: str) -> RAGResult:
         from langchain_core.messages import HumanMessage
 
-        hyde_prompt = (self._config.hyde_prompt or HYDE_GENERATION_PROMPT).format(question=question)
+        hyde_prompt = self._require_prompt(
+            "hyde_prompt",
+            self._config.hyde_prompt,
+            question=question,
+        )
         hypothetical_doc = self._llm.invoke([HumanMessage(content=hyde_prompt)]).content
 
         vs = self._get_vectorstore()
@@ -594,7 +611,12 @@ class RAGPipeline:
     def _multi_query_query(self, question: str) -> RAGResult:
         from langchain_core.messages import HumanMessage
 
-        prompt = MULTI_QUERY_PROMPT.format(n=self._config.multi_query_count, question=question)
+        prompt = self._require_prompt(
+            "multi_query_prompt",
+            self._config.multi_query_prompt,
+            n=self._config.multi_query_count,
+            question=question,
+        )
         variants_text = self._llm.invoke([HumanMessage(content=prompt)]).content
         variants = [q.strip() for q in variants_text.strip().splitlines() if q.strip()]
         all_queries = [question] + variants[: self._config.multi_query_count]
@@ -631,7 +653,11 @@ class RAGPipeline:
     def _auto_query(self, question: str) -> RAGResult:
         from langchain_core.messages import HumanMessage
 
-        prompt = AUTO_STRATEGY_PROMPT.format(question=question)
+        prompt = self._require_prompt(
+            "auto_strategy_prompt",
+            self._config.auto_strategy_prompt,
+            question=question,
+        )
         chosen = self._llm.invoke([HumanMessage(content=prompt)]).content.strip().lower()
         valid = ["naive", "hyde", "multi_query", "parent_document", "hybrid"]
         if chosen not in valid:

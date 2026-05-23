@@ -9,7 +9,9 @@ Rules:
 
 ## Project Structure
 
-- `src/docpipe/server/app.py` — FastAPI app; all HTTP endpoints
+- `src/docpipe/schemas/` — HTTP request/response Pydantic models (one module per route group)
+- `src/docpipe/server/app.py` — FastAPI app; route handlers (imports schemas + `request_mapping`)
+- `src/docpipe/server/request_mapping.py` — maps API schemas → `RAGConfig` / vector fields
 - `src/docpipe/rag/pipeline.py` — RAGPipeline; 6 retrieval strategies
 - `src/docpipe/ingestion/pipeline.py` — IngestionPipeline; chunking + PGVector
 - `src/docpipe/core/types.py` — all shared Pydantic models
