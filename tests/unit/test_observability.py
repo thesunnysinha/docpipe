@@ -43,6 +43,24 @@ def test_extract_usage_from_langchain_response():
     assert usage.total_tokens == 15
 
 
+def test_configure_logging_json_includes_request_id(capsys):
+    import logging as stdlib_logging
+
+    import docpipe.observability.logging as log_mod
+    from docpipe.observability.request_context import bind_request_id, reset_request_id
+
+    log_mod._CONFIGURED = False
+    root = stdlib_logging.getLogger()
+    root.handlers.clear()
+    settings = DocpipeSettings(log_format="json", log_level="INFO")
+    configure_logging(settings)
+    token = bind_request_id("json-req-99")
+    stdlib_logging.getLogger("docpipe.test.obs").info("hello json")
+    reset_request_id(token)
+    captured = capsys.readouterr().out.strip()
+    assert '"request_id": "json-req-99"' in captured
+
+
 def test_configure_logging_json(capsys):
     import logging as stdlib_logging
 
@@ -62,3 +80,23 @@ def test_configure_logging_json(capsys):
 def test_record_ingest_and_errors():
     record_ingest("docs", 3)
     record_error("configuration", "parse", "/parse")
+
+
+@pytest.mark.asyncio
+async def test_request_response_logging_middleware():
+    from starlette.applications import Starlette
+    from starlette.responses import JSONResponse
+    from starlette.routing import Route
+    from starlette.testclient import TestClient
+
+    from docpipe.observability.middleware import RequestResponseLoggingMiddleware
+
+    async def ping(_: object) -> JSONResponse:
+        return JSONResponse({"ok": True})
+
+    app = Starlette(routes=[Route("/rag/query", ping)])
+    app.add_middleware(RequestResponseLoggingMiddleware)
+    client = TestClient(app)
+    response = client.get("/rag/query", headers={"X-Request-Id": "test-req-1"})
+    assert response.status_code == 200
+    assert response.headers["X-Request-Id"] == "test-req-1"

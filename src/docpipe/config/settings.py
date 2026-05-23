@@ -45,6 +45,7 @@ class DocpipeSettings(BaseSettings):
     # Logging
     log_level: str = "INFO"
     log_format: str = "text"
+    http_request_logging_enabled: bool = True
 
     # OpenTelemetry (optional — install docpipe-sdk[observability])
     otel_enabled: bool = False
@@ -65,6 +66,18 @@ class DocpipeSettings(BaseSettings):
     # MinIO or other storage runs on the same network). Disabled by default to
     # prevent SSRF in public deployments.
     allow_private_urls: bool = False
+
+    # Speech-to-text (POST /transcribe)
+    # openai: Whisper via OPENAI_API_KEY | vibevoice: local GPU (pip install VibeVoice)
+    # vibevoice_remote: proxy to another docpipe with VibeVoice loaded
+    transcribe_default_backend: Literal["openai", "vibevoice", "vibevoice_remote"] = "openai"
+    openai_api_key: str | None = None
+    vibevoice_model_path: str = "microsoft/VibeVoice-ASR"
+    vibevoice_device: str = "auto"
+    vibevoice_attn_implementation: str = "auto"
+    vibevoice_max_new_tokens: int = 8192
+    vibevoice_service_url: str | None = None
+    vibevoice_remote_timeout: int = 600
 
     # Authentication
     # HTTP Basic Auth protecting all API endpoints and the web UI.

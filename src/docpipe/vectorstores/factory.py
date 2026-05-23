@@ -102,6 +102,84 @@ def ingest_documents(
     )
 
 
+def list_collection_sources(
+    *,
+    table_name: str,
+    connection_string: str,
+    vector_backend: VectorBackend | str = "pgvector",
+    filters: dict[str, Any] | None = None,
+) -> tuple[list[dict[str, Any]], int]:
+    """
+    List distinct ingested sources for a pgvector collection (LangChain PGVector schema).
+
+    Returns (source rows, total_chunk_count). Each row:
+    ``source``, ``chunk_count``, optional ``document_id``, ``document_title``.
+    """
+    backend = resolve_vector_backend(config=vector_backend)
+    if backend != "pgvector":
+        raise ConfigurationError(
+            "list_collection_sources is only supported for vector_backend='pgvector'"
+        )
+
+    import psycopg2
+
+    filter_clause = ""
+    params: list[Any] = [table_name]
+    if filters:
+        # Simple equality filters on cmetadata keys (same as LangChain metadata filter).
+        parts: list[str] = []
+        for key, value in filters.items():
+            parts.append("e.cmetadata->>%s = %s")
+            params.extend([key, str(value)])
+        if parts:
+            filter_clause = " AND " + " AND ".join(parts)
+
+    sql = f"""
+        SELECT
+            e.cmetadata->>'source' AS source,
+            COUNT(*)::int AS chunk_count,
+            MAX(e.cmetadata->>'document_id') AS document_id,
+            MAX(e.cmetadata->>'document_title') AS document_title
+        FROM langchain_pg_embedding e
+        JOIN langchain_pg_collection c ON e.collection_id = c.uuid
+        WHERE c.name = %s
+          AND e.cmetadata->>'source' IS NOT NULL
+          {filter_clause}
+        GROUP BY e.cmetadata->>'source'
+        ORDER BY source
+    """  # noqa: S608
+
+    total_sql = f"""
+        SELECT COUNT(*)::int
+        FROM langchain_pg_embedding e
+        JOIN langchain_pg_collection c ON e.collection_id = c.uuid
+        WHERE c.name = %s
+        {filter_clause}
+    """  # noqa: S608
+
+    with psycopg2.connect(connection_string) as conn, conn.cursor() as cur:
+        cur.execute(total_sql, params)
+        total_row = cur.fetchone()
+        total_chunks = int(total_row[0]) if total_row else 0
+
+        cur.execute(sql, params)
+        rows = cur.fetchall()
+
+    sources: list[dict[str, Any]] = []
+    for source, chunk_count, document_id, document_title in rows:
+        if not source:
+            continue
+        sources.append(
+            {
+                "source": str(source),
+                "chunk_count": int(chunk_count or 0),
+                "document_id": document_id,
+                "document_title": document_title,
+            }
+        )
+    return sources, total_chunks
+
+
 def delete_by_source(
     *,
     embeddings: Any | None,

@@ -17,6 +17,10 @@ VALID_REQUEST = {
     "embedding_model": "text-embedding-3-small",
     "llm_provider": "openai",
     "llm_model": "gpt-4o-mini",
+    "system_prompt": "Context:\n{context}\n\nQuestion: {question}\n\nAnswer:",
+    "hyde_prompt": "Hypothetical passage for: {question}",
+    "multi_query_prompt": "Generate {n} variants of: {question}",
+    "auto_strategy_prompt": "Reply naive for: {question}",
 }
 
 
@@ -26,7 +30,7 @@ def client():
 
 
 @patch("docpipe.server.app.RAGPipeline")
-@patch("docpipe.server.app.RAGConfig")
+@patch("docpipe.server.request_mapping.RAGConfig")
 def test_rag_stream_returns_event_stream(MockConfig, MockPipeline, client):
     """Endpoint returns 200 with text/event-stream content type and SSE tokens."""
     mock_config = MagicMock()
@@ -47,7 +51,7 @@ def test_rag_stream_returns_event_stream(MockConfig, MockPipeline, client):
 
 
 @patch("docpipe.server.app.RAGPipeline")
-@patch("docpipe.server.app.RAGConfig")
+@patch("docpipe.server.request_mapping.RAGConfig")
 def test_rag_stream_emits_usage_metadata_before_done(MockConfig, MockPipeline, client):
     from docpipe.core.types import TokenUsage
 
@@ -63,7 +67,7 @@ def test_rag_stream_emits_usage_metadata_before_done(MockConfig, MockPipeline, c
 
 
 @patch("docpipe.server.app.RAGPipeline")
-@patch("docpipe.server.app.RAGConfig")
+@patch("docpipe.server.request_mapping.RAGConfig")
 def test_rag_stream_calls_stream_query_with_question(MockConfig, MockPipeline, client):
     """stream_query is called with the correct question from the request."""
     mock_pipeline = MagicMock()
@@ -83,7 +87,7 @@ def test_rag_stream_done_sentinel_at_end(client):
     """The [DONE] sentinel appears after all token data in the response body."""
     with (
         patch("docpipe.server.app.RAGPipeline") as mock_pipeline_cls,
-        patch("docpipe.server.app.RAGConfig"),
+        patch("docpipe.server.request_mapping.RAGConfig"),
     ):
         mock_pipeline = MagicMock()
         mock_pipeline.stream_query.return_value = iter(["Hello", " world", "!"])
@@ -102,25 +106,14 @@ def test_rag_stream_done_sentinel_at_end(client):
 
 
 @patch("docpipe.server.app.RAGPipeline")
-@patch("docpipe.server.app.RAGConfig")
+@patch("docpipe.server.request_mapping.RAGConfig")
 def test_rag_stream_error_mid_stream_yields_error_event(MockConfig, MockPipeline, client):
     """When stream_query raises, the response contains an SSE error event (status 200)."""
     mock_pipeline = MagicMock()
     mock_pipeline.stream_query.side_effect = RuntimeError("boom")
     MockPipeline.return_value = mock_pipeline
 
-    resp = client.post(
-        "/rag/stream",
-        json={
-            "question": "What is docpipe?",
-            "connection_string": "postgresql://test/db",
-            "table_name": "docs",
-            "embedding_provider": "openai",
-            "embedding_model": "text-embedding-3-small",
-            "llm_provider": "openai",
-            "llm_model": "gpt-4o-mini",
-        },
-    )
+    resp = client.post("/rag/stream", json=VALID_REQUEST)
 
     assert resp.status_code == 200
     assert "event: error" in resp.text

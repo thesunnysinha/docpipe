@@ -100,6 +100,10 @@ def test_rag_query_passes_api_key_to_llm(client):
                     "llm_provider": "openai",
                     "llm_model": "gpt-4o-mini",
                     "api_key": "sk-test-key",
+                    "system_prompt": "Context:\n{context}\n\nQuestion: {question}\n\nAnswer:",
+                    "hyde_prompt": "Hypothetical passage for: {question}",
+                    "multi_query_prompt": "Generate {n} variants of: {question}",
+                    "auto_strategy_prompt": "Reply naive for: {question}",
                 },
             )
         mock_create_llm.assert_called_with("openai", "gpt-4o-mini", "sk-test-key")
@@ -224,12 +228,44 @@ def test_rag_query_includes_usage_when_present(client):
                     "embedding_model": "text-embedding-3-small",
                     "llm_provider": "openai",
                     "llm_model": "gpt-4o-mini",
+                    "system_prompt": "Context:\n{context}\n\nQuestion: {question}\n\nAnswer:",
+                    "hyde_prompt": "Hypothetical passage for: {question}",
+                    "multi_query_prompt": "Generate {n} variants of: {question}",
+                    "auto_strategy_prompt": "Reply naive for: {question}",
                 },
             )
     assert resp.status_code == 200
     usage = resp.json().get("usage")
     assert usage is not None
     assert usage["input_tokens"] == 11
+
+
+@patch("docpipe.vectorstores.factory.list_collection_sources")
+def test_list_collection_sources_endpoint(mock_list, client):
+    mock_list.return_value = (
+        [
+            {
+                "source": "https://minio/a.pdf",
+                "chunk_count": 3,
+                "document_id": "uuid-1",
+                "document_title": "A.pdf",
+            },
+        ],
+        3,
+    )
+    resp = client.post(
+        "/collection/sources",
+        json={
+            "connection_string": "postgresql://test/db",
+            "table_name": "docpipe_abc",
+        },
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["table_name"] == "docpipe_abc"
+    assert body["total_chunks"] == 3
+    assert len(body["sources"]) == 1
+    assert body["sources"][0]["document_title"] == "A.pdf"
 
 
 def test_generate_llm_error_returns_500(client):

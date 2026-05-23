@@ -21,6 +21,10 @@ VALID_RAG_REQUEST = {
     "embedding_model": "text-embedding-3-small",
     "llm_provider": "openai",
     "llm_model": "gpt-4o-mini",
+    "system_prompt": "Context:\n{context}\n\nQuestion: {question}\n\nAnswer:",
+    "hyde_prompt": "Hypothetical passage for: {question}",
+    "multi_query_prompt": "Generate {n} variants of: {question}",
+    "auto_strategy_prompt": "Reply naive for: {question}",
 }
 
 VALID_SEARCH_REQUEST = {
@@ -46,7 +50,7 @@ def _make_fake_result():
 def test_rag_query_passes_filters_to_rag_config(client):
     """Filters sent in the request body should be forwarded to RAGConfig."""
     with (
-        patch("docpipe.server.app.RAGConfig") as MockConfig,
+        patch("docpipe.server.request_mapping.RAGConfig") as MockConfig,
         patch("docpipe.server.app.RAGPipeline") as MockPipeline,
     ):
         mock_pipeline = MagicMock()
@@ -73,7 +77,7 @@ def test_rag_query_passes_filters_to_rag_config(client):
 def test_rag_query_default_filters_is_empty_dict(client):
     """When no filters key is sent, RAGConfig should receive an empty dict."""
     with (
-        patch("docpipe.server.app.RAGConfig") as MockConfig,
+        patch("docpipe.server.request_mapping.RAGConfig") as MockConfig,
         patch("docpipe.server.app.RAGPipeline") as MockPipeline,
     ):
         mock_pipeline = MagicMock()

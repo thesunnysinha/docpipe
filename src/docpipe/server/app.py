@@ -5,211 +5,48 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import os
+import tempfile
 from contextlib import asynccontextmanager
-from typing import Annotated, Any
+from typing import Any, Literal
 
 import psycopg2
-from fastapi import Depends, Request
-from pydantic import BaseModel, Field, field_validator
+from fastapi import Request
 
 from docpipe.core.types import (
     DeleteRequest,
     DeleteResponse,
     RAGConfig,
     TokenUsage,
-    validate_table_name,
 )
 from docpipe.rag.pipeline import RAGPipeline
-from docpipe.server.auth import require_auth
+from docpipe.schemas import (
+    EvaluateRequest,
+    EvaluateResponse,
+    ExtractRequest,
+    ExtractResponse,
+    GenerateRequest,
+    GenerateResponse,
+    HealthResponse,
+    IngestRequest,
+    IngestResponse,
+    ListSourcesRequest,
+    ListSourcesResponse,
+    ParseRequest,
+    ParseResponse,
+    RAGChunkResponse,
+    RAGQueryRequest,
+    RAGQueryResponse,
+    RunRequest,
+    SearchRequest,
+    SearchResponse,
+    SourceSummary,
+    TranscribeResponse,
+)
+from docpipe.server.deps import Auth
+from docpipe.server.request_mapping import rag_config_from_request, vector_fields_from_request
 
 logger = logging.getLogger(__name__)
-
-Auth = Annotated[None, Depends(require_auth)]
-
-
-# --- Request/Response models ---
-
-
-class ParseRequest(BaseModel):
-    source: str
-    parser: str = "docling"
-    output_format: str = "markdown"
-
-
-class ParseResponse(BaseModel):
-    source: str
-    format: str
-    content: str
-    metadata: dict[str, Any] = Field(default_factory=dict)
-
-
-class ExtractRequest(BaseModel):
-    text: str
-    description: str
-    model_id: str
-    extractor: str = "langextract"
-    examples: list[dict[str, Any]] = Field(default_factory=list)
-    entity_classes: list[str] = Field(default_factory=list)
-
-
-class ExtractResponse(BaseModel):
-    extractions: list[dict[str, Any]]
-
-
-class RunRequest(BaseModel):
-    source: str
-    description: str
-    model_id: str
-    parser: str = "docling"
-    extractor: str = "langextract"
-    examples: list[dict[str, Any]] = Field(default_factory=list)
-    entity_classes: list[str] = Field(default_factory=list)
-
-
-class IngestRequest(BaseModel):
-    source: str
-    connection_string: str
-    table_name: str
-    embedding_provider: str
-    embedding_model: str
-    # Optional per-request API key for the embedding provider.
-    # When omitted, docpipe falls back to the provider's env var (e.g. GOOGLE_API_KEY).
-    api_key: str | None = None
-    parser: str = "docling"
-    chunk_size: int = 1000
-    chunk_overlap: int = 200
-    ingest_mode: str = "both"
-    incremental: bool = False
-    vector_backend: str | None = None
-    turbovec_index_dir: str | None = None
-    chunk_metadata: dict[str, Any] = Field(default_factory=dict)
-
-    _validate_table_name = field_validator("table_name")(validate_table_name)
-
-
-class IngestResponse(BaseModel):
-    source: str
-    chunks_ingested: int
-    skipped: int = 0
-    table_name: str
-    table_created: bool
-
-
-class SearchRequest(BaseModel):
-    query: str
-    connection_string: str
-    table_name: str
-    embedding_provider: str
-    embedding_model: str
-    api_key: str | None = None
-    top_k: int = 10
-    filters: dict[str, Any] = Field(default_factory=dict)
-    vector_backend: str | None = None
-    turbovec_index_dir: str | None = None
-
-    _validate_table_name = field_validator("table_name")(validate_table_name)
-
-
-class SearchResponse(BaseModel):
-    results: list[dict[str, Any]]
-
-
-class DependencyStatusResponse(BaseModel):
-    name: str
-    status: str
-    latency_ms: float | None = None
-    detail: str | None = None
-
-
-class HealthResponse(BaseModel):
-    status: str
-    version: str
-    plugins: dict[str, list[str]]
-    dependencies: list[DependencyStatusResponse] = Field(default_factory=list)
-
-
-class RAGQueryRequest(BaseModel):
-    question: str
-    connection_string: str
-    table_name: str
-    embedding_provider: str
-    embedding_model: str
-    llm_provider: str
-    llm_model: str
-    # api_key applies to the LLM. embedding_api_key applies to the retrieval
-    # embeddings; falls back to api_key when not provided (convenient when both
-    # use the same provider and key, e.g. Google).
-    api_key: str | None = None
-    embedding_api_key: str | None = None
-    strategy: str = "naive"
-    top_k: int = 5
-    system_prompt: str | None = None
-    history: list[dict[str, str]] = Field(default_factory=list)
-    hyde_prompt: str | None = None
-    multi_query_count: int = 3
-    parent_window_size: int = 3
-    hybrid_bm25_weight: float = 0.5
-    reranker: str = "none"
-    reranker_model: str | None = None
-    rerank_top_n: int | None = None
-    filters: dict[str, Any] = Field(default_factory=dict)
-    response_format: dict[str, Any] | None = None
-    vector_backend: str | None = None
-    turbovec_index_dir: str | None = None
-
-    _validate_table_name = field_validator("table_name")(validate_table_name)
-
-
-class RAGChunkResponse(BaseModel):
-    content: str
-    score: float
-    source: str
-    page: int | None = None
-    metadata: dict[str, Any] = Field(default_factory=dict)
-
-
-class RAGQueryResponse(BaseModel):
-    query: str
-    answer: str
-    strategy: str
-    chunks: list[RAGChunkResponse]
-    sources: list[str]
-    timing_seconds: float
-    usage: TokenUsage | None = None
-
-
-class EvaluateRequest(BaseModel):
-    questions: list[dict[str, Any]]
-    connection_string: str
-    table_name: str
-    embedding_provider: str
-    embedding_model: str
-    llm_provider: str
-    llm_model: str
-    strategy: str = "naive"
-    metrics: list[str] = Field(default_factory=lambda: ["hit_rate", "answer_similarity"])
-
-    _validate_table_name = field_validator("table_name")(validate_table_name)
-
-
-class EvaluateResponse(BaseModel):
-    metrics: dict[str, Any]
-    num_questions: int
-    timing_seconds: float
-
-
-class GenerateRequest(BaseModel):
-    prompt: str
-    llm_provider: str
-    llm_model: str
-    api_key: str | None = None
-
-
-class GenerateResponse(BaseModel):
-    content: str
-
-
-# --- App factory ---
 
 
 def create_app() -> Any:
@@ -231,7 +68,10 @@ def create_app() -> Any:
         record_ingest,
         setup_prometheus_instrumentation,
     )
-    from docpipe.observability.middleware import enrich_http_exception_span
+    from docpipe.observability.middleware import (
+        RequestResponseLoggingMiddleware,
+        enrich_http_exception_span,
+    )
     from docpipe.observability.spans import trace_operation
     from docpipe.observability.tracing import instrument_fastapi
     from docpipe.registry.registry import PluginRegistry
@@ -256,6 +96,8 @@ def create_app() -> Any:
     )
     setup_prometheus_instrumentation(app)
     instrument_fastapi(app)
+    if settings.http_request_logging_enabled:
+        app.add_middleware(RequestResponseLoggingMiddleware)
 
     @app.exception_handler(HTTPException)
     async def http_exception_handler(request: Request, exc: HTTPException) -> Any:
@@ -273,41 +115,6 @@ def create_app() -> Any:
 
         return JSONResponse(status_code=exc.status_code, content={"detail": detail})
 
-    def _vector_fields_from_request(
-        req: IngestRequest | SearchRequest | RAGQueryRequest,
-    ) -> dict[str, Any]:
-        backend = req.vector_backend or settings.vector_backend
-        return {
-            "vector_backend": backend,
-            "turbovec_index_dir": req.turbovec_index_dir,
-        }
-
-    def _rag_config_from_request(req: RAGQueryRequest) -> RAGConfig:
-        return RAGConfig(
-            connection_string=req.connection_string,
-            table_name=req.table_name,
-            embedding_provider=req.embedding_provider,
-            embedding_model=req.embedding_model,
-            embedding_api_key=req.embedding_api_key or req.api_key,
-            llm_provider=req.llm_provider,
-            llm_model=req.llm_model,
-            llm_api_key=req.api_key,
-            strategy=req.strategy,  # type: ignore[arg-type]
-            top_k=req.top_k,
-            system_prompt=req.system_prompt,
-            history=req.history,
-            hyde_prompt=req.hyde_prompt,
-            multi_query_count=req.multi_query_count,
-            parent_window_size=req.parent_window_size,
-            hybrid_bm25_weight=req.hybrid_bm25_weight,
-            reranker=req.reranker,  # type: ignore[arg-type]
-            reranker_model=req.reranker_model,
-            rerank_top_n=req.rerank_top_n,
-            filters=req.filters,
-            response_format=req.response_format,
-            **_vector_fields_from_request(req),
-        )
-
     @app.get("/", response_class=HTMLResponse, include_in_schema=False)
     async def homepage(_: Auth) -> HTMLResponse:
         registry = PluginRegistry.get()
@@ -322,20 +129,12 @@ def create_app() -> Any:
     async def health() -> HealthResponse:
         """Server health — no auth required (used by Docker healthcheck)."""
         registry = PluginRegistry.get()
-        payload = build_health_response(
+        return build_health_response(
             __version__,
             {
                 "parsers": registry.list_parsers(),
                 "extractors": registry.list_extractors(),
             },
-        )
-        return HealthResponse(
-            status=payload.status,
-            version=payload.version,
-            plugins=payload.plugins,
-            dependencies=[
-                DependencyStatusResponse(**dep.model_dump()) for dep in payload.dependencies
-            ],
         )
 
     @app.post("/parse", response_model=ParseResponse)
@@ -423,7 +222,7 @@ def create_app() -> Any:
                     ingest_mode=req.ingest_mode,  # type: ignore[arg-type]
                     incremental=req.incremental,
                     chunk_metadata=req.chunk_metadata,
-                    **_vector_fields_from_request(req),
+                    **vector_fields_from_request(req, settings),
                 )
                 ingestion = IngestionPipeline(config)
                 result = await ingestion.aingest(parsed)
@@ -510,6 +309,37 @@ def create_app() -> Any:
             except Exception as exc:
                 raise HTTPException(status_code=500, detail=str(exc)) from exc
 
+    @app.post("/collection/sources", response_model=ListSourcesResponse)
+    async def list_collection_sources(req: ListSourcesRequest, _: Auth) -> ListSourcesResponse:
+        """Distinct ingested sources in a vector collection (debug / reconciliation)."""
+        with trace_operation("docpipe.collection.sources", docpipe_table_name=req.table_name):
+            try:
+                from docpipe.core.errors import ConfigurationError
+                from docpipe.vectorstores.base import resolve_vector_backend
+                from docpipe.vectorstores.factory import list_collection_sources as list_sources
+
+                backend = resolve_vector_backend(
+                    config=req.vector_backend,
+                    default=settings.vector_backend,
+                )
+                rows, total_chunks = list_sources(
+                    table_name=req.table_name,
+                    connection_string=req.connection_string,
+                    vector_backend=backend,
+                    filters=req.filters or None,
+                )
+                return ListSourcesResponse(
+                    table_name=req.table_name,
+                    sources=[SourceSummary(**row) for row in rows],
+                    total_chunks=total_chunks,
+                )
+            except ConfigurationError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+            except DocpipeError as e:
+                raise docpipe_http_exception(e) from e
+            except Exception as exc:
+                raise HTTPException(status_code=500, detail=str(exc)) from exc
+
     @app.post("/search", response_model=SearchResponse)
     async def search_documents(req: SearchRequest, _: Auth) -> SearchResponse:
         try:
@@ -521,7 +351,7 @@ def create_app() -> Any:
                 embedding_provider=req.embedding_provider,
                 embedding_model=req.embedding_model,
                 embedding_api_key=req.api_key,
-                **_vector_fields_from_request(req),
+                **vector_fields_from_request(req, settings),
             )
             ingestion = IngestionPipeline(config)
             results = ingestion.search(req.query, top_k=req.top_k, filters=req.filters)
@@ -543,7 +373,7 @@ def create_app() -> Any:
     async def rag_query(req: RAGQueryRequest, _: Auth) -> RAGQueryResponse:
         with observe_rag(req.strategy):
             try:
-                config = _rag_config_from_request(req)
+                config = rag_config_from_request(req, settings)
                 pipeline = RAGPipeline(config)
                 result = await pipeline.aquery(req.question)
                 usage = result.usage if isinstance(result.usage, TokenUsage) else None
@@ -562,14 +392,12 @@ def create_app() -> Any:
     @app.post("/rag/stream", response_class=StreamingResponse)
     async def rag_stream(req: RAGQueryRequest, _: Auth) -> StreamingResponse:
         try:
-            config = _rag_config_from_request(req)
+            config = rag_config_from_request(req, settings)
             config = config.model_copy(update={"stream": True})
             pipeline = RAGPipeline(config)
         except DocpipeError as e:
             raise docpipe_http_exception(e) from e
 
-        # NOTE: stream_query() is synchronous and blocks the event loop.
-        # Acceptable for single-worker deployments; for async scale, wrap with asyncio.to_thread.
         def generate():
             try:
                 with observe_rag(req.strategy):
@@ -589,7 +417,7 @@ def create_app() -> Any:
     @app.post("/evaluate/run", response_model=EvaluateResponse)
     async def evaluate_run(req: EvaluateRequest, _: Auth) -> EvaluateResponse:
         try:
-            from docpipe.core.types import EvalConfig, EvalQuestion, RAGConfig
+            from docpipe.core.types import EvalConfig, EvalQuestion
             from docpipe.eval.pipeline import EvalPipeline
 
             rag_config = RAGConfig(
@@ -616,6 +444,65 @@ def create_app() -> Any:
             )
         except DocpipeError as e:
             raise docpipe_http_exception(e) from e
+
+    @app.post("/transcribe", response_model=TranscribeResponse)
+    async def transcribe(request: Request, _: Auth) -> TranscribeResponse:
+        from docpipe.core.errors import DocpipeError
+        from docpipe.speech.service import TranscriptionService
+
+        form = await request.form()
+        upload = form.get("file")
+        if upload is None or not hasattr(upload, "read"):
+            raise HTTPException(status_code=400, detail="Multipart field 'file' is required.")
+
+        backend_raw = form.get("backend")
+        backend: Literal["openai", "vibevoice", "vibevoice_remote"] | None = None
+        if backend_raw in ("openai", "vibevoice", "vibevoice_remote"):
+            backend = backend_raw  # type: ignore[assignment]
+
+        output_raw = form.get("output_format") or "plain"
+        output_format: Literal["plain", "structured"] = (
+            "structured" if output_raw == "structured" else "plain"
+        )
+        hotwords_raw = form.get("hotwords")
+        api_key_raw = form.get("api_key")
+        language_raw = form.get("language")
+
+        filename = getattr(upload, "filename", None) or "audio.wav"
+        suffix = os.path.splitext(filename)[1] or ".wav"
+        hotword_list = [w.strip() for w in str(hotwords_raw or "").split(",") if w.strip()]
+        temp_path: str | None = None
+        try:
+            with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+                temp_path = tmp.name
+                while chunk := await upload.read(1024 * 1024):
+                    tmp.write(chunk)
+            resolved_backend = backend or settings.transcribe_default_backend
+            with trace_operation("docpipe.transcribe", docpipe_backend=resolved_backend):
+                result = await TranscriptionService.atranscribe_file(
+                    temp_path,
+                    settings=settings,
+                    backend=backend,
+                    api_key=str(api_key_raw) if api_key_raw else None,
+                    hotwords=hotword_list or None,
+                    language=str(language_raw) if language_raw else None,
+                    output_format=output_format,
+                )
+            return TranscribeResponse(
+                text=result.text,
+                backend=result.backend,
+                raw_text=result.raw_text,
+                segments=[seg.model_dump() for seg in result.segments],
+                metadata=result.metadata,
+            )
+        except DocpipeError as exc:
+            raise docpipe_http_exception(exc) from exc
+        finally:
+            if temp_path and os.path.exists(temp_path):
+                try:
+                    os.unlink(temp_path)
+                except OSError:
+                    logger.warning("Failed to remove temp audio file", exc_info=True)
 
     @app.post("/generate", response_model=GenerateResponse)
     async def generate(req: GenerateRequest, _: Auth) -> GenerateResponse:

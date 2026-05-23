@@ -6,23 +6,9 @@ import time
 from typing import Literal
 
 import psycopg2
-from pydantic import BaseModel, Field
 
 from docpipe.config import get_settings
-
-
-class DependencyStatus(BaseModel):
-    name: str
-    status: Literal["ok", "degraded", "unavailable"]
-    latency_ms: float | None = None
-    detail: str | None = None
-
-
-class ExtendedHealthResponse(BaseModel):
-    status: Literal["ok", "degraded", "unavailable"]
-    version: str
-    plugins: dict[str, list[str]]
-    dependencies: list[DependencyStatus] = Field(default_factory=list)
+from docpipe.schemas.health import DependencyStatus, HealthResponse
 
 
 def check_database(connection_string: str | None) -> DependencyStatus:
@@ -87,7 +73,7 @@ def check_embedding_provider() -> DependencyStatus:
         )
 
 
-def build_health_response(version: str, plugins: dict[str, list[str]]) -> ExtendedHealthResponse:
+def build_health_response(version: str, plugins: dict[str, list[str]]) -> HealthResponse:
     """Aggregate dependency checks into an overall health status."""
     settings = get_settings()
     dependencies: list[DependencyStatus] = []
@@ -118,7 +104,7 @@ def build_health_response(version: str, plugins: dict[str, list[str]]) -> Extend
     elif emb_status is not None and emb_status.status == "degraded" and overall == "ok":
         overall = "degraded"
 
-    return ExtendedHealthResponse(
+    return HealthResponse(
         status=overall,
         version=version,
         plugins=plugins,

@@ -72,6 +72,11 @@ rag_config = docpipe.RAGConfig(
     llm_provider="openai",
     llm_model="gpt-4o",
     strategy="hyde",
+    system_prompt=(
+        "Answer using ONLY the context below.\n\n"
+        "Context:\n{context}\n\nQuestion: {question}\n\nAnswer:"
+    ),
+    hyde_prompt="Write a passage that answers: {question}",
 )
 result = docpipe.query("What is the total on the invoice?", config=rag_config)
 print(result.answer)
@@ -88,7 +93,8 @@ print(result.answer)
 | Topic | Where |
 |--------|--------|
 | Install extras & providers | [docs](https://docpipe.sunnysinha.online/docs) |
-| REST API (`/ingest`, `/rag/query`, `/rag/stream`, …) | [docs](https://docpipe.sunnysinha.online/docs) |
+| REST API (`/ingest`, `/rag/query`, `/rag/stream`, `/transcribe`, …) | [docs](https://docpipe.sunnysinha.online/docs) |
+| Speech-to-text ([VibeVoice ASR](https://github.com/microsoft/VibeVoice) or OpenAI Whisper) | `POST /transcribe` · backends: `openai`, `vibevoice`, `vibevoice_remote` |
 | RAG strategies (`naive`, `hyde`, `hybrid`, `auto`, …) | [docs](https://docpipe.sunnysinha.online/docs) |
 | Observability (OTEL, Prometheus, JSON logs) | [docs](https://docpipe.sunnysinha.online/docs) · `.env.example` |
 | turbovec (local file indices) | [docs](https://docpipe.sunnysinha.online/docs) |

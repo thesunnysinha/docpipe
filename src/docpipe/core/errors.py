@@ -47,3 +47,7 @@ class RAGError(DocpipeError):
 
 class EvalError(DocpipeError):
     """Raised when evaluation fails."""
+
+
+class TranscriptionError(DocpipeError):
+    """Raised when speech-to-text transcription fails."""
