@@ -1,0 +1,13 @@
+# Shared docpipe API on the 2 vCPU / 8GB VPS (compute only — vectors live in each consumer's DB).
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: docpipe-compute-quota
+  namespace: docpipe
+spec:
+  hard:
+    requests.cpu: "200m"
+    requests.memory: 512Mi
+    limits.cpu: "600m"
+    limits.memory: 1280Mi
+    pods: "4"
