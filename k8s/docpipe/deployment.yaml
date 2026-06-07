@@ -35,7 +35,7 @@ spec:
             - name: DOCPIPE_ALLOW_PRIVATE_URLS
               value: "true"
             - name: DOCPIPE_MAX_CONCURRENCY
-              value: "2"
+              value: "1"
             # Consumers pass connection_string per request; disable server-side DB probe.
             - name: DOCPIPE_HEALTH_CHECK_DB
               value: "false"
@@ -67,7 +67,7 @@ spec:
           resources:
             requests:
               cpu: 150m
-              memory: 384Mi
+              memory: 512Mi
             limits:
               cpu: 500m
-              memory: 1Gi
+              memory: 3Gi
