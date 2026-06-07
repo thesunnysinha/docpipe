@@ -1,0 +1,26 @@
+# Cross-namespace aliases so shared docpipe can reach Jingo infrastructure
+# using the same hostnames Jingo passes in presigned URLs and DB connection strings.
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: minio
+  namespace: docpipe
+spec:
+  type: ExternalName
+  externalName: minio.jingo.svc.cluster.local
+  ports:
+    - port: 9000
+      protocol: TCP
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: db
+  namespace: docpipe
+spec:
+  type: ExternalName
+  externalName: db.jingo.svc.cluster.local
+  ports:
+    - port: 5432
+      protocol: TCP
