@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: docpipe
+  labels:
+    app.kubernetes.io/name: docpipe
+    app.kubernetes.io/part-of: docpipe
