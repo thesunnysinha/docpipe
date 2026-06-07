@@ -1,0 +1,11 @@
+# GitHub Actions secret: DOCPIPE_ENV → k8s docpipe-secret (namespace: docpipe)
+#
+# Shared across all API consumers (Jingo, Andocs, etc.). Each app still passes its own
+# pgvector connection_string on /ingest and /rag/* requests.
+
+DOCPIPE_USERNAME=admin
+DOCPIPE_PASSWORD=change-me
+
+# Optional server defaults when requests omit api_key
+GEMINI_API_KEY=
+OPENAI_API_KEY=

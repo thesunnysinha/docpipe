@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: docpipe
+  namespace: docpipe
+  labels:
+    app: docpipe
+spec:
+  replicas: 1
+  progressDeadlineSeconds: 600
+  selector:
+    matchLabels:
+      app: docpipe
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
+  template:
+    metadata:
+      labels:
+        app: docpipe
+    spec:
+      imagePullSecrets:
+        - name: ghcr-secret
+      containers:
+        - name: docpipe
+          image: ghcr.io/thesunnysinha/docpipe:latest
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - secretRef:
+                name: docpipe-secret
+          env:
+            - name: DOCPIPE_ALLOW_PRIVATE_URLS
+              value: "true"
+            - name: DOCPIPE_MAX_CONCURRENCY
+              value: "2"
+            # Consumers pass connection_string per request; disable server-side DB probe.
+            - name: DOCPIPE_HEALTH_CHECK_DB
+              value: "false"
+            - name: DOCPIPE_HEALTH_CHECK_EMBEDDING
+              value: "false"
+          startupProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 20
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 36
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8000
+            initialDelaySeconds: 60
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 5
+          resources:
+            requests:
+              cpu: 150m
+              memory: 384Mi
+            limits:
+              cpu: 500m
+              memory: 1Gi

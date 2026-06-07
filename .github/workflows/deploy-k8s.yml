@@ -1,0 +1,71 @@
+name: Deploy docpipe to Kubernetes
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "k8s/**"
+      - ".github/workflows/deploy-k8s.yml"
+      - "env/k8s/**"
+  workflow_dispatch:
+
+env:
+  K8S_NAMESPACE: docpipe
+
+jobs:
+  deploy:
+    name: Deploy shared docpipe API
+    runs-on: ubuntu-latest
+    environment:
+      name: production
+      url: https://docpipe.sunnysinha.online
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Install vm_tool
+        run: pip install vm-tool==1.1.2
+
+      - name: Deploy with vm_tool
+        env:
+          IMAGE_REF: ghcr.io/thesunnysinha/docpipe:latest
+          KUBECONFIG_B64: ${{ secrets.KUBECONFIG_B64 }}
+          DOCPIPE_ENV: ${{ secrets.DOCPIPE_ENV }}
+          GH_ACTOR: ${{ github.actor }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          vm_tool deploy-k8s \
+            --method manifest \
+            --manifest k8s/ \
+            --namespace "$K8S_NAMESPACE" \
+            --kubeconfig-b64 "$KUBECONFIG_B64" \
+            --image "ghcr.io/thesunnysinha/docpipe:latest=${IMAGE_REF}" \
+            --k8s-secret "docpipe-secret=${DOCPIPE_ENV}" \
+            --registry-secret "ghcr-secret=ghcr.io:${GH_ACTOR}:${GH_TOKEN}" \
+            --timeout 600 \
+            --force
+
+      - name: Deployment summary
+        env:
+          KUBECONFIG_B64: ${{ secrets.KUBECONFIG_B64 }}
+        run: |
+          mkdir -p ~/.kube
+          echo "$KUBECONFIG_B64" | base64 -d > ~/.kube/config
+          chmod 600 ~/.kube/config
+          kubectl -n "$K8S_NAMESPACE" rollout status deploy/docpipe --timeout=600s
+          {
+            echo "## Shared docpipe API"
+            echo "Cluster DNS: \`http://docpipe.docpipe.svc.cluster.local:8000\`"
+            echo "| Deployment | Image |"
+            echo "|---|---|"
+            kubectl get deployments -n "$K8S_NAMESPACE" \
+              -o custom-columns='NAME:.metadata.name,IMAGE:.spec.template.spec.containers[0].image' \
+              --no-headers | awk '{print "| " $1 " | " $2 " |"}'
+          } >> "$GITHUB_STEP_SUMMARY"

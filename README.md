@@ -84,7 +84,9 @@ print(result.answer)
 
 **CLI:** `docpipe parse`, `docpipe ingest`, `docpipe rag query`, `docpipe serve` — see **[CLI & API server](https://docpipe.sunnysinha.online/docs)**.
 
-**Docker:** `docker pull ghcr.io/thesunnysinha/docpipe:latest` — compose examples and env vars are in the **[Docker guide](https://docpipe.sunnysinha.online/docs)** and [`.env.example`](.env.example). Compose files set **CPU/RAM limits** (4 CPU / 4 GiB standalone; Jingo sidecar uses 2 CPU / 2 GiB) and `DOCPIPE_MAX_CONCURRENCY=2` so ingest/RAG cannot exhaust the host.
+**Docker:** `docker pull ghcr.io/thesunnysinha/docpipe:latest` — compose examples and env vars are in the **[Docker guide](https://docpipe.sunnysinha.online/docs)** and [`.env.example`](.env.example). Compose files set **CPU/RAM limits** (4 CPU / 4 GiB standalone) and `DOCPIPE_MAX_CONCURRENCY=2` so ingest/RAG cannot exhaust the host.
+
+**Shared Kubernetes API** (one docpipe for Jingo, Andocs, and other apps): manifests in [`k8s/`](k8s/), deploy via `.github/workflows/deploy-k8s.yml`. Consumers call `http://docpipe.docpipe.svc.cluster.local:8000` and pass their own `connection_string` on each `/ingest` and `/rag/*` request (vectors stay in each app's Postgres). See [`env/k8s/DOCPIPE_ENV.example`](env/k8s/DOCPIPE_ENV.example).
 
 ---
 
