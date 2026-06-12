@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from docpipe.observability.logging import configure_logging
+from docpipe.observability.phoenix import configure_phoenix
 from docpipe.observability.tracing import (
     configure_observability,
     get_tracer,
@@ -12,6 +13,7 @@ from docpipe.observability.tracing import (
 __all__ = [
     "configure_logging",
     "configure_observability",
+    "configure_phoenix",
     "get_tracer",
     "shutdown_observability",
 ]

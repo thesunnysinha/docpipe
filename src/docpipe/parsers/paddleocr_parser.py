@@ -9,6 +9,7 @@ from typing import Any
 from docpipe.core.errors import ParseError, ParserNotInstalledError
 from docpipe.core.types import PageContent, ParsedDocument
 from docpipe.parsers.markitdown_parser import MarkItDownParser
+from docpipe.parsers.url_safety import assert_safe_http_source
 
 
 class PaddleOCRParser:
@@ -34,6 +35,7 @@ class PaddleOCRParser:
         return self._engine
 
     def parse(self, source: str, **kwargs: Any) -> ParsedDocument:
+        assert_safe_http_source(source)
         try:
             result = self._get_engine().predict(source, **kwargs)
         except Exception as e:

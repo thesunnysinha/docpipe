@@ -61,8 +61,11 @@ server = [
     "fastapi>=0.100",
     "uvicorn[standard]>=0.20",
     "python-multipart>=0.0.6",
+    "jinja2>=3.1",
     "prometheus-client>=0.20",
     "prometheus-fastapi-instrumentator>=7.1.0",
+    "sqlalchemy>=2.0",
+    "alembic>=1.13",
 ]
 observability = [
     "opentelemetry-api>=1.27",
@@ -75,7 +78,7 @@ http = ["httpx>=0.27"]
 rag = ["langchain-community>=0.3", "langchain-classic>=0.1", "rank-bm25>=0.2"]
 rerank = ["flashrank>=0.2"]
 rerank-quality = ["sentence-transformers>=3.0", "cohere>=5.0"]
-eval-ragas = ["ragas>=0.2", "datasets>=3.0"]
+eval-ragas = ["ragas>=0.4", "datasets>=3.0"]
 eval-ci = ["deepeval>=1.0"]
 lightrag = ["lightrag-hku>=1.0"]
 # Curated install profiles (operators pick one)

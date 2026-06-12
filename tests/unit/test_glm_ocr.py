@@ -121,7 +121,8 @@ class TestGLMOCRParser:
             from docpipe.parsers.glm_ocr_parser import GLMOCRParser
 
             parser = GLMOCRParser()
-            parser._ocr.run = MagicMock(side_effect=RuntimeError("OCR failed"))
+            ocr = parser._get_ocr()
+            ocr.run = MagicMock(side_effect=RuntimeError("OCR failed"))
 
             with pytest.raises(ParseError, match="GLM-OCR"):
                 parser.parse("bad.pdf")

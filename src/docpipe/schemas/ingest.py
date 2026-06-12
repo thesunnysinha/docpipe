@@ -58,6 +58,14 @@ class IngestRequest(TableNameFieldMixin, VectorBackendFields):
         default_factory=dict,
         description="Extra metadata attached to every chunk.",
     )
+    graph_index: bool = Field(
+        default=False,
+        description="When true, also sync parsed text into a LightRAG working directory.",
+    )
+    lightrag_working_dir: str | None = Field(
+        default=None,
+        description="LightRAG on-disk directory; required when graph_index is true.",
+    )
 
 
 class IngestResponse(ApiResponse):
@@ -68,3 +76,7 @@ class IngestResponse(ApiResponse):
     skipped: int = Field(default=0, ge=0, description="Chunks skipped (incremental mode).")
     table_name: str = Field(..., description="Target collection name.")
     table_created: bool = Field(..., description="True when the collection was created.")
+    lightrag_synced: bool = Field(
+        default=False,
+        description="True when parsed text was inserted into LightRAG.",
+    )

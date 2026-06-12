@@ -2,12 +2,14 @@
 
 from docpipe.schemas.agents import AgentQueryRequest, AgentQueryResponse
 from docpipe.schemas.base import ApiRequest, ApiResponse
+from docpipe.schemas.cost import CostEstimateRequest, CostEstimateResponse
 from docpipe.schemas.delete import DeleteRequest, DeleteResponse
 from docpipe.schemas.evaluate import EvaluateRequest, EvaluateResponse
 from docpipe.schemas.extract import ExtractRequest, ExtractResponse
 from docpipe.schemas.generate import GenerateRequest, GenerateResponse
 from docpipe.schemas.health import DependencyStatus, HealthResponse
 from docpipe.schemas.ingest import IngestRequest, IngestResponse
+from docpipe.schemas.mcp import McpCallRequest, McpCallResponse, McpToolDescriptor, McpToolsResponse
 from docpipe.schemas.parse import ParseRequest, ParseResponse
 from docpipe.schemas.plugins import PluginInfo, PluginsResponse
 from docpipe.schemas.profiles import (
@@ -33,6 +35,8 @@ __all__ = [
     "ApiRequest",
     "ApiResponse",
     "ChatMessage",
+    "CostEstimateRequest",
+    "CostEstimateResponse",
     "DeleteRequest",
     "DeleteResponse",
     "DependencyStatus",
@@ -47,6 +51,10 @@ __all__ = [
     "IngestResponse",
     "ListSourcesRequest",
     "ListSourcesResponse",
+    "McpCallRequest",
+    "McpCallResponse",
+    "McpToolDescriptor",
+    "McpToolsResponse",
     "ParseRequest",
     "ParseResponse",
     "PluginInfo",

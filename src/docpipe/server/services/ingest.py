@@ -2,11 +2,17 @@
 
 from __future__ import annotations
 
+import json
+import logging
+from collections.abc import AsyncIterator
+from typing import Any
+
 from docpipe.config.settings import DocpipeSettings
 from docpipe.core.errors import ConfigurationError
-from docpipe.core.types import IngestionConfig
+from docpipe.core.types import IngestionConfig, ParsedDocument
 from docpipe.ingestion.pipeline import IngestionPipeline
 from docpipe.observability.metrics import record_ingest
+from docpipe.rag.lightrag_sync import sync_parsed_document
 from docpipe.registry.registry import PluginRegistry
 from docpipe.schemas import (
     IngestRequest,
@@ -24,13 +30,18 @@ from docpipe.server.request_mapping import vector_fields_from_request
 from docpipe.vectorstores.base import resolve_vector_backend
 from docpipe.vectorstores.factory import delete_by_source, list_collection_sources
 
+logger = logging.getLogger(__name__)
+
 
 class IngestService:
     def __init__(self, settings: DocpipeSettings, registry: PluginRegistry) -> None:
         self._settings = settings
         self._registry = registry
 
-    async def ingest(self, req: IngestRequest) -> IngestResponse:
+    async def _resolve_and_parse(
+        self,
+        req: IngestRequest,
+    ) -> tuple[dict[str, Any], str, ParsedDocument]:
         resolved = resolve_fields(
             {"parser": req.parser, "tier": req.tier, "chunker": req.chunker},
             preset=req.preset,
@@ -40,9 +51,18 @@ class IngestService:
         )
         parser_name = resolve_parser_name(resolved, req.source)
         parser = self._registry.get_parser(parser_name)
-        parsed = await parser.aparse(req.source)
 
-        config = IngestionConfig(
+        from docpipe.server.parser_cache import get_cached_parse, store_cached_parse
+
+        ttl = self._settings.parser_cache_ttl_seconds
+        parsed = get_cached_parse(req.source, parser_name, ttl_seconds=ttl)
+        if parsed is None:
+            parsed = await parser.aparse(req.source)
+            store_cached_parse(req.source, parser_name, parsed, ttl_seconds=ttl)
+        return resolved, parser_name, parsed
+
+    def _build_config(self, req: IngestRequest, resolved: dict[str, Any]) -> IngestionConfig:
+        return IngestionConfig(
             connection_string=req.connection_string,
             table_name=req.table_name,
             embedding_provider=req.embedding_provider,
@@ -57,16 +77,87 @@ class IngestService:
             chunk_metadata=req.chunk_metadata,
             **vector_fields_from_request(req, self._settings),
         )
+
+    async def _finalize_ingest(
+        self,
+        req: IngestRequest,
+        resolved: dict[str, Any],
+        parsed: ParsedDocument,
+        *,
+        parser_name: str,
+    ) -> IngestResponse:
+        config = self._build_config(req, resolved)
         ingestion = IngestionPipeline(config)
         result = await ingestion.aingest(parsed)
         record_ingest(req.table_name, result.chunks_ingested)
-        return IngestResponse(
+
+        lightrag_synced = False
+        if req.graph_index:
+            if not req.lightrag_working_dir:
+                raise ConfigurationError("lightrag_working_dir is required when graph_index=true")
+            sync_parsed_document(working_dir=req.lightrag_working_dir, parsed=parsed)
+            lightrag_synced = True
+
+        response = IngestResponse(
             source=result.source,
             chunks_ingested=result.chunks_ingested,
             skipped=result.skipped,
             table_name=result.table_name,
             table_created=result.table_created,
+            lightrag_synced=lightrag_synced,
         )
+        try:
+            from docpipe.db.repository import store_ingest_job
+
+            store_ingest_job(
+                source=result.source,
+                table_name=result.table_name,
+                preset=req.preset,
+                parser=str(resolved.get("parser") or parser_name),
+                chunks_ingested=result.chunks_ingested,
+                skipped=result.skipped,
+            )
+        except Exception:  # noqa: BLE001
+            logger.debug("ingest job persistence skipped", exc_info=True)
+        return response
+
+    @staticmethod
+    def _progress_event(stage: str, *, percent: int, **extra: Any) -> str:
+        payload = {"stage": stage, "percent": percent, **extra}
+        return f"event: progress\ndata: {json.dumps(payload)}\n\n"
+
+    async def ingest(self, req: IngestRequest) -> IngestResponse:
+        resolved, parser_name, parsed = await self._resolve_and_parse(req)
+        return await self._finalize_ingest(req, resolved, parsed, parser_name=parser_name)
+
+    async def stream(self, req: IngestRequest) -> AsyncIterator[str]:
+        """SSE progress stream for long-running ingest jobs."""
+        try:
+            yield self._progress_event("resolve", percent=5, message="Resolving preset and parser")
+            resolved, parser_name, parsed = await self._resolve_and_parse(req)
+            yield self._progress_event(
+                "parse",
+                percent=35,
+                message="Document parsed",
+                parser=parser_name,
+            )
+            yield self._progress_event("chunk", percent=55, message="Chunking and embedding")
+            response = await self._finalize_ingest(
+                req,
+                resolved,
+                parsed,
+                parser_name=parser_name,
+            )
+            yield self._progress_event(
+                "complete",
+                percent=100,
+                message="Ingest complete",
+                result=response.model_dump(),
+            )
+            yield "data: [DONE]\n\n"
+        except Exception as exc:  # noqa: BLE001
+            logger.exception("ingest stream failed")
+            yield f"event: error\ndata: {exc}\n\n"
 
     def delete(self, req: DeleteRequest) -> DeleteResponse:
         backend = resolve_vector_backend(

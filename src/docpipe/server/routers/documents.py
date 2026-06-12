@@ -26,7 +26,10 @@ async def parse_document(
     _: Auth,
     service: DocumentServiceDep,
 ) -> ParseResponse:
-    with trace_operation("docpipe.parse"):
+    with trace_operation(
+        "docpipe.parse",
+        docpipe_preset=req.preset,
+    ):
         return await service.parse(req)
 
 

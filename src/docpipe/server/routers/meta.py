@@ -13,6 +13,7 @@ from docpipe.schemas import (
 )
 from docpipe.schemas.plugins import PluginsResponse
 from docpipe.server.deps import Auth, DiscoveryServiceDep
+from docpipe.server.licenses import render_pymupdf_license
 
 router = APIRouter(tags=["meta"])
 
@@ -37,6 +38,12 @@ async def list_plugins(_: Auth, service: DiscoveryServiceDep) -> PluginsResponse
 @router.get("/profiles", response_model=ProfilesResponse)
 async def list_profiles(_: Auth, service: DiscoveryServiceDep) -> ProfilesResponse:
     return service.list_profiles()
+
+
+@router.get("/licenses/pymupdf", response_class=HTMLResponse, include_in_schema=False)
+async def pymupdf_license(_: Auth) -> HTMLResponse:
+    """Commercial license notes for the optional pymupdf parser."""
+    return HTMLResponse(content=render_pymupdf_license())
 
 
 @router.post("/plugins/resolve", response_model=PluginResolveResponse)

@@ -10,6 +10,7 @@ from typing import Any
 from docpipe.core.errors import ParseError, ParserNotInstalledError
 from docpipe.core.types import PageContent, ParsedDocument
 from docpipe.parsers.markitdown_parser import MarkItDownParser
+from docpipe.parsers.url_safety import assert_safe_http_source
 
 
 class MinerUParser:
@@ -27,6 +28,7 @@ class MinerUParser:
         self._options = options
 
     def parse(self, source: str, **kwargs: Any) -> ParsedDocument:
+        assert_safe_http_source(source)
         try:
             from mineru.cli.common import do_parse
         except ImportError as e:

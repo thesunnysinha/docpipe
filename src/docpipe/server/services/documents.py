@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from docpipe.config import get_settings
 from docpipe.core.pipeline import Pipeline
 from docpipe.registry.registry import PluginRegistry
 from docpipe.schemas import (
@@ -13,6 +14,7 @@ from docpipe.schemas import (
     RunResponse,
 )
 from docpipe.server.mappers import extraction_schema_from_request
+from docpipe.server.parser_cache import get_cached_parse, store_cached_parse
 from docpipe.server.plugin_requests import resolve_fields, resolve_parser_name
 
 
@@ -30,7 +32,18 @@ class DocumentService:
         )
         parser_name = resolve_parser_name(resolved, req.source)
         parser = self._registry.get_parser(parser_name)
-        result = await parser.aparse(req.source)
+        settings = get_settings()
+        cache_ttl = settings.parser_cache_ttl_seconds
+        parsed = get_cached_parse(req.source, parser_name, ttl_seconds=cache_ttl)
+        if parsed is None:
+            parsed = await parser.aparse(req.source)
+            store_cached_parse(
+                req.source,
+                parser_name,
+                parsed,
+                ttl_seconds=settings.parser_cache_ttl_seconds,
+            )
+        result = parsed
 
         if req.output_format == "markdown":
             content = result.markdown or result.text

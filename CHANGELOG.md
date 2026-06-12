@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Optional control-plane DB (SQLite in Docker) with Alembic migrations, seeded admin user, `/admin` panel
+- Env-gated persistence: `DOCPIPE_PERSIST_AUDIT_EVENTS`, `DOCPIPE_PERSIST_INGEST_JOBS`, `DOCPIPE_PERSIST_PLUGIN_RESOLUTIONS`
+- `POST /ingest/stream` SSE progress events for long ingest jobs
+- `POST /cost/estimate` heuristic parse time and embedding cost by preset
+- `GET /mcp/tools` and `POST /mcp/call` for agent tool discovery and invocation
+- Jinja2 homepage templates (`server/templates/`), PyMuPDF license page (`GET /licenses/pymupdf`)
+- LightRAG ingest sync (`graph_index`, `lightrag_working_dir`); `docs/LIGHTRAG.md`
+- Preset rate limiting, tenant plugin policies (`X-Docpipe-Tenant-Id`), plugin resolve audit log
+- Phoenix optional tracing (`DOCPIPE_PHOENIX_ENABLED`), model cache dir, in-memory parser cache
+- GPU K8s manifests (`deployment-gpu.yaml`, `hpa-gpu.yaml`); Docker release tags per profile
+- SSRF guards for quality parsers; `docs/SSRF_AUDIT.md`
+- Tests: MinerU, PaddleOCR, RAGAS evaluator, DeepEval smoke (`tests/eval/`)
+
+### Changed
+
+- FastAPI server layered into `routers/` + `services/`; strict `ApiRequest`/`ApiResponse` schemas
+- RAGAS pin `>=0.4`; GLM-OCR lazy model init; OTEL preset/profile on parse and RAG routes
+
 ## [0.6.0] - 2026-06-12
 
 ### Added

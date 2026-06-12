@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import psycopg2
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 
 from docpipe.core.errors import ConfigurationError, DocpipeError
 from docpipe.observability.spans import trace_operation
@@ -39,6 +40,24 @@ async def ingest_document(
         docpipe_incremental=req.incremental,
     ):
         return await service.ingest(req)
+
+
+@router.post("/ingest/stream", response_class=StreamingResponse)
+@handle_docpipe_errors
+async def ingest_stream(
+    req: IngestRequest,
+    _: Auth,
+    settings: SettingsDep,
+    service: IngestServiceDep,
+) -> StreamingResponse:
+    with trace_operation(
+        "docpipe.ingest.stream",
+        docpipe_profile=settings.profile,
+        docpipe_preset=req.preset,
+        docpipe_table_name=req.table_name,
+    ):
+        event_stream = service.stream(req)
+    return StreamingResponse(event_stream, media_type="text/event-stream")
 
 
 @router.delete("/ingest", response_model=DeleteResponse)

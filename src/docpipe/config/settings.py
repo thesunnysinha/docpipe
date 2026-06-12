@@ -80,6 +80,18 @@ class DocpipeSettings(BaseSettings):
     health_check_db: bool = True
     health_check_embedding: bool = False
 
+    # Model artifacts (CrossEncoder, GLM-OCR, HF caches)
+    model_cache_dir: Path | None = None
+
+    # In-memory parse cache TTL; 0 disables caching
+    parser_cache_ttl_seconds: int = 0
+
+    # Per-preset POST rate limits (see profiles.catalog.PRESET_RATE_LIMITS)
+    rate_limit_enabled: bool = True
+
+    # JSON map: {"tenant-id": {"enabled_parsers": "markitdown,docling", ...}}
+    tenant_plugin_policies: str | None = None
+
     # Security
     # Set DOCPIPE_ALLOW_PRIVATE_URLS=true in environments where document sources
     # may resolve to private/internal network addresses (e.g. Docker Compose where
@@ -103,10 +115,57 @@ class DocpipeSettings(BaseSettings):
     phoenix_enabled: bool = False
     phoenix_collector_endpoint: str | None = None
 
+    # Optional control-plane database (admin users, audit, job history).
+    # Off by default for SDK/library embeds; enable in Docker with SQLite.
+    control_db_enabled: bool = False
+    control_db_url: str | None = Field(
+        default=None,
+        description="SQLAlchemy URL. Defaults to SQLite at control_db_path when enabled.",
+    )
+    control_db_path: Path = Field(
+        default=Path("/data/docpipe.db"),
+        description="SQLite file path when control_db_url is unset.",
+    )
+    control_db_auto_migrate: bool = True
+
+    # Admin panel at GET /admin (requires control_db_enabled).
+    admin_panel_enabled: bool = True
+
+    # What to persist in the control DB (all off by default; opt-in per deployment).
+    persist_audit_events: bool = False
+    persist_ingest_jobs: bool = False
+    persist_plugin_resolutions: bool = False
+
+    # Seeded superuser when control DB is first initialized.
+    admin_username: str | None = Field(
+        default=None,
+        description="Defaults to DOCPIPE_USERNAME when unset.",
+    )
+    admin_password: str | None = Field(
+        default=None,
+        description="Defaults to DOCPIPE_PASSWORD when unset.",
+    )
+    admin_email: str = "admin@localhost"
+
     # Authentication
     # HTTP Basic Auth protecting all API endpoints and the web UI.
     # Disable entirely with DOCPIPE_AUTH_ENABLED=false for trusted internal networks.
-    # Change defaults with DOCPIPE_USERNAME / DOCPIPE_PASSWORD before deploying.
+    # When control_db_enabled=true, credentials are validated against admin_users.
     auth_enabled: bool = True
     username: str = "admin"
     password: str = "docpipe"
+
+    def resolved_admin_username(self) -> str:
+        return self.admin_username or self.username
+
+    def resolved_admin_password(self) -> str:
+        return self.admin_password or self.password
+
+    def resolved_control_db_url(self) -> str | None:
+        if not self.control_db_enabled:
+            return None
+        if self.control_db_url:
+            return self.control_db_url
+        path = self.control_db_path.expanduser()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        return f"sqlite:///{path.resolve()}"

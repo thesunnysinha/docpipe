@@ -11,12 +11,15 @@ from docpipe.config.settings import DocpipeSettings
 from docpipe.registry.registry import PluginRegistry
 from docpipe.server.auth import require_auth
 from docpipe.server.services import (
+    AdminService,
     AgentService,
+    CostService,
     DiscoveryService,
     DocumentService,
     EvaluateService,
     GenerateService,
     IngestService,
+    McpService,
     RAGService,
     TranscribeService,
 )
@@ -34,6 +37,10 @@ def get_registry() -> PluginRegistry:
 
 SettingsDep = Annotated[DocpipeSettings, Depends(get_app_settings)]
 RegistryDep = Annotated[PluginRegistry, Depends(get_registry)]
+
+
+def get_admin_service() -> AdminService:
+    return AdminService()
 
 
 def get_discovery_service(
@@ -71,6 +78,11 @@ def get_transcribe_service(settings: SettingsDep) -> TranscribeService:
     return TranscribeService(settings)
 
 
+def get_cost_service() -> CostService:
+    return CostService()
+
+
+AdminServiceDep = Annotated[AdminService, Depends(get_admin_service)]
 DiscoveryServiceDep = Annotated[DiscoveryService, Depends(get_discovery_service)]
 DocumentServiceDep = Annotated[DocumentService, Depends(get_document_service)]
 IngestServiceDep = Annotated[IngestService, Depends(get_ingest_service)]
@@ -79,3 +91,11 @@ AgentServiceDep = Annotated[AgentService, Depends(get_agent_service)]
 EvaluateServiceDep = Annotated[EvaluateService, Depends(get_evaluate_service)]
 GenerateServiceDep = Annotated[GenerateService, Depends(get_generate_service)]
 TranscribeServiceDep = Annotated[TranscribeService, Depends(get_transcribe_service)]
+CostServiceDep = Annotated[CostService, Depends(get_cost_service)]
+
+
+def get_mcp_service(registry: RegistryDep, rag_service: RAGServiceDep) -> McpService:
+    return McpService(registry, rag_service)
+
+
+McpServiceDep = Annotated[McpService, Depends(get_mcp_service)]

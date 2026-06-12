@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: docpipe-gpu
+  namespace: docpipe
+  labels:
+    app: docpipe-gpu
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: docpipe-gpu
+  template:
+    metadata:
+      labels:
+        app: docpipe-gpu
+    spec:
+      imagePullSecrets:
+        - name: ghcr-secret
+      nodeSelector:
+        accelerator: nvidia
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
+      containers:
+        - name: docpipe
+          image: ghcr.io/thesunnysinha/docpipe:gpu
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - secretRef:
+                name: docpipe-secret
+          env:
+            - name: DOCPIPE_PROFILE
+              value: "gpu"
+            - name: DOCPIPE_ALLOW_PRIVATE_URLS
+              value: "true"
+            - name: DOCPIPE_MAX_CONCURRENCY
+              value: "1"
+            - name: DOCPIPE_MODEL_CACHE_DIR
+              value: "/var/cache/docpipe"
+          volumeMounts:
+            - name: model-cache
+              mountPath: /var/cache/docpipe
+          resources:
+            requests:
+              cpu: "1"
+              memory: 8Gi
+              nvidia.com/gpu: "1"
+            limits:
+              cpu: "4"
+              memory: 16Gi
+              nvidia.com/gpu: "1"
+      volumes:
+        - name: model-cache
+          emptyDir: {}

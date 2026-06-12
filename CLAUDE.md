@@ -7,6 +7,19 @@ Rules:
 - If graphify-out/wiki/index.md exists, navigate it instead of reading raw files
 - After modifying code files in this session, run `/Users/sunny/Desktop/Projects/docpipe/.venv/bin/python -c "from graphify.watch import _rebuild_code; from pathlib import Path; _rebuild_code(Path('.'))"` to keep the graph current
 
+## Downstream apps (Delegate, Jingo, Andocs)
+
+docpipe is an **open-source package and HTTP service**. Consumer apps are separate repositories.
+
+| Change | Repo |
+|--------|------|
+| Reusable API, plugins, presets, MCP, cost estimate, control plane, HTTP client | **docpipe** (this repo) |
+| App-specific UX, business models, auth, mobile UI, assistant settings | **Consumer app only** (e.g. Delegate) |
+
+- Implement features here when **any** integrator could use them; avoid one-off APIs for a single app unless they stay in that app's client wrapper.
+- Document integration patterns in `docs/INTEGRATION.md`; app repos should not duplicate docpipe server logic.
+- Security: deployers own TLS/ingress/secrets; docpipe owns in-process guardrails — see `docs/INTERNAL_SECURITY.md`.
+
 ## Project Structure
 
 - `src/docpipe/schemas/` — HTTP request/response Pydantic models (`ApiRequest`/`ApiResponse`, `Field` on every field, one module per route group)

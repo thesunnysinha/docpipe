@@ -1,0 +1,57 @@
+# Local dev: docpipe + pgvector Postgres.
+#
+# Usage:
+#   cp .env.example .env
+#   docker compose up -d
+
+x-docpipe-resources: &docpipe-resources
+  deploy:
+    resources:
+      limits:
+        cpus: "4.0"
+        memory: 4G
+      reservations:
+        cpus: "0.5"
+        memory: 1G
+
+services:
+  docpipe:
+    image: ghcr.io/thesunnysinha/docpipe:${DOPIPE_IMAGE_TAG:-balanced}
+    ports:
+      - "${DOCPIPE_HOST_PORT:-8000}:8000"
+    env_file: .env
+    <<: *docpipe-resources
+    environment:
+      DOCPIPE_DB_CONNECTION_STRING: postgresql://docpipe:docpipe@db:5432/docpipe
+      DOCPIPE_VECTOR_BACKEND: pgvector
+      DOCPIPE_CONTROL_DB_ENABLED: "${DOCPIPE_CONTROL_DB_ENABLED:-true}"
+      DOCPIPE_CONTROL_DB_PATH: /data/docpipe.db
+      DOCPIPE_PERSIST_AUDIT_EVENTS: "${DOCPIPE_PERSIST_AUDIT_EVENTS:-true}"
+      DOCPIPE_PERSIST_INGEST_JOBS: "${DOCPIPE_PERSIST_INGEST_JOBS:-false}"
+      DOCPIPE_MAX_CONCURRENCY: "${DOCPIPE_MAX_CONCURRENCY:-2}"
+    volumes:
+      - ./data:/data
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  db:
+    image: pgvector/pgvector:pg16
+    environment:
+      POSTGRES_USER: docpipe
+      POSTGRES_PASSWORD: docpipe
+      POSTGRES_DB: docpipe
+    ports:
+      - "${POSTGRES_HOST_PORT:-5432}:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U docpipe"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    restart: unless-stopped
+
+volumes:
+  pgdata:

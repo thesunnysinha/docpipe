@@ -2,14 +2,21 @@
 
 from __future__ import annotations
 
+import contextvars
+import json
 from typing import Any
 
 from fastapi import HTTPException
 
 from docpipe.config import get_settings
 from docpipe.core.errors import ConfigurationError
+from docpipe.profiles.audit import log_plugin_denied
 from docpipe.profiles.catalog import CHUNKER_TIERS, PARSER_TIERS, RERANKER_TIERS
 from docpipe.registry.registry import PluginRegistry
+
+_TENANT_CONTEXT: contextvars.ContextVar[str | None] = contextvars.ContextVar(
+    "docpipe_tenant", default=None
+)
 
 
 def _parse_csv(value: str | None) -> list[str] | None:
@@ -18,8 +25,39 @@ def _parse_csv(value: str | None) -> list[str] | None:
     return [item.strip() for item in value.split(",") if item.strip()]
 
 
+def set_tenant_context(tenant_id: str | None) -> contextvars.Token[str | None]:
+    """Bind tenant id for the current request (from X-Docpipe-Tenant-Id)."""
+    return _TENANT_CONTEXT.set(tenant_id)
+
+
+def reset_tenant_context(token: contextvars.Token[str | None]) -> None:
+    _TENANT_CONTEXT.reset(token)
+
+
+def get_tenant_context() -> str | None:
+    return _TENANT_CONTEXT.get()
+
+
+def _tenant_policies() -> dict[str, dict[str, str]]:
+    raw = get_settings().tenant_plugin_policies
+    if not raw:
+        return {}
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        return {}
+    return data if isinstance(data, dict) else {}
+
+
 def enabled_plugins(group: str) -> list[str] | None:
     """Return allowlist for a plugin group, or None for all installed."""
+    tenant = get_tenant_context()
+    if tenant:
+        policy = _tenant_policies().get(tenant, {})
+        tenant_key = f"enabled_{group}"
+        if tenant_key in policy:
+            return _parse_csv(policy[tenant_key])
+
     settings = get_settings()
     attr = f"enabled_{group}"
     raw = getattr(settings, attr, None)
@@ -50,6 +88,7 @@ def assert_plugin_allowed(group: str, name: str) -> None:
         from docpipe.observability.metrics import record_plugin_denied
 
         record_plugin_denied(group, name)
+        log_plugin_denied(group=group, name=name, tenant=get_tenant_context())
         raise ConfigurationError(
             f"{group[:-1].title()} '{name}' is disabled on this server. "
             f"Check DOCPIPE_ENABLED_{group.upper()} / DOCPIPE_DISABLED_PLUGINS."
