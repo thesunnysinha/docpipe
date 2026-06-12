@@ -22,7 +22,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
-        run: pip install -e ".[dev,server]"
+        run: pip install -e ".[dev,server,profile-slim]"
 
       - name: Lint with ruff
         run: ruff check src/
@@ -33,3 +33,18 @@ jobs:
       - name: Check types with mypy
         run: mypy src/docpipe/ --ignore-missing-imports
         continue-on-error: true
+
+  eval-regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install eval-ci extras
+        run: pip install -e ".[profile-eval-ci,server]"
+
+      - name: Run eval smoke tests
+        run: pytest tests/eval/ -v --tb=short

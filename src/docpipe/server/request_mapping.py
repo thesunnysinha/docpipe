@@ -42,7 +42,7 @@ def rag_config_from_request(
         top_k=req.top_k,
         max_chunks_per_source=req.max_chunks_per_source,
         system_prompt=req.system_prompt,
-        history=req.history,
+        history=[message.model_dump() for message in req.history],
         hyde_prompt=req.hyde_prompt,
         multi_query_prompt=req.multi_query_prompt,
         auto_strategy_prompt=req.auto_strategy_prompt,

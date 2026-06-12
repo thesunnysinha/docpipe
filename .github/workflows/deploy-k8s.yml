@@ -35,7 +35,7 @@ jobs:
 
       - name: Deploy with vm_tool
         env:
-          IMAGE_REF: ghcr.io/thesunnysinha/docpipe:latest
+          IMAGE_REF: ghcr.io/thesunnysinha/docpipe:balanced
           KUBECONFIG_B64: ${{ secrets.KUBECONFIG_B64 }}
           DOCPIPE_ENV: ${{ secrets.DOCPIPE_ENV }}
           GH_ACTOR: ${{ github.actor }}
@@ -46,7 +46,7 @@ jobs:
             --manifest k8s/ \
             --namespace "$K8S_NAMESPACE" \
             --kubeconfig-b64 "$KUBECONFIG_B64" \
-            --image "ghcr.io/thesunnysinha/docpipe:latest=${IMAGE_REF}" \
+            --image "ghcr.io/thesunnysinha/docpipe:balanced=${IMAGE_REF}" \
             --k8s-secret "docpipe-secret=${DOCPIPE_ENV}" \
             --registry-secret "ghcr-secret=ghcr.io:${GH_ACTOR}:${GH_TOKEN}" \
             --timeout 600 \

@@ -109,3 +109,11 @@ RUNTIME_PRESETS: dict[str, dict[str, Any]] = {
         "enable_parse_tool": True,
     },
 }
+
+# Max POST requests per minute per client + preset (quality tier is lowest).
+PRESET_RATE_LIMITS: dict[str, int] = {
+    "fast": 60,
+    "balanced": 30,
+    "quality": 10,
+    "agents": 20,
+}

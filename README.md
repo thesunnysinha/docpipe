@@ -19,7 +19,7 @@ docpipe connects document parsing (Docling, [MarkItDown](https://github.com/micr
 3. **Ingest** — Chunks → embeddings → your vector store
 4. **RAG** — Questions → grounded answers with citations (six retrieval strategies)
 
-> docpipe never stores your data. It connects to your infrastructure and gets out of the way.
+> docpipe does not own your RAG data — each client passes `connection_string` on `/ingest`. An optional control-plane DB (SQLite in Docker) stores admin login and opt-in audit metadata only.
 
 **Full documentation** (install extras, Docker, API reference, RAG strategies, observability, turbovec, plugins): **[docpipe docs](https://docpipe.sunnysinha.online/docs)** · [Marketing site](https://docpipe.sunnysinha.online)
 
@@ -90,7 +90,7 @@ agent_result = docpipe.agent_query(
 print(agent_result.answer)
 ```
 
-**CLI:** `docpipe parse`, `docpipe ingest`, `docpipe rag query`, `docpipe serve` — see **[CLI & API server](https://docpipe.sunnysinha.online/docs)**.
+**CLI:** `docpipe parse`, `docpipe ingest`, `docpipe rag query`, `docpipe plugins list`, `docpipe profiles list`, `docpipe serve` — see **[CLI & API server](https://docpipe.sunnysinha.online/docs)**.
 
 **Docker (profile tags):**
 
@@ -107,20 +107,25 @@ docker pull ghcr.io/thesunnysinha/docpipe:agents     # AutoGen
 
 **Shared Kubernetes API** (one docpipe for Jingo, Andocs, and other apps): manifests in [`k8s/`](k8s/), deploy via `.github/workflows/deploy-k8s.yml`. Consumers call `http://docpipe.docpipe.svc.cluster.local:8000` and pass their own `connection_string` on each `/ingest` and `/rag/*` request (vectors stay in each app's Postgres). See [`env/k8s/DOCPIPE_ENV.example`](env/k8s/DOCPIPE_ENV.example).
 
+**Docker examples** (compose stacks + full env flag reference): [`examples/`](examples/) — start with [`examples/internal-shared/`](examples/internal-shared/) for a shared internal instance.
+
 ---
 
 ## Learn more
 
 | Topic | Where |
 |--------|--------|
-| Install extras & providers | [docs](https://docpipe.sunnysinha.online/docs) |
-| REST API (`/ingest`, `/rag/query`, `/rag/stream`, `/transcribe`, …) | [docs](https://docpipe.sunnysinha.online/docs) |
-| Speech-to-text ([VibeVoice ASR](https://github.com/microsoft/VibeVoice) or OpenAI Whisper) | `POST /transcribe` · backends: `openai`, `vibevoice`, `vibevoice_remote` |
-| RAG strategies (`naive`, `hyde`, `hybrid`, `auto`, …) | [docs](https://docpipe.sunnysinha.online/docs) |
-| Observability (OTEL, Prometheus, JSON logs) | [docs](https://docpipe.sunnysinha.online/docs) · `.env.example` |
-| turbovec (local file indices) | [docs](https://docpipe.sunnysinha.online/docs) |
-| Custom parsers / extractors | [CONTRIBUTING.md](CONTRIBUTING.md) |
-| Environment variables | [`.env.example`](.env.example) · [config reference](https://docpipe.sunnysinha.online/docs) |
+| Docker examples & env flags | [`examples/README.md`](examples/README.md) |
+| App integration (Delegate, presets) | [`docs/INTEGRATION.md`](docs/INTEGRATION.md) |
+| Internal security model (open source) | [`docs/INTERNAL_SECURITY.md`](docs/INTERNAL_SECURITY.md) |
+| Control-plane DB & `/admin` | [`docs/CONTROL_DB.md`](docs/CONTROL_DB.md) |
+| REST API (`/ingest/stream`, `/mcp/*`, `/cost/estimate`, …) | [docs](https://docpipe.sunnysinha.online/docs) |
+| Plugins, presets, `/profiles` | [docs](https://docpipe.sunnysinha.online/docs) · `GET /profiles` |
+| Speech-to-text (VibeVoice / Whisper) | `POST /transcribe` |
+| RAG strategies (`naive`, `hyde`, `hybrid`, …) | [docs](https://docpipe.sunnysinha.online/docs) |
+| LightRAG graph sync on ingest | [`docs/LIGHTRAG.md`](docs/LIGHTRAG.md) |
+| Observability (OTEL, Prometheus) | [docs](https://docpipe.sunnysinha.online/docs) · `.env.example` |
+| Environment variables | [`.env.example`](.env.example) · [`examples/README.md`](examples/README.md) |
 
 ---
 

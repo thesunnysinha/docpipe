@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+{% block title %}Ingest jobs — docpipe{% endblock %}
+
+{% block header %}
+<header class="hero" style="padding-bottom:1rem;">
+  <h1>Ingest jobs</h1>
+  <nav style="margin-top:1rem;display:flex;gap:1rem;">
+    <a href="/admin">Dashboard</a>
+    <a href="/admin/audit">Audit</a>
+    <a href="/admin/jobs">Jobs</a>
+  </nav>
+</header>
+{% endblock %}
+
+{% block content %}
+{% if not flags.persist_ingest_jobs %}
+<section class="card">
+  <p>Job history is off. Set <code>DOCPIPE_PERSIST_INGEST_JOBS=true</code> to record ingest metadata (not document content).</p>
+</section>
+{% else %}
+<section class="card">
+  <table style="width:100%;border-collapse:collapse;font-size:0.9rem;">
+    <thead>
+      <tr>
+        <th align="left">ID</th>
+        <th align="left">Table</th>
+        <th align="left">Preset</th>
+        <th align="left">Chunks</th>
+        <th align="left">Created</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in jobs %}
+      <tr>
+        <td>{{ row.id }}</td>
+        <td>{{ row.table_name }}</td>
+        <td>{{ row.preset or "—" }}</td>
+        <td>{{ row.chunks_ingested }}</td>
+        <td>{{ row.created_at }}</td>
+      </tr>
+      {% else %}
+      <tr><td colspan="5">No ingest jobs recorded.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}
+{% endblock %}

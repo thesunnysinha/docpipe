@@ -51,7 +51,7 @@ def test_rag_query_passes_filters_to_rag_config(client):
     """Filters sent in the request body should be forwarded to RAGConfig."""
     with (
         patch("docpipe.server.request_mapping.RAGConfig") as MockConfig,
-        patch("docpipe.server.app.RAGPipeline") as MockPipeline,
+        patch("docpipe.server.services.rag.RAGPipeline") as MockPipeline,
     ):
         mock_pipeline = MagicMock()
         MockPipeline.return_value = mock_pipeline
@@ -78,7 +78,7 @@ def test_rag_query_default_filters_is_empty_dict(client):
     """When no filters key is sent, RAGConfig should receive an empty dict."""
     with (
         patch("docpipe.server.request_mapping.RAGConfig") as MockConfig,
-        patch("docpipe.server.app.RAGPipeline") as MockPipeline,
+        patch("docpipe.server.services.rag.RAGPipeline") as MockPipeline,
     ):
         mock_pipeline = MagicMock()
         MockPipeline.return_value = mock_pipeline
@@ -98,7 +98,7 @@ def test_rag_query_default_filters_is_empty_dict(client):
 
 def test_search_passes_filters_to_ingestion_pipeline(client):
     """Filters sent in the /search request should be forwarded to IngestionPipeline.search()."""
-    with patch("docpipe.ingestion.pipeline.IngestionPipeline") as MockIngestion:
+    with patch("docpipe.server.services.ingest.IngestionPipeline") as MockIngestion:
         mock_pipeline = MagicMock()
         MockIngestion.return_value = mock_pipeline
         mock_pipeline.search.return_value = []
@@ -146,7 +146,7 @@ def test_rag_config_accepts_filters_field():
 
 
 def test_search_default_filters_passes_none_after_guard(client):
-    with patch("docpipe.ingestion.pipeline.IngestionPipeline") as MockIngestion:
+    with patch("docpipe.server.services.ingest.IngestionPipeline") as MockIngestion:
         mock_pipeline = MagicMock()
         MockIngestion.return_value = mock_pipeline
         mock_pipeline.search.return_value = []

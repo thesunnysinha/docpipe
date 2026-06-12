@@ -1,0 +1,30 @@
+# Shared internal docpipe — no bundled Postgres.
+# Each project (Delegate, Jingo, Andocs) passes its own connection_string on /ingest.
+#
+# Usage:
+#   cp .env.example .env
+#   docker compose up -d
+
+services:
+  docpipe:
+    image: ghcr.io/thesunnysinha/docpipe:${DOPIPE_IMAGE_TAG:-balanced}
+    ports:
+      - "${DOCPIPE_HOST_PORT:-8000}:8000"
+    env_file: .env
+    environment:
+      DOCPIPE_CONTROL_DB_ENABLED: "${DOCPIPE_CONTROL_DB_ENABLED:-true}"
+      DOCPIPE_CONTROL_DB_PATH: /data/docpipe.db
+      DOCPIPE_PERSIST_AUDIT_EVENTS: "${DOCPIPE_PERSIST_AUDIT_EVENTS:-true}"
+      DOCPIPE_PERSIST_INGEST_JOBS: "${DOCPIPE_PERSIST_INGEST_JOBS:-false}"
+      DOCPIPE_PERSIST_PLUGIN_RESOLUTIONS: "${DOCPIPE_PERSIST_PLUGIN_RESOLUTIONS:-false}"
+      DOCPIPE_ALLOW_PRIVATE_URLS: "${DOCPIPE_ALLOW_PRIVATE_URLS:-true}"
+      DOCPIPE_MAX_CONCURRENCY: "${DOCPIPE_MAX_CONCURRENCY:-2}"
+    volumes:
+      - ./data:/data
+      - ./uploads:/data/uploads:ro
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          cpus: "4.0"
+          memory: 4G

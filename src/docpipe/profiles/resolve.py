@@ -3,8 +3,9 @@
 from __future__ import annotations
 
 from docpipe.parsers.router import resolve_parser
+from docpipe.profiles.audit import log_plugin_resolve
 from docpipe.profiles.catalog import RUNTIME_PRESETS
-from docpipe.profiles.guardrails import build_plugins_payload, is_plugin_allowed
+from docpipe.profiles.guardrails import build_plugins_payload, get_tenant_context, is_plugin_allowed
 from docpipe.profiles.presets import apply_defaults_and_preset
 
 
@@ -39,16 +40,24 @@ def resolve_recommendation(
                 resolved[key] = name
                 break
 
+    recommended = {
+        "parser": parser_name,
+        "tier": tier,
+        "chunker": resolved.get("chunker"),
+        "reranker": resolved.get("reranker"),
+        "strategy": resolved.get("strategy"),
+    }
+    log_plugin_resolve(
+        source=source,
+        goal=goal,
+        preset=preset,
+        recommended=recommended,
+        tenant=get_tenant_context(),
+    )
     return {
         "source": source,
         "goal": goal,
         "preset": preset,
-        "recommended": {
-            "parser": parser_name,
-            "tier": tier,
-            "chunker": resolved.get("chunker"),
-            "reranker": resolved.get("reranker"),
-            "strategy": resolved.get("strategy"),
-        },
+        "recommended": recommended,
         "preset_catalog": {k: v["description"] for k, v in RUNTIME_PRESETS.items()},
     }
