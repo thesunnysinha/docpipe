@@ -7,11 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.6.0] - 2026-06-12
+
 ### Added
+
+- Plugin registry groups: chunkers, rerankers, evaluators; enriched `GET /plugins`
+- Install profiles (`profile-slim` … `profile-gpu`) and Docker `DOPIPE_PROFILE` build arg
+- Runtime presets (`fast`, `balanced`, `quality`, `agents`) via `preset` on ingest/RAG APIs
+- `GET /profiles`, `POST /plugins/resolve`, plugin allowlists (`DOCPIPE_ENABLED_*`, `DOCPIPE_DISABLED_PLUGINS`)
+- Parsers: pymupdf, mineru, paddleocr, unstructured; `parser=auto` router
+- Chunkers: semchunk, chonkie; rerankers: BGE, mxbai; evaluators: builtin, RAGAS
+- `POST /agents/query` (AutoGen / LangGraph); LightRAG strategy; LangChain strict extract
+- `DocpipeClient` integration helper; `docs/INTEGRATION.md`, `docs/PLUGIN_LICENSES.md`
 
 ### Changed
 
+- Default parser server setting: `auto` (tier `balanced`)
+- Docker: profile-specific tags (`:slim`, `:balanced`, `:quality`, `:agents`); `[all]` dev-only
+- Eval pipeline delegates to evaluator plugins
+
 ### Fixed
+
+- RAG reranking uses plugin registry instead of inline flashrank/cohere only
 
 
 ## [0.5.2] - 2026-05-19

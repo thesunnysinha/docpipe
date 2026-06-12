@@ -19,8 +19,13 @@ from docpipe.core.types import (
     RAGConfig,
     TokenUsage,
 )
+from docpipe.profiles.catalog import INSTALL_PROFILES
+from docpipe.profiles.guardrails import build_plugins_payload
+from docpipe.profiles.presets import list_runtime_presets
+from docpipe.profiles.resolve import resolve_recommendation
 from docpipe.rag.pipeline import RAGPipeline
 from docpipe.schemas import (
+    AgentQueryRequest,
     EvaluateRequest,
     EvaluateResponse,
     ExtractRequest,
@@ -34,6 +39,9 @@ from docpipe.schemas import (
     ListSourcesResponse,
     ParseRequest,
     ParseResponse,
+    PluginResolveRequest,
+    PluginResolveResponse,
+    ProfilesResponse,
     RAGChunkResponse,
     RAGQueryRequest,
     RAGQueryResponse,
@@ -44,6 +52,7 @@ from docpipe.schemas import (
     TranscribeResponse,
 )
 from docpipe.server.deps import Auth
+from docpipe.server.plugin_requests import resolve_fields, resolve_parser_name
 from docpipe.server.request_mapping import rag_config_from_request, vector_fields_from_request
 
 logger = logging.getLogger(__name__)
@@ -144,8 +153,15 @@ def create_app() -> Any:
 
     async def _parse_document(req: ParseRequest) -> ParseResponse:
         try:
+            resolved = resolve_fields(
+                {"parser": req.parser, "tier": req.tier},
+                preset=req.preset,
+                applicable={"parser", "tier"},
+                explicit=req.model_fields_set,
+            )
             registry = PluginRegistry.get()
-            parser = registry.get_parser(req.parser)
+            parser_name = resolve_parser_name(resolved, req.source)
+            parser = registry.get_parser(parser_name)
             result = await parser.aparse(req.source)
 
             if req.output_format == "markdown":
@@ -167,13 +183,20 @@ def create_app() -> Any:
     @app.post("/extract", response_model=ExtractResponse)
     async def extract_data(req: ExtractRequest, _: Auth) -> ExtractResponse:
         try:
+            resolved = resolve_fields(
+                {"extractor": req.extractor},
+                preset=None,
+                applicable={"extractor"},
+                explicit=req.model_fields_set,
+            )
             registry = PluginRegistry.get()
-            extractor = registry.get_extractor(req.extractor)
+            extractor = registry.get_extractor(str(resolved["extractor"]))
             schema = ExtractionSchema(
                 description=req.description,
                 model_id=req.model_id,
                 examples=req.examples,
                 entity_classes=req.entity_classes,
+                strict=getattr(req, "strict", True),
             )
             results = await extractor.aextract(req.text, schema)
             return ExtractResponse(extractions=[r.model_dump() for r in results])
@@ -190,6 +213,7 @@ def create_app() -> Any:
                 model_id=req.model_id,
                 examples=req.examples,
                 entity_classes=req.entity_classes,
+                strict=getattr(req, "strict", True),
             )
             pipeline = Pipeline(parser=req.parser, extractor=req.extractor)
             result = await pipeline.arun(req.source, schema)
@@ -207,8 +231,15 @@ def create_app() -> Any:
             try:
                 from docpipe.ingestion.pipeline import IngestionPipeline
 
+                resolved = resolve_fields(
+                    {"parser": req.parser, "tier": req.tier, "chunker": req.chunker},
+                    preset=req.preset,
+                    applicable={"parser", "tier", "chunker"},
+                    explicit=req.model_fields_set,
+                )
                 registry = PluginRegistry.get()
-                parser = registry.get_parser(req.parser)
+                parser_name = resolve_parser_name(resolved, req.source)
+                parser = registry.get_parser(parser_name)
                 parsed = await parser.aparse(req.source)
 
                 config = IngestionConfig(
@@ -217,6 +248,8 @@ def create_app() -> Any:
                     embedding_provider=req.embedding_provider,
                     embedding_model=req.embedding_model,
                     embedding_api_key=req.api_key,
+                    chunker=str(resolved["chunker"]),
+                    chunk_method=req.chunk_method,  # type: ignore[arg-type]
                     chunk_size=req.chunk_size,
                     chunk_overlap=req.chunk_overlap,
                     ingest_mode=req.ingest_mode,  # type: ignore[arg-type]
@@ -361,17 +394,106 @@ def create_app() -> Any:
 
     @app.get("/plugins")
     async def list_plugins(_: Auth) -> dict[str, Any]:
-        registry = PluginRegistry.get()
-        return {
-            "parsers": {name: registry.parser_info(name) for name in registry.list_parsers()},
-            "extractors": {
-                name: registry.extractor_info(name) for name in registry.list_extractors()
+        return build_plugins_payload()
+
+    @app.get("/profiles", response_model=ProfilesResponse)
+    async def list_profiles(_: Auth) -> ProfilesResponse:
+        return ProfilesResponse(
+            install_profile=settings.profile,
+            install_profiles=INSTALL_PROFILES,
+            runtime_presets=list_runtime_presets(),
+            server_defaults={
+                "default_parser": settings.default_parser,
+                "default_parser_tier": settings.default_parser_tier,
+                "default_chunker": settings.default_chunker,
+                "default_reranker": settings.default_reranker,
+                "default_rag_strategy": settings.default_rag_strategy,
+                "default_runtime_preset": settings.default_runtime_preset,
             },
-        }
+        )
+
+    @app.post("/plugins/resolve", response_model=PluginResolveResponse)
+    async def plugins_resolve(req: PluginResolveRequest, _: Auth) -> PluginResolveResponse:
+        try:
+            data = resolve_recommendation(
+                source=req.source,
+                goal=req.goal,
+                preset=req.preset,
+            )
+            return PluginResolveResponse(**data)
+        except DocpipeError as exc:
+            raise docpipe_http_exception(exc) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    @app.post("/agents/query", response_model=RAGQueryResponse)
+    async def agents_query(req: AgentQueryRequest, _: Auth) -> RAGQueryResponse:
+        rag_resolved = resolve_fields(
+            {"strategy": req.strategy, "reranker": req.reranker},
+            preset=req.preset,
+            applicable={"strategy", "reranker"},
+            explicit=req.model_fields_set,
+        )
+        agent_resolved = resolve_fields(
+            {
+                "agent_backend": req.agent_backend,
+                "enable_parse_tool": req.enable_parse_tool,
+            },
+            preset=req.preset,
+            applicable={"agent_backend", "enable_parse_tool"},
+            explicit=req.model_fields_set,
+        )
+        req = req.model_copy(
+            update={
+                **rag_resolved,
+                **{k: v for k, v in agent_resolved.items() if k in agent_resolved},
+            }
+        )
+        strategy = str(req.strategy or settings.default_rag_strategy)
+        with observe_rag(strategy):
+            try:
+                config = rag_config_from_request(req, settings)
+                if req.agent_backend == "langgraph":
+                    from docpipe.agents.langgraph_pipeline import LangGraphRAGPipeline
+
+                    pipeline = LangGraphRAGPipeline(config, max_steps=req.max_steps)
+                    result = await asyncio.to_thread(pipeline.query, req.question)
+                else:
+                    from docpipe.agents.pipeline import AgentRAGPipeline
+
+                    pipeline = AgentRAGPipeline(
+                        config,
+                        enable_reviewer=req.enable_reviewer,
+                        enable_parse_tool=req.enable_parse_tool,
+                        parse_tool_parser=req.parse_tool_parser,
+                        max_tool_iterations=req.max_tool_iterations,
+                        max_turns=req.max_turns,
+                    )
+                    result = await asyncio.to_thread(pipeline.query, req.question)
+                usage = result.usage if isinstance(result.usage, TokenUsage) else None
+                return RAGQueryResponse(
+                    query=result.query,
+                    answer=result.answer,
+                    strategy=result.strategy,
+                    chunks=[RAGChunkResponse(**c.model_dump()) for c in result.chunks],
+                    sources=result.sources,
+                    timing_seconds=result.timing_seconds,
+                    usage=usage,
+                )
+            except DocpipeError as e:
+                raise docpipe_http_exception(e) from e
 
     @app.post("/rag/query", response_model=RAGQueryResponse)
     async def rag_query(req: RAGQueryRequest, _: Auth) -> RAGQueryResponse:
-        with observe_rag(req.strategy):
+        resolved = resolve_fields(
+            {"strategy": req.strategy, "reranker": req.reranker},
+            preset=req.preset,
+            applicable={"strategy", "reranker"},
+            explicit=req.model_fields_set,
+        )
+        req = req.model_copy(update=resolved)
+        strategy = str(req.strategy or settings.default_rag_strategy)
+        with observe_rag(strategy):
             try:
                 config = rag_config_from_request(req, settings)
                 pipeline = RAGPipeline(config)
@@ -391,6 +513,14 @@ def create_app() -> Any:
 
     @app.post("/rag/stream", response_class=StreamingResponse)
     async def rag_stream(req: RAGQueryRequest, _: Auth) -> StreamingResponse:
+        resolved = resolve_fields(
+            {"strategy": req.strategy, "reranker": req.reranker},
+            preset=req.preset,
+            applicable={"strategy", "reranker"},
+            explicit=req.model_fields_set,
+        )
+        req = req.model_copy(update=resolved)
+        strategy = str(req.strategy or settings.default_rag_strategy)
         try:
             config = rag_config_from_request(req, settings)
             config = config.model_copy(update={"stream": True})
@@ -400,7 +530,7 @@ def create_app() -> Any:
 
         def generate():
             try:
-                with observe_rag(req.strategy):
+                with observe_rag(strategy):
                     for token in pipeline.stream_query(req.question):
                         yield f"data: {token}\n\n"
                 usage = pipeline.last_usage
@@ -420,6 +550,12 @@ def create_app() -> Any:
             from docpipe.core.types import EvalConfig, EvalQuestion
             from docpipe.eval.pipeline import EvalPipeline
 
+            resolved = resolve_fields(
+                {"strategy": req.strategy, "evaluator": req.evaluator},
+                preset=req.preset,
+                applicable={"strategy", "evaluator"},
+                explicit=req.model_fields_set,
+            )
             rag_config = RAGConfig(
                 connection_string=req.connection_string,
                 table_name=req.table_name,
@@ -427,12 +563,13 @@ def create_app() -> Any:
                 embedding_model=req.embedding_model,
                 llm_provider=req.llm_provider,
                 llm_model=req.llm_model,
-                strategy=req.strategy,
+                strategy=resolved["strategy"],  # type: ignore[arg-type]
             )
             questions = [EvalQuestion(**q) for q in req.questions]
             cfg = EvalConfig(
                 rag_config=rag_config,
                 questions=questions,
+                evaluator=str(resolved["evaluator"]),
                 metrics=req.metrics,  # type: ignore[arg-type]
             )
             runner = EvalPipeline(cfg)
