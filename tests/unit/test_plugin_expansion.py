@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import sys
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -110,14 +111,20 @@ def test_recursive_chunker_splits_documents():
     assert len(chunks) > 1
 
 
-@patch("flashrank.Ranker")
-def test_flashrank_reranker_top_n(mock_ranker_cls):
-    mock_ranker_cls.return_value.rerank.return_value = [{"index": 0}, {"index": 1}]
-    reranker = FlashRankReranker()
+def test_flashrank_reranker_top_n():
+    mock_flashrank = MagicMock()
+    mock_ranker = MagicMock()
+    mock_ranker.rerank.return_value = [{"index": 0}, {"index": 1}]
+    mock_flashrank.Ranker.return_value = mock_ranker
+    mock_flashrank.RerankRequest = MagicMock(
+        side_effect=lambda query, passages: {"query": query, "passages": passages}
+    )
     chunks = [
         RAGChunk(content="a", score=0.5, source="s"),
         RAGChunk(content="b", score=0.4, source="s"),
     ]
-    ranked = reranker.rerank("query", chunks, top_n=1)
+    with patch.dict(sys.modules, {"flashrank": mock_flashrank}):
+        reranker = FlashRankReranker()
+        ranked = reranker.rerank("query", chunks, top_n=1)
     assert len(ranked) == 1
     assert ranked[0].content == "a"
