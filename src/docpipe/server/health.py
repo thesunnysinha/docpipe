@@ -107,6 +107,7 @@ def build_health_response(version: str, plugins: dict[str, list[str]]) -> Health
     return HealthResponse(
         status=overall,
         version=version,
+        profile=settings.profile,
         plugins=plugins,
         dependencies=dependencies,
     )

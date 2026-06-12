@@ -14,13 +14,33 @@ class DocpipeSettings(BaseSettings):
 
     model_config = {"env_prefix": "DOCPIPE_", "env_nested_delimiter": "__"}
 
+    # Install profile (set in Docker OCI label / DOCPIPE_PROFILE)
+    profile: Literal["slim", "balanced", "quality", "agents", "eval", "gpu", "custom"] = "balanced"
+
     # Parser settings
-    default_parser: str = "docling"
+    default_parser: str = "auto"
+    default_parser_tier: Literal["fast", "balanced", "quality"] = "balanced"
     parser_options: dict[str, Any] = Field(default_factory=dict)
 
     # Extractor settings
     default_extractor: str = "langextract"
     extractor_options: dict[str, Any] = Field(default_factory=dict)
+
+    # Ingestion / RAG defaults (used when request omits fields)
+    default_chunker: str = "recursive"
+    default_reranker: str = "none"
+    default_rag_strategy: str = "naive"
+    default_evaluator: str = "builtin"
+    default_agent_backend: Literal["autogen", "langgraph"] = "autogen"
+    default_runtime_preset: Literal["fast", "balanced", "quality", "agents"] = "balanced"
+
+    # Comma-separated allowlists; unset = all installed plugins allowed
+    enabled_parsers: str | None = None
+    enabled_extractors: str | None = None
+    enabled_chunkers: str | None = None
+    enabled_rerankers: str | None = None
+    enabled_evaluators: str | None = None
+    disabled_plugins: str | None = None
 
     # Ingestion settings
     db_connection_string: str | None = None
@@ -78,6 +98,10 @@ class DocpipeSettings(BaseSettings):
     vibevoice_max_new_tokens: int = 8192
     vibevoice_service_url: str | None = None
     vibevoice_remote_timeout: int = 600
+
+    # Phoenix eval tracing (optional — install arize-phoenix)
+    phoenix_enabled: bool = False
+    phoenix_collector_endpoint: str | None = None
 
     # Authentication
     # HTTP Basic Auth protecting all API endpoints and the web UI.

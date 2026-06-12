@@ -37,7 +37,8 @@ def rag_config_from_request(
         llm_provider=req.llm_provider,
         llm_model=req.llm_model,
         llm_api_key=req.api_key,
-        strategy=req.strategy,  # type: ignore[arg-type]
+        strategy=req.strategy or settings.default_rag_strategy,  # type: ignore[arg-type]
+        lightrag_working_dir=getattr(req, "lightrag_working_dir", None),
         top_k=req.top_k,
         max_chunks_per_source=req.max_chunks_per_source,
         system_prompt=req.system_prompt,
@@ -48,7 +49,7 @@ def rag_config_from_request(
         multi_query_count=req.multi_query_count,
         parent_window_size=req.parent_window_size,
         hybrid_bm25_weight=req.hybrid_bm25_weight,
-        reranker=req.reranker,  # type: ignore[arg-type]
+        reranker=req.reranker or settings.default_reranker,  # type: ignore[arg-type]
         reranker_model=req.reranker_model,
         rerank_top_n=req.rerank_top_n,
         filters=req.filters,

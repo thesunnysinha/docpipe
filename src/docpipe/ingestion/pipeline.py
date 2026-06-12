@@ -57,44 +57,6 @@ Chunk:
 Write a 1-2 sentence context that situates this chunk within the full document. \
 Be specific about what section or topic this chunk covers. Reply with only the context sentences."""
 
-CHUNK_METHOD_SETTINGS: dict[str, dict[str, Any]] = {
-    "paper": {
-        "separators": ["\n## ", "\n### ", "\n\n", "\n", " "],
-        "chunk_size": 1500,
-        "chunk_overlap": 150,
-    },
-    "laws": {
-        "separators": ["\nSection ", "\nArticle ", "\n\n", "\n"],
-        "chunk_size": 2000,
-        "chunk_overlap": 100,
-    },
-    "book": {
-        "separators": ["\nChapter ", "\n\n", "\n"],
-        "chunk_size": 2000,
-        "chunk_overlap": 200,
-    },
-    "qa": {
-        "separators": ["\nQ:", "\n\n", "\n"],
-        "chunk_size": 500,
-        "chunk_overlap": 50,
-    },
-    "manual": {
-        "separators": ["\n# ", "\n## ", "\n\n", "\n"],
-        "chunk_size": 800,
-        "chunk_overlap": 100,
-    },
-    "table": {
-        "separators": ["\n\n", "\n"],
-        "chunk_size": 500,
-        "chunk_overlap": 0,
-    },
-    "presentation": {
-        "separators": ["\n---", "\n\n", "\n"],
-        "chunk_size": 600,
-        "chunk_overlap": 50,
-    },
-}
-
 
 class IngestionPipeline:
     """Orchestrates chunking, embedding, and vector store ingestion.
@@ -106,7 +68,7 @@ class IngestionPipeline:
     def __init__(self, config: IngestionConfig) -> None:
         self._config = config
         self._embeddings = self._create_embeddings(config)
-        self._splitter = self._create_splitter(config)
+        self._chunker = self._create_chunker(config)
 
     def ingest(
         self,
@@ -155,7 +117,7 @@ class IngestionPipeline:
                 doc.metadata["source_hash"] = source_hash
 
         # Split documents into chunks
-        chunks = self._splitter.split_documents(lc_docs)
+        chunks = self._chunker.split_documents(lc_docs)
         if self._config.chunk_metadata:
             for chunk in chunks:
                 chunk.metadata.update(self._config.chunk_metadata)
@@ -362,21 +324,18 @@ class IngestionPipeline:
 
     @staticmethod
     def _create_splitter(config: IngestionConfig) -> Any:
-        """Create LangChain text splitter based on chunk_method."""
-        from langchain_text_splitters import RecursiveCharacterTextSplitter
+        """Backward-compatible alias — returns LangChain text splitter."""
+        from docpipe.chunkers.recursive_chunker import RecursiveChunker
 
-        if config.chunk_method == "default" or config.chunk_method not in CHUNK_METHOD_SETTINGS:
-            return RecursiveCharacterTextSplitter(
-                chunk_size=config.chunk_size,
-                chunk_overlap=config.chunk_overlap,
-            )
+        return RecursiveChunker._build_splitter(config)
 
-        settings = CHUNK_METHOD_SETTINGS[config.chunk_method]
-        return RecursiveCharacterTextSplitter(
-            separators=settings["separators"],
-            chunk_size=settings["chunk_size"],
-            chunk_overlap=settings["chunk_overlap"],
-        )
+    @staticmethod
+    def _create_chunker(config: IngestionConfig) -> Any:
+        """Create chunker plugin from registry."""
+        from docpipe.registry.registry import PluginRegistry
+
+        name = getattr(config, "chunker", "recursive") or "recursive"
+        return PluginRegistry.get().get_chunker(name, config=config)
 
     @staticmethod
     def _create_context_llm(config: IngestionConfig) -> Any:

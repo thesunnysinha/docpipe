@@ -12,12 +12,8 @@ from docpipe.rag.pipeline import RAGPipeline
 
 _TEST_SYSTEM_PROMPT = "Context:\n{context}\n\nQuestion: {question}\n\nAnswer:"
 _TEST_HYDE_PROMPT = "Hypothetical passage for: {question}"
-_TEST_MULTI_QUERY_PROMPT = (
-    "Generate {n} variants of: {question}\nOne per line."
-)
-_TEST_AUTO_STRATEGY_PROMPT = (
-    "Reply naive for: {question}"
-)
+_TEST_MULTI_QUERY_PROMPT = "Generate {n} variants of: {question}\nOne per line."
+_TEST_AUTO_STRATEGY_PROMPT = "Reply naive for: {question}"
 
 
 def _make_config(**overrides: object) -> RAGConfig:
