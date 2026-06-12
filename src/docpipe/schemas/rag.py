@@ -24,7 +24,11 @@ class RAGQueryRequest(TableNameFieldMixin, VectorBackendFields, MetadataFiltersF
     api_key: str | None = None
     embedding_api_key: str | None = None
     strategy: str | None = None
-    preset: str | None = None
+    preset: str | None = Field(
+        default=None,
+        description="Runtime preset: fast, balanced, quality, or agents",
+        examples=["balanced"],
+    )
     lightrag_working_dir: str | None = None
     top_k: int = 5
     max_chunks_per_source: int = 2

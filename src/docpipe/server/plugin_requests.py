@@ -15,6 +15,7 @@ def resolve_fields(
     preset: str | None,
     applicable: set[str],
     explicit: set[str] | None = None,
+    endpoint: str | None = None,
 ) -> dict[str, Any]:
     try:
         resolved = apply_defaults_and_preset(
@@ -24,6 +25,10 @@ def resolve_fields(
             explicit=explicit,
         )
         validate_resolved_plugins(resolved)
+        if preset and endpoint:
+            from docpipe.observability.metrics import record_preset_usage
+
+            record_preset_usage(preset, endpoint)
         return resolved
     except ConfigurationError as exc:
         raise http_exception_for_config(exc) from exc

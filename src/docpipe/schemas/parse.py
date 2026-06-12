@@ -11,7 +11,11 @@ class ParseRequest(BaseModel):
     source: str
     parser: str | None = None
     tier: str | None = None
-    preset: str | None = None
+    preset: str | None = Field(
+        default=None,
+        description="Runtime preset: fast, balanced, quality, or agents",
+        examples=["balanced"],
+    )
     output_format: str = "markdown"
 
 

@@ -127,8 +127,11 @@ def create_app() -> Any:
     @app.get("/", response_class=HTMLResponse, include_in_schema=False)
     async def homepage(_: Auth) -> HTMLResponse:
         registry = PluginRegistry.get()
+        preset_catalog = list_runtime_presets()
         html = render_homepage(
             version=__version__,
+            profile=settings.profile,
+            presets=[{"name": name, **meta} for name, meta in preset_catalog.items()],
             parsers=registry.list_parsers(),
             extractors=registry.list_extractors(),
         )
@@ -158,6 +161,7 @@ def create_app() -> Any:
                 preset=req.preset,
                 applicable={"parser", "tier"},
                 explicit=req.model_fields_set,
+                endpoint="parse",
             )
             registry = PluginRegistry.get()
             parser_name = resolve_parser_name(resolved, req.source)
@@ -225,6 +229,8 @@ def create_app() -> Any:
     async def ingest_document(req: IngestRequest, _: Auth) -> IngestResponse:
         with trace_operation(
             "docpipe.ingest",
+            docpipe_profile=settings.profile,
+            docpipe_preset=req.preset,
             docpipe_table_name=req.table_name,
             docpipe_incremental=req.incremental,
         ):
@@ -236,6 +242,7 @@ def create_app() -> Any:
                     preset=req.preset,
                     applicable={"parser", "tier", "chunker"},
                     explicit=req.model_fields_set,
+                    endpoint="ingest",
                 )
                 registry = PluginRegistry.get()
                 parser_name = resolve_parser_name(resolved, req.source)
@@ -433,6 +440,7 @@ def create_app() -> Any:
             preset=req.preset,
             applicable={"strategy", "reranker"},
             explicit=req.model_fields_set,
+            endpoint="agents/query",
         )
         agent_resolved = resolve_fields(
             {
@@ -442,6 +450,7 @@ def create_app() -> Any:
             preset=req.preset,
             applicable={"agent_backend", "enable_parse_tool"},
             explicit=req.model_fields_set,
+            endpoint="agents/query",
         )
         req = req.model_copy(
             update={
@@ -490,6 +499,7 @@ def create_app() -> Any:
             preset=req.preset,
             applicable={"strategy", "reranker"},
             explicit=req.model_fields_set,
+            endpoint="rag/query",
         )
         req = req.model_copy(update=resolved)
         strategy = str(req.strategy or settings.default_rag_strategy)
@@ -518,6 +528,7 @@ def create_app() -> Any:
             preset=req.preset,
             applicable={"strategy", "reranker"},
             explicit=req.model_fields_set,
+            endpoint="rag/stream",
         )
         req = req.model_copy(update=resolved)
         strategy = str(req.strategy or settings.default_rag_strategy)
@@ -555,6 +566,7 @@ def create_app() -> Any:
                 preset=req.preset,
                 applicable={"strategy", "evaluator"},
                 explicit=req.model_fields_set,
+                endpoint="evaluate/run",
             )
             rag_config = RAGConfig(
                 connection_string=req.connection_string,

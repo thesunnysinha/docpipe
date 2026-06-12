@@ -47,6 +47,9 @@ def assert_plugin_allowed(group: str, name: str) -> None:
             f"Unknown {group[:-1]} '{name}'. Available: {getattr(registry, f'list_{group}')()}"
         )
     if not is_plugin_allowed(group, name):
+        from docpipe.observability.metrics import record_plugin_denied
+
+        record_plugin_denied(group, name)
         raise ConfigurationError(
             f"{group[:-1].title()} '{name}' is disabled on this server. "
             f"Check DOCPIPE_ENABLED_{group.upper()} / DOCPIPE_DISABLED_PLUGINS."
