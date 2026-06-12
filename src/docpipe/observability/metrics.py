@@ -15,6 +15,8 @@ except ImportError:  # pragma: no cover - optional dependency
 INGEST_CHUNKS: Counter | None
 RAG_QUERY_DURATION: Histogram | None
 ERRORS_TOTAL: Counter | None
+PRESET_USAGE: Counter | None
+PLUGIN_DENIED: Counter | None
 
 if Counter is not None and Histogram is not None:
     INGEST_CHUNKS = Counter(
@@ -32,10 +34,22 @@ if Counter is not None and Histogram is not None:
         "HTTP errors by type and phase",
         ["error_type", "phase", "handler"],
     )
+    PRESET_USAGE = Counter(
+        "docpipe_preset_usage_total",
+        "API requests using a runtime preset",
+        ["preset", "endpoint"],
+    )
+    PLUGIN_DENIED = Counter(
+        "docpipe_plugin_denied_total",
+        "Plugin guardrail denials",
+        ["group", "name"],
+    )
 else:
     INGEST_CHUNKS = None
     RAG_QUERY_DURATION = None
     ERRORS_TOTAL = None
+    PRESET_USAGE = None
+    PLUGIN_DENIED = None
 
 
 def metrics_available() -> bool:
@@ -60,6 +74,16 @@ def record_error(error_type: str, phase: str, handler: str) -> None:
             phase=phase,
             handler=handler,
         ).inc()
+
+
+def record_preset_usage(preset: str, endpoint: str) -> None:
+    if PRESET_USAGE is not None and preset:
+        PRESET_USAGE.labels(preset=preset, endpoint=endpoint).inc()
+
+
+def record_plugin_denied(group: str, name: str) -> None:
+    if PLUGIN_DENIED is not None:
+        PLUGIN_DENIED.labels(group=group, name=name).inc()
 
 
 @contextmanager

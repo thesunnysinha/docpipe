@@ -25,13 +25,15 @@ spec:
         - name: ghcr-secret
       containers:
         - name: docpipe
-          image: ghcr.io/thesunnysinha/docpipe:latest
+          image: ghcr.io/thesunnysinha/docpipe:balanced
           ports:
             - containerPort: 8000
           envFrom:
             - secretRef:
                 name: docpipe-secret
           env:
+            - name: DOCPIPE_PROFILE
+              value: "balanced"
             - name: DOCPIPE_ALLOW_PRIVATE_URLS
               value: "true"
             - name: DOCPIPE_MAX_CONCURRENCY
