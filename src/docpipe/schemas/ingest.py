@@ -17,7 +17,11 @@ class IngestRequest(TableNameFieldMixin, VectorBackendFields):
     api_key: str | None = None
     parser: str | None = None
     tier: str | None = None
-    preset: str | None = None
+    preset: str | None = Field(
+        default=None,
+        description="Runtime preset: fast, balanced, quality, or agents",
+        examples=["balanced"],
+    )
     chunker: str | None = None
     chunk_method: str = "default"
     chunk_size: int = 1000

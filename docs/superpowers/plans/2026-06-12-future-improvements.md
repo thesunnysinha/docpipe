@@ -1,18 +1,18 @@
 # docpipe — Future improvements plan
 
 **Date:** 2026-06-12  
-**Status:** Backlog (post v0.6 profiles/presets)  
-**Depends on:** Plugin expansion + profiles/presets (Phases A–D)
+**Status:** In progress (v0.6.0 shipped; backlog execution ongoing)  
+**Depends on:** Plugin expansion + profiles/presets (Phases A–D) — **complete**
 
 ---
 
 ## 1. Release & ops (P0)
 
-- [ ] Commit `feat/plugin-expansion`, tag `v0.6.0`, GitHub release
-- [ ] Publish Docker tags: `slim`, `balanced`, `quality`, `agents` (CI matrix in `.github/workflows/docker.yml`)
-- [ ] Update docpipe-site `lib/docs-content.ts` (profiles, presets, `/profiles`, `/plugins/resolve`)
-- [ ] Redeploy common-services with `ghcr.io/.../docpipe:balanced`
-- [ ] Fill `CHANGELOG.md` `[Unreleased]` → `0.6.0`
+- [x] Commit `feat/plugin-expansion`, tag `v0.6.0`, GitHub release
+- [ ] Publish Docker tags: `slim`, `balanced`, `quality`, `agents` (CI matrix fixed; release workflow running)
+- [ ] Update docpipe-site `lib/docs-content.ts` (profiles, presets, `/profiles`, `/plugins/resolve`) — repo not in monorepo
+- [x] K8s manifest uses `ghcr.io/.../docpipe:balanced` + `DOCPIPE_PROFILE`
+- [x] `CHANGELOG.md` `0.6.0` section
 
 ---
 
@@ -21,7 +21,7 @@
 - [ ] **MinerU / PaddleOCR** — integration tests against real sample PDFs; fix API drift
 - [ ] **pymupdf** — opt-in only; commercial license doc page
 - [ ] **LightRAG** — wire ingest → LightRAG index sync or document two-phase setup
-- [ ] **LangGraph agent** — remove duplicate RAG query; add tests
+- [x] **LangGraph agent** — retrieval-only tool path (no duplicate full RAG query)
 - [ ] **RAGAS** — pin ragas v0.4+ API; mock integration tests
 - [ ] **deepeval** — CI evaluator extra (`profile-eval-ci`)
 
@@ -29,10 +29,10 @@
 
 ## 3. User experience (P1)
 
-- [ ] **CLI**: `docpipe plugins list`, `docpipe profiles`, `docpipe resolve <file>`
-- [ ] **Homepage** (`GET /`) — show install profile + preset cards
-- [ ] **OpenAPI examples** for `preset` on ingest/RAG
-- [ ] **Delegate app** — assistant setting “Document processing: Fast / Balanced / Quality” calling `DocpipeClient`
+- [x] **CLI**: `docpipe plugins list`, `docpipe profiles list`, `docpipe resolve <file>`
+- [x] **Homepage** (`GET /`) — install profile + runtime preset cards
+- [x] **OpenAPI examples** for `preset` on ingest/RAG/parse
+- [ ] **Delegate app** — assistant `docpipe_preset` field + create-flow selector (in progress)
 - [ ] **Jingo/Andocs** — store `preset` per workspace; sync from `GET /profiles` on boot
 
 ---
@@ -59,8 +59,8 @@
 ## 6. Observability (P2)
 
 - [ ] Phoenix eval traces when `DOCPIPE_PHOENIX_ENABLED=true`
-- [ ] Prometheus metrics: `docpipe_preset_usage_total`, `docpipe_plugin_denied_total`
-- [ ] OTEL span attributes: `docpipe.preset`, `docpipe.parser`, `docpipe.profile`
+- [x] Prometheus metrics: `docpipe_preset_usage_total`, `docpipe_plugin_denied_total`
+- [x] OTEL span attributes: `docpipe.preset`, `docpipe.profile` on ingest (parse/RAG via preset counter)
 
 ---
 

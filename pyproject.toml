@@ -76,6 +76,7 @@ rag = ["langchain-community>=0.3", "langchain-classic>=0.1", "rank-bm25>=0.2"]
 rerank = ["flashrank>=0.2"]
 rerank-quality = ["sentence-transformers>=3.0", "cohere>=5.0"]
 eval-ragas = ["ragas>=0.2", "datasets>=3.0"]
+eval-ci = ["deepeval>=1.0"]
 lightrag = ["lightrag-hku>=1.0"]
 # Curated install profiles (operators pick one)
 profile-slim = [
@@ -92,6 +93,9 @@ profile-agents = [
 ]
 profile-eval = [
     "docpipe-sdk[profile-balanced,eval-ragas]",
+]
+profile-eval-ci = [
+    "docpipe-sdk[profile-eval,eval-ci]",
 ]
 profile-gpu = [
     "docpipe-sdk[profile-quality,mineru,paddleocr]",
