@@ -34,9 +34,9 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
-            type=raw,value=${{ matrix.profile }},enable={{is_default_branch}}
-            type=raw,value=${{ matrix.profile }}-{{sha}},enable=true
-            type=raw,value=latest,enable={{is_default_branch && matrix.profile == 'balanced'}}
+            type=raw,value=${{ matrix.profile }},enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=${{ matrix.profile }}-${{ github.sha }},enable=true
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' && matrix.profile == 'balanced' }}
             type=semver,pattern={{version}},enable=${{ github.event_name == 'release' && matrix.profile == 'balanced' }}
             type=semver,pattern={{major}}.{{minor}},enable=${{ github.event_name == 'release' && matrix.profile == 'balanced' }}
 

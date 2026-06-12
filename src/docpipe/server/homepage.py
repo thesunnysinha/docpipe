@@ -3,9 +3,19 @@
 from __future__ import annotations
 
 
-def render_homepage(version: str, parsers: list[str], extractors: list[str]) -> str:
+def render_homepage(
+    version: str,
+    profile: str,
+    presets: list[dict[str, str]],
+    parsers: list[str],
+    extractors: list[str],
+) -> str:
     parser_items = "".join(f'<div class="chip">{p}</div>' for p in parsers)
     extractor_items = "".join(f'<div class="chip">{e}</div>' for e in extractors)
+    preset_items = "".join(
+        f'<div class="chip preset" title="{p.get("description", "")}">{p["name"]}</div>'
+        for p in presets
+    )
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -114,6 +124,19 @@ def render_homepage(version: str, parsers: list[str], extractors: list[str]) -> 
       font-size: 13px; color: var(--primary);
       font-weight: 500;
     }}
+    .chip.preset {{
+      background: rgba(34,211,238,0.10);
+      border-color: rgba(34,211,238,0.30);
+      color: var(--accent);
+    }}
+    .profile-badge {{
+      display: inline-block;
+      margin-top: 8px;
+      font-size: 13px;
+      color: var(--accent);
+      font-weight: 600;
+      letter-spacing: 0.3px;
+    }}
 
     /* Links */
     .link-grid {{ display: grid;
@@ -169,13 +192,25 @@ def render_homepage(version: str, parsers: list[str], extractors: list[str]) -> 
       <div class="logo">D</div>
       <div class="brand">
         <div class="brand-name">docpipe</div>
-        <div class="brand-version">v{version}</div>
+        <div class="brand-version">v{version} · profile
+          <span class="profile-badge">{profile}</span></div>
       </div>
       <div class="status-dot">
         <div class="dot"></div>
         running
       </div>
     </header>
+
+    <!-- Presets -->
+    <div class="card" style="margin-bottom:16px">
+      <div class="card-title">Runtime presets</div>
+      <div class="chips">{preset_items}</div>
+      <p style="margin-top:12px;font-size:12px;color:var(--textSub)">
+        Pass <code style="color:var(--accent)">preset</code> on ingest/RAG requests, or call
+        <a href="/profiles" style="color:var(--accent)">GET /profiles</a> /
+        <a href="/docs" style="color:var(--accent)">POST /plugins/resolve</a>.
+      </p>
+    </div>
 
     <!-- Plugins -->
     <div class="grid" style="margin-bottom:16px">
@@ -207,6 +242,20 @@ def render_homepage(version: str, parsers: list[str], extractors: list[str]) -> 
             <span class="link-desc">Full API reference</span>
           </div>
         </a>
+        <a class="link-card" href="/profiles">
+          <span class="link-icon">🎛️</span>
+          <div class="link-text">
+            <span class="link-label">Profiles</span>
+            <span class="link-desc">Install profile &amp; presets</span>
+          </div>
+        </a>
+        <a class="link-card" href="/plugins">
+          <span class="link-icon">🧩</span>
+          <div class="link-text">
+            <span class="link-label">Plugins</span>
+            <span class="link-desc">Available parsers &amp; chunkers</span>
+          </div>
+        </a>
         <a class="link-card" href="/health">
           <span class="link-icon">🩺</span>
           <div class="link-text">
@@ -236,6 +285,7 @@ curl -u admin:docpipe -X POST http://localhost:8000/ingest \\
     "table_name": "my_docs",
     "embedding_provider": "google",
     "embedding_model": "models/text-embedding-004",
+    "preset": "balanced",
     "api_key": "YOUR_API_KEY"
   }}'
 
