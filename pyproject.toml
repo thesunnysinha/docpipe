@@ -82,7 +82,7 @@ profile-slim = [
     "docpipe-sdk[markitdown,semchunk,rerank,server,observability,http,openai,pgvector]",
 ]
 profile-balanced = [
-    "docpipe-sdk[profile-slim,docling,rag,langextract,langchain]",
+    "docpipe-sdk[profile-slim,docling,rag,langextract]",
 ]
 profile-quality = [
     "docpipe-sdk[profile-balanced,glm-ocr,rerank-quality,chonkie]",
