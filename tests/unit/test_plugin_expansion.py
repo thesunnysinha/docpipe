@@ -110,13 +110,14 @@ def test_recursive_chunker_splits_documents():
     assert len(chunks) > 1
 
 
-def test_flashrank_reranker_preserves_order_when_unavailable():
+@patch("flashrank.Ranker")
+def test_flashrank_reranker_top_n(mock_ranker_cls):
+    mock_ranker_cls.return_value.rerank.return_value = [{"index": 0}, {"index": 1}]
     reranker = FlashRankReranker()
     chunks = [
         RAGChunk(content="a", score=0.5, source="s"),
         RAGChunk(content="b", score=0.4, source="s"),
     ]
-    if not FlashRankReranker.is_available():
-        pytest.skip("flashrank not installed")
     ranked = reranker.rerank("query", chunks, top_n=1)
     assert len(ranked) == 1
+    assert ranked[0].content == "a"

@@ -40,7 +40,7 @@ with DocpipeClient(
 For long jobs, use `POST /ingest/stream` — progress events: `resolve` → `parse` → `chunk` → `complete`.
 
 ```bash
-curl -u admin:secret -N -X POST http://docpipe:8000/ingest/stream \
+curl -u admin:your-password -N -X POST http://docpipe:8000/ingest/stream \
   -H "Content-Type: application/json" \
   -d '{"source":"file:///data/doc.pdf","connection_string":"postgresql://...","table_name":"docs","embedding_provider":"openai","embedding_model":"text-embedding-3-small","preset":"balanced"}'
 ```

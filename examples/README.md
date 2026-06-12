@@ -208,7 +208,7 @@ Each consuming app keeps **its own** vector database. docpipe is stateless for R
 
 ```bash
 # Delegate / Jingo / Andocs — pass per assistant or workspace
-curl -u admin:secret -X POST http://docpipe:8000/ingest \
+curl -u admin:your-password -X POST http://docpipe:8000/ingest \
   -H "Content-Type: application/json" \
   -d '{
     "source": "file:///data/uploads/manual.pdf",
