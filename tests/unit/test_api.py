@@ -60,7 +60,7 @@ def test_delete_table_not_found_returns_404(mock_connect, client):
     assert resp.status_code == 404
 
 
-@patch("docpipe.server.app.psycopg2")
+@patch("docpipe.server.routers.ingest.psycopg2")
 def test_delete_invalid_table_name_returns_422(mock_psycopg2, client):
     resp = client.request(
         "DELETE",
@@ -240,7 +240,7 @@ def test_rag_query_includes_usage_when_present(client):
     assert usage["input_tokens"] == 11
 
 
-@patch("docpipe.vectorstores.factory.list_collection_sources")
+@patch("docpipe.server.services.ingest.list_collection_sources")
 def test_list_collection_sources_endpoint(mock_list, client):
     mock_list.return_value = (
         [

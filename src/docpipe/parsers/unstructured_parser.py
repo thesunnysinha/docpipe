@@ -25,6 +25,9 @@ class UnstructuredParser:
         self._options = options
 
     def parse(self, source: str, **kwargs: Any) -> ParsedDocument:
+        from docpipe.parsers.url_safety import assert_safe_http_source
+
+        assert_safe_http_source(source)
         try:
             from unstructured.partition.auto import partition
         except ImportError as e:

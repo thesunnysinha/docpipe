@@ -29,7 +29,7 @@ def client():
     return TestClient(create_app())
 
 
-@patch("docpipe.server.app.RAGPipeline")
+@patch("docpipe.server.services.rag.RAGPipeline")
 @patch("docpipe.server.request_mapping.RAGConfig")
 def test_rag_stream_returns_event_stream(MockConfig, MockPipeline, client):
     """Endpoint returns 200 with text/event-stream content type and SSE tokens."""
@@ -50,7 +50,7 @@ def test_rag_stream_returns_event_stream(MockConfig, MockPipeline, client):
     mock_config.model_copy.assert_called_once_with(update={"stream": True})
 
 
-@patch("docpipe.server.app.RAGPipeline")
+@patch("docpipe.server.services.rag.RAGPipeline")
 @patch("docpipe.server.request_mapping.RAGConfig")
 def test_rag_stream_emits_usage_metadata_before_done(MockConfig, MockPipeline, client):
     from docpipe.core.types import TokenUsage
@@ -66,7 +66,7 @@ def test_rag_stream_emits_usage_metadata_before_done(MockConfig, MockPipeline, c
     assert resp.text.index("event: metadata") < resp.text.index("data: [DONE]")
 
 
-@patch("docpipe.server.app.RAGPipeline")
+@patch("docpipe.server.services.rag.RAGPipeline")
 @patch("docpipe.server.request_mapping.RAGConfig")
 def test_rag_stream_calls_stream_query_with_question(MockConfig, MockPipeline, client):
     """stream_query is called with the correct question from the request."""
@@ -86,7 +86,7 @@ def test_rag_stream_calls_stream_query_with_question(MockConfig, MockPipeline, c
 def test_rag_stream_done_sentinel_at_end(client):
     """The [DONE] sentinel appears after all token data in the response body."""
     with (
-        patch("docpipe.server.app.RAGPipeline") as mock_pipeline_cls,
+        patch("docpipe.server.services.rag.RAGPipeline") as mock_pipeline_cls,
         patch("docpipe.server.request_mapping.RAGConfig"),
     ):
         mock_pipeline = MagicMock()
@@ -105,7 +105,7 @@ def test_rag_stream_done_sentinel_at_end(client):
     assert done_pos > last_token_pos, "[DONE] sentinel must appear after the last token"
 
 
-@patch("docpipe.server.app.RAGPipeline")
+@patch("docpipe.server.services.rag.RAGPipeline")
 @patch("docpipe.server.request_mapping.RAGConfig")
 def test_rag_stream_error_mid_stream_yields_error_event(MockConfig, MockPipeline, client):
     """When stream_query raises, the response contains an SSE error event (status 200)."""

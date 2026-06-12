@@ -26,7 +26,13 @@ class BGEReranker:
         if self._cross_encoder is None:
             from sentence_transformers import CrossEncoder
 
-            self._cross_encoder = CrossEncoder(self._model)
+            from docpipe.config import get_settings
+
+            settings = get_settings()
+            kwargs: dict[str, Any] = {}
+            if settings.model_cache_dir is not None:
+                kwargs["cache_folder"] = str(settings.model_cache_dir)
+            self._cross_encoder = CrossEncoder(self._model, **kwargs)
         return self._cross_encoder
 
     def rerank(self, query: str, chunks: list[RAGChunk], *, top_n: int) -> list[RAGChunk]:

@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% block title %}docpipe{% endblock %}</title>
+  {% block head_extra %}{% endblock %}
+  <style>
+    {% include "partials/_theme.css" %}
+    {% block styles %}{% endblock %}
+  </style>
+</head>
+<body>
+  <div class="bg-blobs" aria-hidden="true">
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+    <div class="blob blob-3"></div>
+  </div>
+
+  <div class="page">
+    {% block header %}{% endblock %}
+    {% block content %}{% endblock %}
+    {% block footer %}
+    <footer class="footer">
+      docpipe &mdash; open-source document processing &amp; RAG &mdash;
+      <a href="https://github.com/thesunnysinha/docpipe" target="_blank" rel="noopener">GitHub</a>
+    </footer>
+    {% endblock %}
+  </div>
+</body>
+</html>

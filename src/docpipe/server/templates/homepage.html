@@ -1,0 +1,112 @@
+{% extends "base.html" %}
+
+{% block title %}docpipe{% endblock %}
+
+{% block header %}
+<header class="header">
+  <div class="logo" aria-hidden="true">D</div>
+  <div class="brand">
+    <div class="brand-name">docpipe</div>
+    <div class="brand-version">
+      v{{ version }} · profile
+      <span class="profile-badge">{{ profile }}</span>
+    </div>
+  </div>
+  <div class="status-dot">
+    <div class="dot" aria-hidden="true"></div>
+    running
+  </div>
+</header>
+{% endblock %}
+
+{% block content %}
+<section class="card mb-16">
+  <h2 class="card-title">Runtime presets</h2>
+  <div class="chips">
+    {% for preset in presets %}
+    <div class="chip preset" title="{{ preset.description | default('', true) }}">
+      {{ preset.name }}
+    </div>
+    {% else %}
+    <p class="hint">No runtime presets configured.</p>
+    {% endfor %}
+  </div>
+  <p class="hint">
+    Pass <code>preset</code> on ingest/RAG requests, or call
+    <a href="/profiles">GET /profiles</a> /
+    <a href="/docs#/default/plugins_resolve_plugins_resolve_post">POST /plugins/resolve</a>.
+  </p>
+</section>
+
+<div class="grid mb-16">
+  <section class="card">
+    <h2 class="card-title">Parsers</h2>
+    <div class="chips">
+      {% for parser in parsers %}
+      <div class="chip">{{ parser }}</div>
+      {% endfor %}
+    </div>
+  </section>
+  <section class="card">
+    <h2 class="card-title">Extractors</h2>
+    <div class="chips">
+      {% for extractor in extractors %}
+      <div class="chip">{{ extractor }}</div>
+      {% endfor %}
+    </div>
+  </section>
+</div>
+
+<section class="card mb-16">
+  <h2 class="card-title">Quick Access</h2>
+  <div class="link-grid">
+    <a class="link-card" href="/docs">
+      <span class="link-icon" aria-hidden="true">📖</span>
+      <div class="link-text">
+        <span class="link-label">Swagger UI</span>
+        <span class="link-desc">Interactive API explorer</span>
+      </div>
+    </a>
+    <a class="link-card" href="/redoc">
+      <span class="link-icon" aria-hidden="true">📋</span>
+      <div class="link-text">
+        <span class="link-label">ReDoc</span>
+        <span class="link-desc">Full API reference</span>
+      </div>
+    </a>
+    <a class="link-card" href="/profiles">
+      <span class="link-icon" aria-hidden="true">🎛️</span>
+      <div class="link-text">
+        <span class="link-label">Profiles</span>
+        <span class="link-desc">Install profile &amp; presets</span>
+      </div>
+    </a>
+    <a class="link-card" href="/plugins">
+      <span class="link-icon" aria-hidden="true">🧩</span>
+      <div class="link-text">
+        <span class="link-label">Plugins</span>
+        <span class="link-desc">Available parsers &amp; chunkers</span>
+      </div>
+    </a>
+    <a class="link-card" href="/health">
+      <span class="link-icon" aria-hidden="true">🩺</span>
+      <div class="link-text">
+        <span class="link-label">Health</span>
+        <span class="link-desc">Server health JSON</span>
+      </div>
+    </a>
+    <a class="link-card" href="/openapi.json">
+      <span class="link-icon" aria-hidden="true">⚙️</span>
+      <div class="link-text">
+        <span class="link-label">OpenAPI JSON</span>
+        <span class="link-desc">Machine-readable spec</span>
+      </div>
+    </a>
+  </div>
+</section>
+
+<section class="card">
+  <h2 class="card-title">Quick Start</h2>
+  <pre class="code-block">{% include "partials/_quickstart.sh" %}</pre>
+</section>
+{% endblock %}

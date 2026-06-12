@@ -38,14 +38,29 @@ class GLMOCRParser:
             raise ParserNotInstalledError(
                 "GLM-OCR is not installed. Install with: pip install docpipe-sdk[glm-ocr]"
             )
-        from glmocr import GLMOCR
+        self._options = options
+        self._ocr: Any = None
 
-        self._ocr = GLMOCR(**options)
+    def _get_ocr(self) -> Any:
+        if self._ocr is None:
+            from glmocr import GLMOCR
+
+            from docpipe.config import get_settings
+
+            settings = get_settings()
+            opts = dict(self._options)
+            if settings.model_cache_dir is not None:
+                opts.setdefault("cache_dir", str(settings.model_cache_dir))
+            self._ocr = GLMOCR(**opts)
+        return self._ocr
 
     def parse(self, source: str, **kwargs: Any) -> ParsedDocument:
         """Parse a single document using GLM-OCR."""
+        from docpipe.parsers.url_safety import assert_safe_http_source
+
+        assert_safe_http_source(source)
         try:
-            result = self._ocr.run(source, **kwargs)
+            result = self._get_ocr().run(source, **kwargs)
         except Exception as e:
             raise ParseError(f"Failed to parse '{source}' with GLM-OCR: {e}") from e
 

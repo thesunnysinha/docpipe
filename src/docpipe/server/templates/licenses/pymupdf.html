@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+
+{% block title %}PyMuPDF license — docpipe{% endblock %}
+
+{% block header %}
+<header class="header">
+  <div class="logo" aria-hidden="true">D</div>
+  <div class="brand">
+    <div class="brand-name">PyMuPDF (AGPL)</div>
+    <div class="brand-version">Commercial licensing guidance</div>
+  </div>
+</header>
+{% endblock %}
+
+{% block content %}
+<section class="card mb-16">
+  <h2 class="card-title">Plugin</h2>
+  <p class="hint">
+  The <code>pymupdf</code> parser uses <strong>PyMuPDF4LLM</strong>, which is licensed under the
+  <strong>GNU Affero General Public License v3 (AGPL-3.0)</strong>.
+  </p>
+</section>
+
+<section class="card mb-16">
+  <h2 class="card-title">When you need a commercial license</h2>
+  <ul class="hint" style="margin-left:1.25rem;line-height:1.8">
+    <li>You distribute docpipe or a derivative as part of a proprietary SaaS without source disclosure.</li>
+    <li>You cannot comply with AGPL network-copyleft obligations.</li>
+    <li>You need indemnification or enterprise support from the copyright holder.</li>
+  </ul>
+</section>
+
+<section class="card mb-16">
+  <h2 class="card-title">Recommended defaults</h2>
+  <p class="hint">
+  docpipe keeps <code>pymupdf</code> <strong>opt-in</strong>: install <code>docpipe-sdk[pymupdf]</code>
+  explicitly, or block it with <code>DOCPIPE_DISABLED_PLUGINS=pymupdf</code>.
+  Fast-tier parsing defaults to <code>markitdown</code> instead.
+  </p>
+</section>
+
+<section class="card">
+  <h2 class="card-title">References</h2>
+  <p class="hint">
+  <a href="https://pymupdf.readthedocs.io/en/latest/about.html#license">PyMuPDF license overview</a>
+  ·
+  <a href="/plugins">Installed plugins</a>
+  ·
+  <a href="https://github.com/thesunnysinha/docpipe/blob/main/docs/PLUGIN_LICENSES.md">PLUGIN_LICENSES.md</a>
+  </p>
+</section>
+{% endblock %}

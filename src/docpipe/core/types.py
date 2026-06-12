@@ -6,7 +6,7 @@ import re
 from enum import Enum
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator
 
 
 class DocumentFormat(str, Enum):
@@ -144,51 +144,6 @@ class IngestionResult(BaseModel):
     table_name: str
     table_created: bool
     metadata: dict[str, Any] = Field(default_factory=dict)
-
-
-class DeleteRequest(BaseModel):
-    """Request to delete chunks by source from a pgvector table."""
-
-    connection_string: str
-    table_name: str
-    source: str | None = None
-    source_contains: str | None = None
-    match_mode: Literal["exact", "contains"] = "exact"
-    vector_backend: Literal["pgvector", "turbovec"] | None = None
-    turbovec_index_dir: str | None = None
-    # Required when vector_backend=turbovec (to load the on-disk index for delete)
-    embedding_provider: str | None = None
-    embedding_model: str | None = None
-    embedding_api_key: str | None = None
-
-    @field_validator("table_name")
-    @classmethod
-    def _validate_table_name(cls, v: str) -> str:
-        if not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_]*", v):
-            raise ValueError(
-                "table_name must be a valid PostgreSQL identifier"
-                " (letters, digits, underscores only)"
-            )
-        return v
-
-    @model_validator(mode="after")
-    def _validate_source_fields(self) -> DeleteRequest:
-        if self.match_mode == "contains":
-            if not self.source_contains:
-                raise ValueError("source_contains is required when match_mode='contains'")
-            if self.source:
-                raise ValueError("source must not be set when match_mode='contains'")
-        elif not self.source:
-            raise ValueError("source is required when match_mode='exact'")
-        return self
-
-
-class DeleteResponse(BaseModel):
-    """Result of a delete operation."""
-
-    table_name: str
-    source: str
-    chunks_deleted: int
 
 
 # ---------------------------------------------------------------------------

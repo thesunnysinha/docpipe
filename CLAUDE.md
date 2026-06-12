@@ -7,11 +7,27 @@ Rules:
 - If graphify-out/wiki/index.md exists, navigate it instead of reading raw files
 - After modifying code files in this session, run `/Users/sunny/Desktop/Projects/docpipe/.venv/bin/python -c "from graphify.watch import _rebuild_code; from pathlib import Path; _rebuild_code(Path('.'))"` to keep the graph current
 
+## Downstream apps (Delegate, Jingo, Andocs)
+
+docpipe is an **open-source package and HTTP service**. Consumer apps are separate repositories.
+
+| Change | Repo |
+|--------|------|
+| Reusable API, plugins, presets, MCP, cost estimate, control plane, HTTP client | **docpipe** (this repo) |
+| App-specific UX, business models, auth, mobile UI, assistant settings | **Consumer app only** (e.g. Delegate) |
+
+- Implement features here when **any** integrator could use them; avoid one-off APIs for a single app unless they stay in that app's client wrapper.
+- Document integration patterns in `docs/INTEGRATION.md`; app repos should not duplicate docpipe server logic.
+- Security: deployers own TLS/ingress/secrets; docpipe owns in-process guardrails — see `docs/INTERNAL_SECURITY.md`.
+
 ## Project Structure
 
-- `src/docpipe/schemas/` — HTTP request/response Pydantic models (one module per route group)
-- `src/docpipe/server/app.py` — FastAPI app; route handlers (imports schemas + `request_mapping`)
+- `src/docpipe/schemas/` — HTTP request/response Pydantic models (`ApiRequest`/`ApiResponse`, `Field` on every field, one module per route group)
+- `src/docpipe/server/app.py` — FastAPI factory (`create_app()` only)
+- `src/docpipe/server/routers/` — thin route handlers (auth, validation, call services)
+- `src/docpipe/server/services/` — business logic per domain (discovery, documents, ingest, RAG, agents, …)
 - `src/docpipe/server/request_mapping.py` — maps API schemas → `RAGConfig` / vector fields
+- `src/docpipe/server/deps.py` — FastAPI dependency injection (settings, registry, services)
 - `src/docpipe/rag/pipeline.py` — RAGPipeline; 6 retrieval strategies
 - `src/docpipe/ingestion/pipeline.py` — IngestionPipeline; chunking + PGVector
 - `src/docpipe/core/types.py` — all shared Pydantic models

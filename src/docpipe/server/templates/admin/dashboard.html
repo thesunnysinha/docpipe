@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}docpipe admin{% endblock %}
+
+{% block header %}
+<header class="hero" style="padding-bottom:1rem;">
+  <h1>Control plane</h1>
+  <p class="subtitle">Optional local metadata — vector/RAG data stays in your project database.</p>
+  <nav style="margin-top:1rem;display:flex;gap:1rem;flex-wrap:wrap;">
+    <a href="/admin">Dashboard</a>
+    <a href="/admin/audit">Audit log</a>
+    <a href="/admin/jobs">Ingest jobs</a>
+    <a href="/">API home</a>
+  </nav>
+</header>
+{% endblock %}
+
+{% block content %}
+<section class="card">
+  <h2>Database</h2>
+  <ul>
+    <li><strong>Enabled:</strong> {{ flags.control_db_enabled }}</li>
+    <li><strong>URL:</strong> <code>{{ flags.control_db_url or "n/a" }}</code></li>
+  </ul>
+</section>
+
+<section class="card" style="margin-top:1rem;">
+  <h2>Persistence (opt-in)</h2>
+  <p>Document chunks and embeddings are <em>never</em> stored here unless you explicitly pass a connection string to <code>/ingest</code>. This database only holds operator metadata when enabled.</p>
+  <table style="width:100%;margin-top:0.75rem;border-collapse:collapse;">
+    <thead>
+      <tr><th align="left">Flag</th><th align="left">Env var</th><th align="left">On</th></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>Audit events</td>
+        <td><code>DOCPIPE_PERSIST_AUDIT_EVENTS</code></td>
+        <td>{{ flags.persist_audit_events }}</td>
+      </tr>
+      <tr>
+        <td>Plugin resolutions</td>
+        <td><code>DOCPIPE_PERSIST_PLUGIN_RESOLUTIONS</code></td>
+        <td>{{ flags.persist_plugin_resolutions }}</td>
+      </tr>
+      <tr>
+        <td>Ingest jobs</td>
+        <td><code>DOCPIPE_PERSIST_INGEST_JOBS</code></td>
+        <td>{{ flags.persist_ingest_jobs }}</td>
+      </tr>
+    </tbody>
+  </table>
+</section>
+
+<section class="card" style="margin-top:1rem;">
+  <h2>Admin user</h2>
+  <p>Seeded on first boot from <code>DOCPIPE_ADMIN_USERNAME</code> / <code>DOCPIPE_ADMIN_PASSWORD</code> (or <code>DOCPIPE_USERNAME</code> / <code>DOCPIPE_PASSWORD</code>).</p>
+</section>
+{% endblock %}
