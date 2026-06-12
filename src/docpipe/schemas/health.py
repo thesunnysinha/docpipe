@@ -17,5 +17,6 @@ class DependencyStatus(BaseModel):
 class HealthResponse(BaseModel):
     status: Literal["ok", "degraded", "unavailable"]
     version: str
+    profile: str | None = None
     plugins: dict[str, list[str]]
     dependencies: list[DependencyStatus] = Field(default_factory=list)

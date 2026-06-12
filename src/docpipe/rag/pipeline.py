@@ -98,7 +98,15 @@ def _stream_chunk_to_text(content: Any) -> str:
 class RAGPipeline:
     """Retrieve relevant chunks from a vector DB and generate grounded answers."""
 
-    STRATEGIES = ["naive", "hyde", "multi_query", "parent_document", "hybrid", "auto"]
+    STRATEGIES = [
+        "naive",
+        "hyde",
+        "multi_query",
+        "parent_document",
+        "hybrid",
+        "auto",
+        "lightrag",
+    ]
 
     def __init__(self, config: RAGConfig) -> None:
         self._config = config
@@ -134,6 +142,7 @@ class RAGPipeline:
             "parent_document": self._parent_document_query,
             "hybrid": self._hybrid_query,
             "auto": self._auto_query,
+            "lightrag": self._lightrag_query,
         }
         strategy = self._config.strategy
         if strategy not in dispatch:
@@ -169,6 +178,7 @@ class RAGPipeline:
             "parent_document": self._retrieve_parent_document,
             "hybrid": self._retrieve_hybrid,
             "auto": self._retrieve_auto,
+            "lightrag": self._retrieve_lightrag,
         }
         strategy = self._config.strategy
         if strategy not in dispatch:
@@ -344,36 +354,19 @@ class RAGPipeline:
         if reranker == "none":
             return chunks
         top_n = self._config.rerank_top_n or self._config.top_k
-        if reranker == "flashrank":
-            try:
-                from flashrank import Ranker as FlashRanker
-                from flashrank import RerankRequest
-            except ImportError as err:
-                raise RAGError(
-                    "flashrank reranker requires the 'flashrank' package. "
-                    "Install with: pip install 'docpipe-sdk[rerank]'"
-                ) from err
-            model = self._config.reranker_model or "ms-marco-MiniLM-L-12-v2"
-            ranker = FlashRanker(model_name=model)
-            request = RerankRequest(query=question, passages=[{"text": c.content} for c in chunks])
-            results = ranker.rerank(request)
-            reranked = [chunks[r["index"]] for r in results]
-            return reranked[:top_n]
-        if reranker == "cohere":
-            try:
-                import cohere
-            except ImportError as err:
-                raise RAGError(
-                    "cohere reranker requires the 'cohere' package. "
-                    "Install with: pip install 'docpipe-sdk[rerank]'"
-                ) from err
-            model = self._config.reranker_model or "rerank-english-v3.0"
-            co = cohere.Client()
-            docs = [c.content for c in chunks]
-            response = co.rerank(query=question, documents=docs, model=model, top_n=top_n)
-            reranked = [chunks[r.index] for r in response.results]
-            return reranked
-        raise RAGError(f"Unknown reranker '{reranker}'. Available: none, flashrank, cohere")
+        from docpipe.registry.registry import PluginRegistry
+
+        registry = PluginRegistry.get()
+        try:
+            plugin = registry.get_reranker(
+                reranker,
+                model=self._config.reranker_model,
+            )
+        except Exception as e:
+            raise RAGError(
+                f"Reranker '{reranker}' unavailable: {e}. Available: {registry.list_rerankers()}"
+            ) from e
+        return plugin.rerank(question, chunks, top_n=top_n)
 
     def _make_result(
         self,
@@ -649,6 +642,40 @@ class RAGPipeline:
         chunks = self._retrieve_hybrid(question)
         answer, structured, usage = self._generate(question, self._build_context(chunks))
         return self._make_result(question, answer, chunks, structured, usage)
+
+    def _retrieve_lightrag(self, question: str) -> list[RAGChunk]:
+        """Retrieve via LightRAG graph index when configured."""
+        try:
+            from lightrag import LightRAG, QueryParam
+        except ImportError as err:
+            raise RAGError(
+                "lightrag strategy requires the lightrag package. "
+                "Install with: pip install 'docpipe-sdk[lightrag]'"
+            ) from err
+        if not self._config.lightrag_working_dir:
+            raise ConfigurationError(
+                "lightrag_working_dir is required when strategy='lightrag'. "
+                "Set RAGConfig.lightrag_working_dir to an existing LightRAG working directory."
+            )
+        rag = LightRAG(working_dir=self._config.lightrag_working_dir)
+        answer = rag.query(question, param=QueryParam(mode="hybrid"))
+        if answer:
+            return [
+                RAGChunk(
+                    content=str(answer)[:2000],
+                    score=1.0,
+                    source="lightrag",
+                    metadata={"strategy": "lightrag"},
+                )
+            ]
+        return self._retrieve_naive(question)
+
+    def _lightrag_query(self, question: str) -> RAGResult:
+        chunks = self._retrieve_lightrag(question)
+        answer, structured, usage = self._generate(question, self._build_context(chunks))
+        result = self._make_result(question, answer, chunks, structured, usage)
+        result.metadata["lightrag_working_dir"] = self._config.lightrag_working_dir
+        return result
 
     def _auto_query(self, question: str) -> RAGResult:
         from langchain_core.messages import HumanMessage

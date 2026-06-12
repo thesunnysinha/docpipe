@@ -74,7 +74,10 @@ class LangChainExtractor:
             )
 
         model = self._get_model(schema.model_id)
-        structured = model.with_structured_output(schema.output_model)
+        structured = model.with_structured_output(
+            schema.output_model,
+            **self._structured_kwargs(schema),
+        )
 
         prompt = f"{schema.description}\n\nText:\n{text}"
         try:
@@ -97,7 +100,10 @@ class LangChainExtractor:
             )
 
         model = self._get_model(schema.model_id)
-        structured = model.with_structured_output(schema.output_model)
+        structured = model.with_structured_output(
+            schema.output_model,
+            **self._structured_kwargs(schema),
+        )
 
         prompt = f"{schema.description}\n\nText:\n{text}"
         try:
@@ -116,6 +122,15 @@ class LangChainExtractor:
             return True
         except ImportError:
             return False
+
+    @staticmethod
+    def _structured_kwargs(schema: ExtractionSchema) -> dict[str, Any]:
+        """Provider-native strict JSON schema when requested."""
+        if not schema.strict:
+            return {}
+        if schema.output_model is not None:
+            return {"method": "json_schema", "strict": True}
+        return {}
 
     @staticmethod
     def _to_extraction_results(result: Any) -> list[ExtractionResult]:

@@ -20,6 +20,12 @@ from docpipe.registry.registry import PluginRegistry
 def _reset_registry():
     """Reset the plugin registry before each test."""
     PluginRegistry.reset()
+    from docpipe.chunkers.recursive_chunker import RecursiveChunker
+    from docpipe.eval.builtin_evaluator import BuiltinEvaluator
+
+    registry = PluginRegistry.get()
+    registry.register_chunker("recursive", RecursiveChunker)
+    registry.register_evaluator("builtin", BuiltinEvaluator)
     yield
     PluginRegistry.reset()
 

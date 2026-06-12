@@ -87,8 +87,8 @@ def test_ingest_documents_routes_turbovec(mock_pgvector_cls, mock_turbovec_inges
 
 @patch("docpipe.ingestion.pipeline.ingest_documents")
 @patch("docpipe.ingestion.pipeline.IngestionPipeline._create_embeddings")
-@patch("docpipe.ingestion.pipeline.IngestionPipeline._create_splitter")
-def test_ingestion_pipeline_uses_factory(mock_splitter, mock_embeddings, mock_ingest):
+@patch("docpipe.ingestion.pipeline.IngestionPipeline._create_chunker")
+def test_ingestion_pipeline_uses_factory(mock_chunker, mock_embeddings, mock_ingest):
     from docpipe.ingestion.pipeline import IngestionPipeline
 
     mock_embeddings.return_value = MagicMock()
@@ -97,7 +97,7 @@ def test_ingestion_pipeline_uses_factory(mock_splitter, mock_embeddings, mock_in
     chunk.page_content = "chunk"
     chunk.metadata = {}
     splitter.split_documents.return_value = [chunk]
-    mock_splitter.return_value = splitter
+    mock_chunker.return_value = splitter
 
     config = IngestionConfig(
         connection_string="postgresql://localhost/db",

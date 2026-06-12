@@ -9,7 +9,9 @@ from pydantic import BaseModel, Field
 
 class ParseRequest(BaseModel):
     source: str
-    parser: str = "docling"
+    parser: str | None = None
+    tier: str | None = None
+    preset: str | None = None
     output_format: str = "markdown"
 
 

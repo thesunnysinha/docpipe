@@ -7,7 +7,9 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from docpipe.core.types import EvalConfig, EvalQuestion, RAGChunk, RAGConfig, RAGResult
-from docpipe.rag.pipeline import RAGPipeline
+from docpipe.eval.builtin_evaluator import BuiltinEvaluator
+from docpipe.eval.pipeline import EvalPipeline
+from docpipe.registry.registry import PluginRegistry
 
 
 def _make_rag_config() -> RAGConfig:
@@ -18,6 +20,7 @@ def _make_rag_config() -> RAGConfig:
         embedding_model="text-embedding-3-small",
         llm_provider="openai",
         llm_model="gpt-4o",
+        system_prompt="ctx={context} q={question}",
     )
 
 
@@ -55,150 +58,99 @@ def _fake_rag_result(
     )
 
 
-# ---------------------------------------------------------------------------
-# EvalConfig defaults
-# ---------------------------------------------------------------------------
+@pytest.fixture(autouse=True)
+def _register_builtin_evaluator():
+    PluginRegistry.get().register_evaluator("builtin", BuiltinEvaluator)
 
 
 def test_eval_config_defaults() -> None:
     cfg = EvalConfig(rag_config=_make_rag_config(), questions=[])
     assert cfg.metrics == ["hit_rate", "answer_similarity"]
+    assert cfg.evaluator == "builtin"
 
 
-# ---------------------------------------------------------------------------
-# hit_rate metric
-# ---------------------------------------------------------------------------
-
-
-@patch.object(RAGPipeline, "_create_embeddings")
-@patch.object(RAGPipeline, "_create_llm")
-def test_hit_rate_when_source_retrieved(mock_llm: MagicMock, mock_emb: MagicMock) -> None:
-    mock_emb.return_value = MagicMock()
-    mock_llm.return_value = MagicMock()
-
-    from docpipe.eval.pipeline import EvalPipeline
+@patch("docpipe.eval.builtin_evaluator.RAGPipeline")
+def test_hit_rate_when_source_retrieved(mock_rag_cls: MagicMock) -> None:
+    mock_rag = MagicMock()
+    mock_rag.query.return_value = _fake_rag_result(sources=["report.pdf"])
+    mock_rag._llm = MagicMock()
+    mock_rag_cls.return_value = mock_rag
 
     cfg = _make_eval_config(metrics=["hit_rate"])
-    runner = EvalPipeline(cfg)
-
-    with patch.object(runner._rag, "query", return_value=_fake_rag_result(sources=["report.pdf"])):
-        result = runner.run()
+    result = EvalPipeline(cfg).run()
 
     assert result.metrics.hit_rate == pytest.approx(1.0)
 
 
-@patch.object(RAGPipeline, "_create_embeddings")
-@patch.object(RAGPipeline, "_create_llm")
-def test_hit_rate_when_source_not_retrieved(mock_llm: MagicMock, mock_emb: MagicMock) -> None:
-    mock_emb.return_value = MagicMock()
-    mock_llm.return_value = MagicMock()
-
-    from docpipe.eval.pipeline import EvalPipeline
+@patch("docpipe.eval.builtin_evaluator.RAGPipeline")
+def test_hit_rate_when_source_not_retrieved(mock_rag_cls: MagicMock) -> None:
+    mock_rag = MagicMock()
+    mock_rag.query.return_value = _fake_rag_result(sources=["other.pdf"])
+    mock_rag._llm = MagicMock()
+    mock_rag_cls.return_value = mock_rag
 
     cfg = _make_eval_config(metrics=["hit_rate"])
-    runner = EvalPipeline(cfg)
-
-    with patch.object(runner._rag, "query", return_value=_fake_rag_result(sources=["other.pdf"])):
-        result = runner.run()
+    result = EvalPipeline(cfg).run()
 
     assert result.metrics.hit_rate == pytest.approx(0.0)
 
 
-# ---------------------------------------------------------------------------
-# MRR metric
-# ---------------------------------------------------------------------------
-
-
-@patch.object(RAGPipeline, "_create_embeddings")
-@patch.object(RAGPipeline, "_create_llm")
-def test_mrr_first_position(mock_llm: MagicMock, mock_emb: MagicMock) -> None:
-    mock_emb.return_value = MagicMock()
-    mock_llm.return_value = MagicMock()
-
-    from docpipe.eval.pipeline import EvalPipeline
+@patch("docpipe.eval.builtin_evaluator.RAGPipeline")
+def test_mrr_first_position(mock_rag_cls: MagicMock) -> None:
+    mock_rag = MagicMock()
+    mock_rag.query.return_value = _fake_rag_result(sources=["report.pdf", "other.pdf"])
+    mock_rag._llm = MagicMock()
+    mock_rag_cls.return_value = mock_rag
 
     cfg = _make_eval_config(metrics=["mrr"])
-    runner = EvalPipeline(cfg)
-    fake = _fake_rag_result(sources=["report.pdf", "other.pdf"])
-
-    with patch.object(runner._rag, "query", return_value=fake):
-        result = runner.run()
+    result = EvalPipeline(cfg).run()
 
     assert result.metrics.mrr == pytest.approx(1.0)
 
 
-# ---------------------------------------------------------------------------
-# answer_similarity (LLM judge)
-# ---------------------------------------------------------------------------
-
-
-@patch.object(RAGPipeline, "_create_embeddings")
-@patch.object(RAGPipeline, "_create_llm")
-def test_answer_similarity_llm_judge(mock_llm: MagicMock, mock_emb: MagicMock) -> None:
-    mock_emb.return_value = MagicMock()
+@patch("docpipe.eval.builtin_evaluator.RAGPipeline")
+def test_answer_similarity_llm_judge(mock_rag_cls: MagicMock) -> None:
+    mock_rag = MagicMock()
+    mock_rag.query.return_value = _fake_rag_result()
     llm = MagicMock()
     llm.invoke.return_value = MagicMock(content="0.85")
-    mock_llm.return_value = llm
-
-    from docpipe.eval.pipeline import EvalPipeline
+    mock_rag._llm = llm
+    mock_rag_cls.return_value = mock_rag
 
     cfg = _make_eval_config(metrics=["answer_similarity"])
-    runner = EvalPipeline(cfg)
-
-    with patch.object(runner._rag, "query", return_value=_fake_rag_result()):
-        result = runner.run()
+    result = EvalPipeline(cfg).run()
 
     assert result.metrics.answer_similarity == pytest.approx(0.85)
 
 
-# ---------------------------------------------------------------------------
-# num_questions and timing
-# ---------------------------------------------------------------------------
-
-
-@patch.object(RAGPipeline, "_create_embeddings")
-@patch.object(RAGPipeline, "_create_llm")
-def test_eval_result_metadata(mock_llm: MagicMock, mock_emb: MagicMock) -> None:
-    mock_emb.return_value = MagicMock()
-    llm = MagicMock()
-    llm.invoke.return_value = MagicMock(content="1.0")
-    mock_llm.return_value = llm
-
-    from docpipe.eval.pipeline import EvalPipeline
+@patch("docpipe.eval.builtin_evaluator.RAGPipeline")
+def test_eval_result_metadata(mock_rag_cls: MagicMock) -> None:
+    mock_rag = MagicMock()
+    mock_rag.query.return_value = _fake_rag_result(sources=["f.pdf"])
+    mock_rag._llm = MagicMock()
+    mock_rag_cls.return_value = mock_rag
 
     questions = [
         EvalQuestion(question="Q1?", expected_answer="A1", expected_sources=["f.pdf"]),
         EvalQuestion(question="Q2?", expected_answer="A2", expected_sources=["f.pdf"]),
     ]
     cfg = _make_eval_config(questions=questions, metrics=["hit_rate"])
-    runner = EvalPipeline(cfg)
-
-    with patch.object(runner._rag, "query", return_value=_fake_rag_result(sources=["f.pdf"])):
-        result = runner.run()
+    result = EvalPipeline(cfg).run()
 
     assert result.num_questions == 2
     assert result.timing_seconds > 0
     assert len(result.metrics.per_question) == 2
 
 
-# ---------------------------------------------------------------------------
-# Metrics not in requested list are None
-# ---------------------------------------------------------------------------
-
-
-@patch.object(RAGPipeline, "_create_embeddings")
-@patch.object(RAGPipeline, "_create_llm")
-def test_unselected_metrics_are_none(mock_llm: MagicMock, mock_emb: MagicMock) -> None:
-    mock_emb.return_value = MagicMock()
-    mock_llm.return_value = MagicMock()
-
-    from docpipe.eval.pipeline import EvalPipeline
+@patch("docpipe.eval.builtin_evaluator.RAGPipeline")
+def test_unselected_metrics_are_none(mock_rag_cls: MagicMock) -> None:
+    mock_rag = MagicMock()
+    mock_rag.query.return_value = _fake_rag_result()
+    mock_rag._llm = MagicMock()
+    mock_rag_cls.return_value = mock_rag
 
     cfg = _make_eval_config(metrics=["hit_rate"])
-    runner = EvalPipeline(cfg)
-
-    with patch.object(runner._rag, "query", return_value=_fake_rag_result()):
-        result = runner.run()
+    result = EvalPipeline(cfg).run()
 
     assert result.metrics.mrr is None
     assert result.metrics.faithfulness is None

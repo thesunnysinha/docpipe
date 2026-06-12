@@ -51,3 +51,15 @@ class EvalError(DocpipeError):
 
 class TranscriptionError(DocpipeError):
     """Raised when speech-to-text transcription fails."""
+
+
+class ChunkerNotFoundError(DocpipeError):
+    """Raised when a requested chunker is not registered."""
+
+
+class RerankerNotFoundError(DocpipeError):
+    """Raised when a requested reranker is not registered."""
+
+
+class EvaluatorNotFoundError(DocpipeError):
+    """Raised when a requested evaluator is not registered."""

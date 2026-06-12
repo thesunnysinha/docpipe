@@ -6,7 +6,8 @@ from docpipe.config.settings import DocpipeSettings
 
 def test_default_settings():
     settings = DocpipeSettings()
-    assert settings.default_parser == "docling"
+    assert settings.default_parser == "auto"
+    assert settings.profile == "balanced"
     assert settings.default_extractor == "langextract"
     assert settings.chunk_size == 1000
     assert settings.chunk_overlap == 200
@@ -37,7 +38,8 @@ def test_load_config_from_yaml(tmp_path):
 
 def test_load_config_missing_file():
     settings = load_config("/nonexistent/path.yaml")
-    assert settings.default_parser == "docling"
+    assert settings.default_parser == "auto"
+    assert settings.profile == "balanced"
 
 
 def test_load_config_auto_discover(tmp_path, monkeypatch):
