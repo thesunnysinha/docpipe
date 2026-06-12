@@ -15,7 +15,11 @@ class IngestRequest(TableNameFieldMixin, VectorBackendFields):
     embedding_provider: str
     embedding_model: str
     api_key: str | None = None
-    parser: str = "docling"
+    parser: str | None = None
+    tier: str | None = None
+    preset: str | None = None
+    chunker: str | None = None
+    chunk_method: str = "default"
     chunk_size: int = 1000
     chunk_overlap: int = 200
     ingest_mode: str = "both"

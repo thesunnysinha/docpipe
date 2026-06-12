@@ -73,6 +73,7 @@ class ExtractionSchema(BaseModel):
         description="Pydantic model class for LangChain structured output",
         exclude=True,
     )
+    strict: bool = True
     extra: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -112,6 +113,7 @@ class IngestionConfig(BaseModel):
     chunk_method: Literal[
         "default", "paper", "laws", "book", "qa", "manual", "table", "presentation"
     ] = "default"
+    chunker: str = "recursive"
     # Contextual chunk injection
     contextual_injection: bool = False
     contextual_llm_provider: str = "openai"
@@ -206,7 +208,10 @@ class RAGConfig(BaseModel):
     llm_provider: str
     llm_model: str
     llm_api_key: str | None = None
-    strategy: Literal["naive", "hyde", "multi_query", "parent_document", "hybrid", "auto"] = "naive"
+    strategy: Literal[
+        "naive", "hyde", "multi_query", "parent_document", "hybrid", "auto", "lightrag"
+    ] = "naive"
+    lightrag_working_dir: str | None = None
     top_k: int = 5
     # Cap chunks per source so multi-document libraries surface in retrieval (0 = no cap).
     max_chunks_per_source: int = 2
@@ -218,7 +223,7 @@ class RAGConfig(BaseModel):
     parent_window_size: int = 3
     hybrid_bm25_weight: float = 0.5
     # Reranking
-    reranker: Literal["none", "flashrank", "cohere"] = "none"
+    reranker: Literal["none", "flashrank", "cohere", "bge", "mxbai"] = "none"
     reranker_model: str | None = None
     rerank_top_n: int | None = None
     # Generation (required for any answer synthesis)
@@ -288,9 +293,8 @@ class EvalConfig(BaseModel):
 
     rag_config: RAGConfig
     questions: list[EvalQuestion]
-    metrics: list[Literal["hit_rate", "mrr", "faithfulness", "answer_similarity"]] = Field(
-        default_factory=lambda: ["hit_rate", "answer_similarity"]
-    )
+    evaluator: str = "builtin"
+    metrics: list[str] = Field(default_factory=lambda: ["hit_rate", "answer_similarity"])
 
 
 class EvalMetrics(BaseModel):
@@ -300,6 +304,9 @@ class EvalMetrics(BaseModel):
     mrr: float | None = None
     faithfulness: float | None = None
     answer_similarity: float | None = None
+    context_precision: float | None = None
+    context_recall: float | None = None
+    answer_relevancy: float | None = None
     per_question: list[dict[str, Any]] = Field(default_factory=list)
 
 

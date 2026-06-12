@@ -75,11 +75,7 @@ def _get_engine(*, model_path: str, device: str, attn_implementation: str) -> An
             ) from err
 
         resolved_device = _resolve_device(device)
-        dtype = (
-            torch.float32
-            if resolved_device in ("mps", "xpu", "cpu")
-            else torch.bfloat16
-        )
+        dtype = torch.float32 if resolved_device in ("mps", "xpu", "cpu") else torch.bfloat16
 
         attn = _resolve_attn(resolved_device, attn_implementation)
         logger.info(
@@ -108,9 +104,11 @@ def _get_engine(*, model_path: str, device: str, attn_implementation: str) -> An
             def __init__(self) -> None:
                 self.processor = processor
                 self.model = model
-                self.device = resolved_device if resolved_device != "auto" else next(
-                    model.parameters()
-                ).device
+                self.device = (
+                    resolved_device
+                    if resolved_device != "auto"
+                    else next(model.parameters()).device
+                )
 
             def transcribe(
                 self,
@@ -144,9 +142,9 @@ def _get_engine(*, model_path: str, device: str, attn_implementation: str) -> An
                     output_ids = self.model.generate(**inputs, **gen_kwargs)
 
                 generated_ids = output_ids[0, input_length:]
-                eos_positions = (
-                    generated_ids == self.processor.tokenizer.eos_token_id
-                ).nonzero(as_tuple=True)[0]
+                eos_positions = (generated_ids == self.processor.tokenizer.eos_token_id).nonzero(
+                    as_tuple=True
+                )[0]
                 if len(eos_positions) > 0:
                     generated_ids = generated_ids[: eos_positions[0] + 1]
 

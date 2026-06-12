@@ -3,10 +3,13 @@
 from collections.abc import Iterator
 
 from docpipe._version import __version__
+from docpipe.agents.pipeline import AgentRAGPipeline
 from docpipe.core.errors import (
+    ChunkerNotFoundError,
     ConfigurationError,
     DocpipeError,
     EvalError,
+    EvaluatorNotFoundError,
     ExtractionError,
     ExtractorNotFoundError,
     ExtractorNotInstalledError,
@@ -15,6 +18,7 @@ from docpipe.core.errors import (
     ParserNotFoundError,
     ParserNotInstalledError,
     RAGError,
+    RerankerNotFoundError,
     UnsupportedFormatError,
 )
 from docpipe.core.extractor import BaseExtractor
@@ -44,34 +48,101 @@ from docpipe.registry.registry import PluginRegistry
 
 
 def _register_builtins() -> None:
-    """Register built-in parsers and extractors if their dependencies are available."""
+    """Register built-in plugins if their dependencies are available."""
     registry = PluginRegistry.get()
 
-    try:
-        from docpipe.parsers.docling_parser import DoclingParser
+    _try_register_parser(registry, "docling", "docpipe.parsers.docling_parser", "DoclingParser")
+    _try_register_parser(
+        registry, "markitdown", "docpipe.parsers.markitdown_parser", "MarkItDownParser"
+    )
+    _try_register_parser(registry, "glm-ocr", "docpipe.parsers.glm_ocr_parser", "GLMOCRParser")
+    _try_register_parser(registry, "pymupdf", "docpipe.parsers.pymupdf_parser", "PyMuPDFParser")
+    _try_register_parser(registry, "mineru", "docpipe.parsers.mineru_parser", "MinerUParser")
+    _try_register_parser(
+        registry, "paddleocr", "docpipe.parsers.paddleocr_parser", "PaddleOCRParser"
+    )
+    _try_register_parser(
+        registry, "unstructured", "docpipe.parsers.unstructured_parser", "UnstructuredParser"
+    )
 
-        registry.register_parser("docling", DoclingParser)
+    _try_register_extractor(
+        registry, "langextract", "docpipe.extractors.langextract_extractor", "LangExtractExtractor"
+    )
+    _try_register_extractor(
+        registry, "langchain", "docpipe.extractors.langchain_extractor", "LangChainExtractor"
+    )
+    _try_register_extractor(
+        registry, "outlines", "docpipe.extractors.outlines_extractor", "OutlinesExtractor"
+    )
+
+    _try_register_chunker(
+        registry, "recursive", "docpipe.chunkers.recursive_chunker", "RecursiveChunker"
+    )
+    _try_register_chunker(
+        registry, "semchunk", "docpipe.chunkers.semchunk_chunker", "SemchunkChunker"
+    )
+    _try_register_chunker(
+        registry, "chonkie-semantic", "docpipe.chunkers.chonkie_chunker", "ChonkieSemanticChunker"
+    )
+    _try_register_chunker(
+        registry, "chonkie-late", "docpipe.chunkers.chonkie_chunker", "ChonkieLateChunker"
+    )
+
+    _try_register_reranker(
+        registry, "flashrank", "docpipe.rerankers.flashrank_reranker", "FlashRankReranker"
+    )
+    _try_register_reranker(
+        registry, "cohere", "docpipe.rerankers.cohere_reranker", "CohereReranker"
+    )
+    _try_register_reranker(registry, "bge", "docpipe.rerankers.bge_reranker", "BGEReranker")
+    _try_register_reranker(registry, "mxbai", "docpipe.rerankers.mxbai_reranker", "MxbaiReranker")
+
+    _try_register_evaluator(
+        registry, "builtin", "docpipe.eval.builtin_evaluator", "BuiltinEvaluator"
+    )
+    _try_register_evaluator(registry, "ragas", "docpipe.eval.ragas_evaluator", "RagasEvaluator")
+
+
+def _try_register_parser(registry: PluginRegistry, name: str, module: str, cls_name: str) -> None:
+    try:
+        mod = __import__(module, fromlist=[cls_name])
+        registry.register_parser(name, getattr(mod, cls_name))
     except ImportError:
         pass
 
-    try:
-        from docpipe.parsers.glm_ocr_parser import GLMOCRParser
 
-        registry.register_parser("glm-ocr", GLMOCRParser)
+def _try_register_extractor(
+    registry: PluginRegistry, name: str, module: str, cls_name: str
+) -> None:
+    try:
+        mod = __import__(module, fromlist=[cls_name])
+        registry.register_extractor(name, getattr(mod, cls_name))
     except ImportError:
         pass
 
-    try:
-        from docpipe.extractors.langextract_extractor import LangExtractExtractor
 
-        registry.register_extractor("langextract", LangExtractExtractor)
+def _try_register_chunker(registry: PluginRegistry, name: str, module: str, cls_name: str) -> None:
+    try:
+        mod = __import__(module, fromlist=[cls_name])
+        registry.register_chunker(name, getattr(mod, cls_name))
     except ImportError:
         pass
 
-    try:
-        from docpipe.extractors.langchain_extractor import LangChainExtractor
 
-        registry.register_extractor("langchain", LangChainExtractor)
+def _try_register_reranker(registry: PluginRegistry, name: str, module: str, cls_name: str) -> None:
+    try:
+        mod = __import__(module, fromlist=[cls_name])
+        registry.register_reranker(name, getattr(mod, cls_name))
+    except ImportError:
+        pass
+
+
+def _try_register_evaluator(
+    registry: PluginRegistry, name: str, module: str, cls_name: str
+) -> None:
+    try:
+        mod = __import__(module, fromlist=[cls_name])
+        registry.register_evaluator(name, getattr(mod, cls_name))
     except ImportError:
         pass
 
@@ -84,7 +155,10 @@ _register_builtins()
 
 def parse(source: str, *, parser: str = "docling", **kwargs: object) -> ParsedDocument:
     """Parse a document using the specified parser."""
-    p = PluginRegistry.get().get_parser(parser, **kwargs)
+    from docpipe.parsers.router import resolve_parser
+
+    name = resolve_parser(parser, source=source, tier=str(kwargs.pop("tier", "balanced")))
+    p = PluginRegistry.get().get_parser(name, **kwargs)
     return p.parse(source)
 
 
@@ -144,6 +218,14 @@ def stream_query(question: str, *, config: RAGConfig) -> Iterator[str]:
     return pipeline.stream_query(question)
 
 
+def agent_query(question: str, *, config: RAGConfig, **kwargs: object) -> RAGResult:
+    """Answer a question using AutoGen agents with vector-search tools."""
+    from docpipe.agents.pipeline import AgentRAGPipeline
+
+    pipeline = AgentRAGPipeline(config, **kwargs)  # type: ignore[arg-type]
+    return pipeline.query(question)
+
+
 __all__ = [
     "__version__",
     # Core types
@@ -164,8 +246,11 @@ __all__ = [
     # Registry
     "PluginRegistry",
     # Errors
+    "ChunkerNotFoundError",
     "ConfigurationError",
     "DocpipeError",
+    "EvalError",
+    "EvaluatorNotFoundError",
     "ExtractionError",
     "ExtractorNotFoundError",
     "ExtractorNotInstalledError",
@@ -173,6 +258,7 @@ __all__ = [
     "ParseError",
     "ParserNotFoundError",
     "ParserNotInstalledError",
+    "RerankerNotFoundError",
     "UnsupportedFormatError",
     # RAG
     "RAGConfig",
@@ -186,9 +272,11 @@ __all__ = [
     "EvalResult",
     "EvalPipeline",
     # Extra errors
-    "EvalError",
     "RAGError",
+    # Agents (optional autogen extra)
+    "AgentRAGPipeline",
     # Convenience functions
+    "agent_query",
     "extract",
     "ingest",
     "parse",

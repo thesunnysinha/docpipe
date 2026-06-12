@@ -16,7 +16,9 @@ class EvaluateRequest(TableNameFieldMixin):
     embedding_model: str
     llm_provider: str
     llm_model: str
-    strategy: str = "naive"
+    strategy: str | None = None
+    preset: str | None = None
+    evaluator: str | None = None
     metrics: list[str] = Field(default_factory=lambda: ["hit_rate", "answer_similarity"])
 
 

@@ -12,6 +12,7 @@ class ExtractRequest(BaseModel):
     description: str
     model_id: str
     extractor: str = "langextract"
+    strict: bool = True
     examples: list[dict[str, Any]] = Field(default_factory=list)
     entity_classes: list[str] = Field(default_factory=list)
 

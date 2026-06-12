@@ -23,7 +23,9 @@ class RAGQueryRequest(TableNameFieldMixin, VectorBackendFields, MetadataFiltersF
     llm_model: str
     api_key: str | None = None
     embedding_api_key: str | None = None
-    strategy: str = "naive"
+    strategy: str | None = None
+    preset: str | None = None
+    lightrag_working_dir: str | None = None
     top_k: int = 5
     max_chunks_per_source: int = 2
     system_prompt: str = Field(

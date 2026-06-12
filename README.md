@@ -10,7 +10,7 @@ Unified document parsing, structured extraction, vector ingestion, and RAG pipel
 
 ## Overview
 
-docpipe connects document parsing (Docling / GLM-OCR), LLM-based structured extraction (LangExtract + LangChain), vector ingestion (pgvector or optional turbovec), and RAG querying into a single composable pipeline.
+docpipe connects document parsing (Docling, [MarkItDown](https://github.com/microsoft/markitdown), GLM-OCR), LLM-based structured extraction (LangExtract + LangChain), vector ingestion (pgvector or optional turbovec), and RAG querying into a single composable pipeline. Optional [AutoGen](https://github.com/microsoft/autogen) agents add tool-using multi-agent RAG.
 
 **Four pipelines, composable together:**
 
@@ -44,8 +44,8 @@ For unreleased commits: `pip install git+https://github.com/thesunnysinha/docpip
 ```python
 import docpipe
 
-# Parse
-doc = docpipe.parse("invoice.pdf")
+# Parse (docling default; markitdown for lightweight Office/PDF → Markdown)
+doc = docpipe.parse("invoice.pdf", parser="markitdown")
 print(doc.markdown)
 
 # Extract
@@ -80,11 +80,30 @@ rag_config = docpipe.RAGConfig(
 )
 result = docpipe.query("What is the total on the invoice?", config=rag_config)
 print(result.answer)
+
+# Optional: AutoGen agents with vector-search tools (pip install "docpipe-sdk[autogen]")
+agent_result = docpipe.agent_query(
+    "What is the total on the invoice?",
+    config=rag_config,
+    enable_reviewer=True,
+)
+print(agent_result.answer)
 ```
 
 **CLI:** `docpipe parse`, `docpipe ingest`, `docpipe rag query`, `docpipe serve` — see **[CLI & API server](https://docpipe.sunnysinha.online/docs)**.
 
-**Docker:** `docker pull ghcr.io/thesunnysinha/docpipe:latest` — compose examples and env vars are in the **[Docker guide](https://docpipe.sunnysinha.online/docs)** and [`.env.example`](.env.example). Compose files set **CPU/RAM limits** (4 CPU / 4 GiB standalone) and `DOCPIPE_MAX_CONCURRENCY=2` so ingest/RAG cannot exhaust the host.
+**Docker (profile tags):**
+
+```bash
+docker pull ghcr.io/thesunnysinha/docpipe:balanced   # default production
+docker pull ghcr.io/thesunnysinha/docpipe:slim       # lightweight
+docker pull ghcr.io/thesunnysinha/docpipe:quality    # OCR + BGE rerank
+docker pull ghcr.io/thesunnysinha/docpipe:agents     # AutoGen
+```
+
+**pip profiles:** `profile-slim`, `profile-balanced`, `profile-quality`, `profile-agents` — see [`.env.example`](.env.example) and [`docs/INTEGRATION.md`](docs/INTEGRATION.md).
+
+**Runtime presets** on `/ingest` and `/rag/query`: `preset=fast|balanced|quality|agents`. Discover options via `GET /profiles` and `GET /plugins`.
 
 **Shared Kubernetes API** (one docpipe for Jingo, Andocs, and other apps): manifests in [`k8s/`](k8s/), deploy via `.github/workflows/deploy-k8s.yml`. Consumers call `http://docpipe.docpipe.svc.cluster.local:8000` and pass their own `connection_string` on each `/ingest` and `/rag/*` request (vectors stay in each app's Postgres). See [`env/k8s/DOCPIPE_ENV.example`](env/k8s/DOCPIPE_ENV.example).
 

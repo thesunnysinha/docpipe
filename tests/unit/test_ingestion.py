@@ -42,12 +42,12 @@ def _make_extractions() -> list[ExtractionResult]:
 
 
 @patch("docpipe.ingestion.pipeline.IngestionPipeline._create_embeddings")
-@patch("docpipe.ingestion.pipeline.IngestionPipeline._create_splitter")
-def test_parsed_to_lc_docs(mock_splitter, mock_embeddings):
+@patch("docpipe.ingestion.pipeline.IngestionPipeline._create_chunker")
+def test_parsed_to_lc_docs(mock_chunker, mock_embeddings):
     from docpipe.ingestion.pipeline import IngestionPipeline
 
     mock_embeddings.return_value = MagicMock()
-    mock_splitter.return_value = MagicMock()
+    mock_chunker.return_value = MagicMock()
 
     pipeline = IngestionPipeline(_make_config())
     docs = pipeline._parsed_to_lc_docs(_make_parsed_doc())
@@ -59,13 +59,13 @@ def test_parsed_to_lc_docs(mock_splitter, mock_embeddings):
 
 
 @patch("docpipe.ingestion.pipeline.IngestionPipeline._create_embeddings")
-@patch("docpipe.ingestion.pipeline.IngestionPipeline._create_splitter")
-def test_parsed_to_lc_docs_empty_pages_falls_back_to_document_text(mock_splitter, mock_embeddings):
+@patch("docpipe.ingestion.pipeline.IngestionPipeline._create_chunker")
+def test_parsed_to_lc_docs_empty_pages_falls_back_to_document_text(mock_chunker, mock_embeddings):
     """When page metadata exists but page texts are blank, use parsed.text."""
     from docpipe.ingestion.pipeline import IngestionPipeline
 
     mock_embeddings.return_value = MagicMock()
-    mock_splitter.return_value = MagicMock()
+    mock_chunker.return_value = MagicMock()
 
     parsed = ParsedDocument(
         source="payslip.pdf",
@@ -84,12 +84,12 @@ def test_parsed_to_lc_docs_empty_pages_falls_back_to_document_text(mock_splitter
 
 
 @patch("docpipe.ingestion.pipeline.IngestionPipeline._create_embeddings")
-@patch("docpipe.ingestion.pipeline.IngestionPipeline._create_splitter")
-def test_extractions_to_lc_docs(mock_splitter, mock_embeddings):
+@patch("docpipe.ingestion.pipeline.IngestionPipeline._create_chunker")
+def test_extractions_to_lc_docs(mock_chunker, mock_embeddings):
     from docpipe.ingestion.pipeline import IngestionPipeline
 
     mock_embeddings.return_value = MagicMock()
-    mock_splitter.return_value = MagicMock()
+    mock_chunker.return_value = MagicMock()
 
     pipeline = IngestionPipeline(_make_config())
     extractions = _make_extractions()
@@ -103,15 +103,15 @@ def test_extractions_to_lc_docs(mock_splitter, mock_embeddings):
 
 @patch("docpipe.ingestion.pipeline.ingest_documents")
 @patch("docpipe.ingestion.pipeline.IngestionPipeline._create_embeddings")
-@patch("docpipe.ingestion.pipeline.IngestionPipeline._create_splitter")
-def test_ingest_merges_chunk_metadata(mock_splitter, mock_embeddings, mock_ingest_docs):
+@patch("docpipe.ingestion.pipeline.IngestionPipeline._create_chunker")
+def test_ingest_merges_chunk_metadata(mock_chunker, mock_embeddings, mock_ingest_docs):
     from langchain_core.documents import Document as LCDocument
 
     from docpipe.ingestion.pipeline import IngestionPipeline
 
     mock_embeddings.return_value = MagicMock()
     chunk = LCDocument(page_content="chunk text", metadata={"source": "test.pdf"})
-    mock_splitter.return_value.split_documents.return_value = [chunk]
+    mock_chunker.return_value.split_documents.return_value = [chunk]
 
     config = _make_config()
     config.chunk_metadata = {
