@@ -28,7 +28,7 @@ jobs:
           python-version: "3.12"
 
       - name: Install kubectl
-        uses: azure/setup-kubectl@v4
+        uses: azure/setup-kubectl@v5
 
       - name: Install vm_tool
         run: pip install vm-tool==1.1.2
