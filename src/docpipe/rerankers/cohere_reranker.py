@@ -21,7 +21,8 @@ class CohereReranker:
             import cohere
         except ImportError as err:
             raise RAGError(
-                "cohere reranker requires the 'cohere' package. Install with: pip install cohere"
+                "cohere reranker requires the 'cohere' package. "
+                "Install with: pip install cohere"
             ) from err
         co = cohere.Client()
         docs = [c.content for c in chunks]
