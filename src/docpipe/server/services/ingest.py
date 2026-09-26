@@ -38,12 +38,21 @@ logger = logging.getLogger(__name__)
 
 
 class IngestService:
+    """Coordinate request-scoped ingest, source-management, and search work.
+
+    Settings, the plugin registry, and runtime are supplied by application
+    dependency wiring and may be shared across requests. Request-specific
+    pipelines and configurations are created per operation; this service does
+    not promise isolation beyond the behavior of those shared dependencies.
+    """
+
     def __init__(
         self,
         settings: DocpipeSettings,
         registry: PluginRegistry,
         runtime: DocpipeRuntime,
     ) -> None:
+        """Bind application settings, plugin registry, and runtime dependencies."""
         self._settings = settings
         self._registry = registry
         self._runtime = runtime
@@ -53,6 +62,14 @@ class IngestService:
         self,
         req: IngestRequest,
     ) -> tuple[dict[str, Any], str, ParsedDocument]:
+        """Resolve parser-related preset fields and parse or reuse a cached result.
+
+        The source and plugin options come from the validated request. Parsing
+        delegates source access and safety checks to ``SourceParser``; parsed
+        values may be shared through the configured parser cache for its TTL.
+        Plugin lookup, parsing, and cache operations can raise their underlying
+        configuration, parsing, or source errors to the caller.
+        """
         resolved = resolve_fields(
             {"parser": req.parser, "tier": req.tier, "chunker": req.chunker},
             preset=req.preset,
@@ -73,6 +90,7 @@ class IngestService:
         return resolved, parser_name, parsed
 
     def _build_config(self, req: IngestRequest, resolved: dict[str, Any]) -> IngestionConfig:
+        """Build ingestion settings from the request and server defaults."""
         return IngestionConfig(
             connection_string=req.connection_string,
             table_name=req.table_name,
@@ -100,6 +118,13 @@ class IngestService:
         *,
         parser_name: str,
     ) -> IngestResponse:
+        """Write parsed content, optionally sync LightRAG, and persist job metadata.
+
+        Vector writes and optional graph sync are side effects. A requested
+        graph sync requires a working directory. Ingest-job persistence is
+        best-effort: failures are logged and do not fail an otherwise completed
+        ingest. Pipeline, vector-store, and graph-sync failures propagate.
+        """
         config = self._build_config(req, resolved)
         ingestion = IngestionPipeline(config, runtime=self._runtime)
         result = await ingestion.aingest(parsed)
@@ -137,15 +162,29 @@ class IngestService:
 
     @staticmethod
     def _progress_event(stage: str, *, percent: int, **extra: Any) -> str:
+        """Serialize one progress update using the server's SSE event format."""
         payload = {"stage": stage, "percent": percent, **extra}
         return f"event: progress\ndata: {json.dumps(payload)}\n\n"
 
     async def ingest(self, req: IngestRequest) -> IngestResponse:
+        """Parse and ingest one validated source, returning its write summary.
+
+        This operation can write to the selected vector store and optionally
+        to LightRAG. Preset/plugin resolution, source parsing, and ingestion
+        errors are allowed to reach the HTTP error adapter.
+        """
         resolved, parser_name, parsed = await self._resolve_and_parse(req)
         return await self._finalize_ingest(req, resolved, parsed, parser_name=parser_name)
 
     async def stream(self, req: IngestRequest) -> AsyncIterator[str]:
-        """SSE progress stream for long-running ingest jobs."""
+        """Yield progress and terminal events for one potentially long ingest.
+
+        The iterator performs parsing and storage as it is consumed. On success
+        it emits the response payload and ``[DONE]``; on any operation failure
+        it logs the exception type and emits a generic error event, without
+        exposing exception details in the event data. Storage side effects may
+        already have occurred before a late failure.
+        """
         try:
             yield self._progress_event("resolve", percent=5, message="Resolving preset and parser")
             resolved, parser_name, parsed = await self._resolve_and_parse(req)
@@ -180,7 +219,13 @@ class IngestService:
             yield 'event: error\ndata: {"code":"ingest_failed"}\n\n'
 
     async def delete(self, req: DeleteRequest) -> DeleteResponse:
-        """Delete through a selected plugin or the legacy backend facade."""
+        """Delete matching source records from the configured vector backend.
+
+        A selected vector-store plugin is preferred; otherwise the legacy
+        backend path requires a connection string. The request schema validates
+        exact-versus-contains matching before this call. Deletion is a persistent
+        side effect, and configuration, backend, or plugin errors propagate.
+        """
         selected = req.vector_store or (
             self._settings.vector_store if "vector_backend" not in req.model_fields_set else None
         )
@@ -218,7 +263,12 @@ class IngestService:
         )
 
     async def list_sources(self, req: ListSourcesRequest) -> ListSourcesResponse:
-        """Aggregate through a selected plugin or the legacy backend facade."""
+        """Return per-source record counts from a selected or legacy backend.
+
+        The legacy path requires a connection string; the plugin path uses
+        server-resolved plugin options. This is a read-only aggregation and
+        backend or plugin errors propagate to the route's HTTP error mapping.
+        """
         selected = req.vector_store or (
             self._settings.vector_store if "vector_backend" not in req.model_fields_set else None
         )
@@ -252,7 +302,13 @@ class IngestService:
         )
 
     async def search(self, req: SearchRequest) -> SearchResponse:
-        """Search via the selected vector plugin's reader facet."""
+        """Return up to ``top_k`` filtered matches from the selected vector store.
+
+        Embeddings and the search coordinator are constructed for this request;
+        plugin access is scoped to a runtime request scope. The method does not
+        modify stored documents. Configuration, embedding, and backend errors
+        propagate to the route's HTTP error adapter.
+        """
         config = IngestionConfig(
             connection_string=req.connection_string,
             table_name=req.table_name,

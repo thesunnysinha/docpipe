@@ -33,6 +33,7 @@ async def ingest_document(
     settings: SettingsDep,
     service: IngestServiceDep,
 ) -> IngestResponse:
+    """Authenticate and trace a schema-validated ingest request."""
     with trace_operation(
         "docpipe.ingest",
         docpipe_profile=settings.profile,
@@ -51,6 +52,7 @@ async def ingest_stream(
     settings: SettingsDep,
     service: IngestServiceDep,
 ) -> StreamingResponse:
+    """Return an authenticated SSE response for ingest progress and outcome."""
     with trace_operation(
         "docpipe.ingest.stream",
         docpipe_profile=settings.profile,
@@ -67,6 +69,7 @@ async def delete_document(
     _: Auth,
     service: IngestServiceDep,
 ) -> DeleteResponse:
+    """Delete a source through the injected service and map failures to HTTP errors."""
     with trace_operation("docpipe.ingest.delete", docpipe_table_name=req.table_name):
         try:
             return await service.delete(req)
@@ -90,6 +93,7 @@ async def list_collection_sources(
     _: Auth,
     service: IngestServiceDep,
 ) -> ListSourcesResponse:
+    """List source aggregates, translating service errors into HTTP responses."""
     with trace_operation("docpipe.collection.sources", docpipe_table_name=req.table_name):
         try:
             return await service.list_sources(req)
@@ -110,4 +114,5 @@ async def search_documents(
     _: Auth,
     service: IngestServiceDep,
 ) -> SearchResponse:
+    """Search the configured collection using an authenticated request."""
     return await service.search(req)
