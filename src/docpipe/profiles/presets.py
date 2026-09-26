@@ -57,6 +57,7 @@ def apply_defaults_and_preset(
 
 
 def validate_resolved_plugins(resolved: dict[str, Any]) -> None:
+    """Reject resolved parser and processing plugins that fail server guardrails."""
     checks: list[tuple[str, str]] = []
     if (parser := resolved.get("parser")) and parser != "auto":
         checks.append(("parsers", parser))
@@ -73,6 +74,7 @@ def validate_resolved_plugins(resolved: dict[str, Any]) -> None:
 
 
 def list_runtime_presets() -> dict[str, dict[str, Any]]:
+    """Return preset descriptions, fields, and the currently configured default."""
     settings = get_settings()
     out: dict[str, dict[str, Any]] = {}
     for name, spec in RUNTIME_PRESETS.items():

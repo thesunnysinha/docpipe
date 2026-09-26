@@ -20,6 +20,7 @@ from docpipe.server.routers import (
 
 
 def register_routers(app: FastAPI) -> None:
+    """Mount the server's HTTP router modules on ``app`` in stable order."""
     for module in (
         meta,
         admin,

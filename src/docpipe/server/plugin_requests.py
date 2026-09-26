@@ -17,6 +17,13 @@ def resolve_fields(
     explicit: set[str] | None = None,
     endpoint: str | None = None,
 ) -> dict[str, Any]:
+    """Apply request defaults/preset and enforce resolved plugin policies.
+
+    Configuration failures are converted to the server's structured HTTP
+    mapping; value-validation failures become HTTP 422. Preset usage metrics
+    are recorded only after successful resolution and only when an endpoint
+    label is supplied.
+    """
     try:
         resolved = apply_defaults_and_preset(
             fields,
@@ -39,6 +46,11 @@ def resolve_fields(
 
 
 def resolve_parser_name(resolved: dict[str, Any], source: str) -> str:
+    """Select a parser for the resolved tier and source, then enforce policy.
+
+    Parser routing and the guardrail check happen here so callers cannot use a
+    parser selected by automatic resolution without checking plugin policy.
+    """
     from docpipe.parsers.router import resolve_parser
 
     parser = str(resolved.get("parser", "auto"))

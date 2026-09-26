@@ -43,6 +43,13 @@ class S3SourceResolver:
         runner: BoundedBlockingRunner,
         owns_client: bool = False,
     ) -> None:
+        """Bind configuration and shared S3 transfer resources.
+
+        The caller supplies the client and bounded blocking runner. The
+        resolver closes the client during context exit only when
+        ``owns_client`` is true; the runner remains caller-owned in either
+        case.
+        """
         self._config = config
         self._client = client
         self._runner = runner

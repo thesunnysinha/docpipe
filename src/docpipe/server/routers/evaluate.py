@@ -18,4 +18,10 @@ async def evaluate_run(
     _: Auth,
     service: EvaluateServiceDep,
 ) -> EvaluateResponse:
+    """Run the requested evaluation over validated questions and metrics.
+
+    Authentication is required. The evaluation service may connect to the
+    configured vector store and model providers; evaluation results are returned
+    in the response rather than persisted by this route.
+    """
     return await service.run(req)

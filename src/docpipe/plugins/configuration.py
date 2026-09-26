@@ -14,8 +14,15 @@ class TypedPluginConfig(BaseModel):
 class PluginConfig(TypedPluginConfig):
     """JSON-compatible configuration passed to a plugin factory."""
 
-    provider: str = Field(min_length=1, pattern=_PROVIDER_PATTERN)
-    options: dict[str, JsonValue] = Field(default_factory=dict)
+    provider: str = Field(
+        min_length=1,
+        pattern=_PROVIDER_PATTERN,
+        description="Registered plugin identifier that selects the provider implementation.",
+    )
+    options: dict[str, JsonValue] = Field(
+        default_factory=dict,
+        description="Provider-specific options containing only JSON-compatible values.",
+    )
 
 
 def validation_option_path(error: ValidationError, *, category: str) -> str:

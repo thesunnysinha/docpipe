@@ -11,9 +11,14 @@ from docpipe.core.schemas.extraction import ExtractionResult
 
 
 class PipelineResult(BaseModel):
-    """Full pipeline output: parsed document plus extractions."""
+    """Combined output of document parsing and structured extraction."""
 
-    source: str = Field(...)
-    parsed: ParsedDocument = Field(...)
-    extractions: list[ExtractionResult] = Field(default_factory=list)
-    metadata: dict[str, Any] = Field(default_factory=dict)
+    source: str = Field(..., description="Original source path, URL, or source identifier.")
+    parsed: ParsedDocument = Field(..., description="Parser-neutral document representation.")
+    extractions: list[ExtractionResult] = Field(
+        default_factory=list, description="Structured entities returned by the extractor."
+    )
+    metadata: dict[str, Any] = Field(
+        default_factory=dict,
+        description="Pipeline-level diagnostics and processing metadata.",
+    )

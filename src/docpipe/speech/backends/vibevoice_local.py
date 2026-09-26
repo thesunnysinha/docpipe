@@ -117,6 +117,7 @@ def _get_engine(*, model_path: str, device: str, attn_implementation: str) -> An
                 context_info: str | None,
                 max_new_tokens: int,
             ) -> dict[str, Any]:
+                """Run model inference and return decoded text plus segments."""
                 inputs = self.processor(
                     audio=audio_path,
                     sampling_rate=None,
@@ -178,6 +179,12 @@ def transcribe_file(
     hotwords: list[str] | None = None,
     max_new_tokens: int = 8192,
 ) -> TranscribeResult:
+    """Transcribe audio with the cached local VibeVoice-ASR model.
+
+    Model initialization is shared across calls with matching model, device,
+    and attention settings. ``hotwords`` are passed as contextual hints, and
+    the result retains both normalized text and any speaker/time segments.
+    """
     context_info = ", ".join(hotwords) if hotwords else None
     engine = _get_engine(
         model_path=model_path,

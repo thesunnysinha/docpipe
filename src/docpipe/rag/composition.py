@@ -79,6 +79,7 @@ class LegacyRerankerAdapter:
             raise RAGError(f"Reranker '{self._name}' is unavailable") from error
 
         def invoke() -> tuple[RAGChunk, ...]:
+            """Run the synchronous plugin adapter in the blocking executor."""
             return tuple(plugin.rerank(question, list(chunks), top_n=top_n))
 
         return await self._runtime.blocking_runner.run(invoke)

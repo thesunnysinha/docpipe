@@ -42,6 +42,13 @@ class BuiltinEvaluator:
     requires_gpu = False
 
     def evaluate(self, config: EvalConfig) -> EvalResult:
+        """Compute selected retrieval and answer-quality metrics per question.
+
+        Hit rate and MRR compare expected source identifiers with retrieved
+        sources. Faithfulness and answer similarity use the configured RAG
+        language model as a judge. The result includes both per-question rows
+        and aggregate means for metrics selected in ``config.metrics``.
+        """
         start = time.perf_counter()
         rag = RAGPipeline(config.rag_config)
         per_question: list[dict[str, Any]] = []
@@ -132,6 +139,7 @@ class BuiltinEvaluator:
 
     def _aggregate(self, per_question: list[dict[str, Any]]) -> EvalMetrics:
         def mean(key: str) -> float | None:
+            """Return the arithmetic mean for a metric present in any row."""
             vals = [row[key] for row in per_question if key in row]
             return sum(vals) / len(vals) if vals else None
 
@@ -145,4 +153,5 @@ class BuiltinEvaluator:
 
     @classmethod
     def is_available(cls) -> bool:
+        """Report availability of the dependency-free built-in evaluator."""
         return True

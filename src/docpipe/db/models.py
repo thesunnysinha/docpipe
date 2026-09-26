@@ -11,6 +11,13 @@ from docpipe.db.base import Base
 
 
 class AdminUser(Base):
+    """Control-plane administrator account and stored password verifier.
+
+    ``password_hash`` stores the encoded output of the database security
+    helpers, not a plaintext password. This model's active/superuser flags are
+    persisted account attributes; authorization policy is enforced elsewhere.
+    """
+
     __tablename__ = "admin_users"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -23,6 +30,12 @@ class AdminUser(Base):
 
 
 class AuditEvent(Base):
+    """Persisted control-plane event with optional tenant label and payload.
+
+    ``payload_json`` is serialized JSON text. This row is an audit record, not
+    an authorization boundary or a tenant-isolation mechanism by itself.
+    """
+
     __tablename__ = "audit_events"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
@@ -37,6 +50,8 @@ class AuditEvent(Base):
 
 
 class IngestJob(Base):
+    """Persisted summary of an ingestion run, not its document contents."""
+
     __tablename__ = "ingest_jobs"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)

@@ -1,4 +1,4 @@
-"""FastAPI application factory."""
+"""Construct the FastAPI application and compose optional hosted MCP support."""
 
 from __future__ import annotations
 
@@ -22,7 +22,12 @@ from docpipe.server.services.rag import RAGService
 
 
 def create_app(settings: DocpipeSettings | None = None) -> FastAPI:
-    """Create and configure the docpipe FastAPI application."""
+    """Create the API app with runtime, lifespan, middleware, handlers, and routes.
+
+    When settings are omitted, configuration is loaded from the normal
+    application sources. Hosted MCP is mounted only when enabled and requires
+    the optional server dependency; its lifespan is combined with the API's.
+    """
     resolved_settings = settings or load_config()
     runtime = create_server_runtime(resolved_settings)
     lifespan = create_server_lifespan(runtime)
@@ -50,7 +55,12 @@ def create_app(settings: DocpipeSettings | None = None) -> FastAPI:
 
 
 def _create_mcp_app(app: FastAPI, runtime: DocpipeRuntime, settings: DocpipeSettings) -> Any:
-    """Build the optional hosted MCP sub-application from app-owned services."""
+    """Build the optional hosted MCP app using application runtime services.
+
+    Operator tokens and host/origin restrictions are passed from settings.
+    The configured MCP tenant is a shared deployment scope, not an identity
+    independently derived from each bearer token.
+    """
     from docpipe.mcp_server import create_mcp_asgi_app
 
     _validate_mcp_tenant_scope(settings)
@@ -75,7 +85,12 @@ def _create_mcp_app(app: FastAPI, runtime: DocpipeRuntime, settings: DocpipeSett
 
 
 def _validate_mcp_tenant_scope(settings: DocpipeSettings) -> None:
-    """Fail closed when operator bearer tokens lack a valid tenant assignment."""
+    """Require a valid configured MCP tenant when tenant policy is enabled.
+
+    If tenant identity or plugin policies are configured, startup fails unless
+    ``mcp_tenant_id`` is present and belongs to the configured policy/identity
+    mapping. With no tenant-scoped policy, this check does not require a tenant.
+    """
     tenant_scoped = bool(settings.tenant_identity_map or settings.tenant_plugin_policies)
     if tenant_scoped and not settings.mcp_tenant_id:
         raise ValueError(

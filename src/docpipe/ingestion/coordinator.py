@@ -190,6 +190,13 @@ class IngestionCoordinator:
         semaphore = asyncio.Semaphore(self._options.max_in_flight)
 
         async def encode_and_write(batch: tuple[IngestionDocument, ...]) -> int:
+            """Encode and persist one batch under the configured concurrency bound.
+
+            Embedding and vector writes for each batch are awaited together. If
+            any sibling batch fails or the parent operation is cancelled, the
+            coordinator cancels and drains outstanding tasks before propagating
+            the failure; already accepted writes are not rolled back.
+            """
             async with semaphore:
                 return await self._write(await self._encode_batch(batch))
 

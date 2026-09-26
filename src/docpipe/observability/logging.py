@@ -15,6 +15,12 @@ class JsonFormatter(logging.Formatter):
     """Emit one JSON object per log line."""
 
     def format(self, record: logging.LogRecord) -> str:
+        """Serialize the record and available correlation fields as JSON.
+
+        Output includes timestamp, level, logger, and rendered message, with
+        trace/span IDs, request ID, and formatted exception details when
+        available. Extra arbitrary log-record fields are not serialized.
+        """
         payload: dict[str, Any] = {
             "timestamp": datetime.fromtimestamp(record.created, tz=timezone.utc).isoformat(),
             "level": record.levelname,
@@ -48,7 +54,14 @@ def _otel_trace_ids() -> tuple[str | None, str | None]:
 
 
 def configure_logging(settings: Any) -> None:
-    """Configure root logging (text or JSON). Idempotent."""
+    """Configure root log level and, if absent, a stdout structured handler.
+
+    The configured level comes from ``settings.log_level``; ``settings`` may
+    optionally provide ``log_format='json'``. The first call wins for the
+    process because subsequent calls return immediately. If the root logger
+    already has handlers, this function changes its level but does not replace
+    or reformat those handlers.
+    """
     global _CONFIGURED
     if _CONFIGURED:
         return

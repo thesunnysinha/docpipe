@@ -23,35 +23,41 @@ router = APIRouter(tags=["meta"])
 
 @router.get("/", response_class=HTMLResponse, include_in_schema=False)
 async def homepage(_: Auth, service: DiscoveryServiceDep) -> HTMLResponse:
+    """Render the authenticated server homepage and runtime capability summary."""
     return service.homepage()
 
 
 @router.get("/health", response_model=HealthResponse)
 async def health(service: DiscoveryServiceDep) -> HealthResponse:
-    """Server health — no auth required (used by Docker healthcheck)."""
+    """Return configured dependency health without requiring authentication.
+
+    Optional database or embedding probes can make this request perform network
+    checks; their inclusion is controlled by server health-check settings.
+    """
     return service.health()
 
 
 @router.get("/plugins", response_model=PluginsResponse)
 async def list_plugins(_: Auth, service: DiscoveryServiceDep) -> PluginsResponse:
-    """List registered plugins grouped by capability."""
+    """List authenticated plugin capabilities and applicable tenant policy."""
     return service.list_plugins(tenant_id=get_tenant_context())
 
 
 @router.get("/plugins/health", response_model=DependencyStatus)
 async def selected_plugin_health(_: Auth, runtime: RuntimeDep) -> DependencyStatus:
-    """Explicitly probe only the configured vector plugin with a deadline."""
+    """Probe only the configured vector plugin, using its bounded health check."""
     return await probe_selected_vector(runtime)
 
 
 @router.get("/profiles", response_model=ProfilesResponse)
 async def list_profiles(_: Auth, service: DiscoveryServiceDep) -> ProfilesResponse:
+    """Return install profiles, runtime presets, and server defaults."""
     return service.list_profiles()
 
 
 @router.get("/licenses/pymupdf", response_class=HTMLResponse, include_in_schema=False)
 async def pymupdf_license(_: Auth) -> HTMLResponse:
-    """Commercial license notes for the optional pymupdf parser."""
+    """Render license information for the optional PyMuPDF parser."""
     return HTMLResponse(content=render_pymupdf_license())
 
 
@@ -61,6 +67,11 @@ async def plugins_resolve(
     _: Auth,
     service: DiscoveryServiceDep,
 ) -> PluginResolveResponse:
+    """Resolve a validated source and goal to recommended plugins.
+
+    Authentication is required. Invalid or unsupported resolution inputs are
+    returned as HTTP 422 responses.
+    """
     try:
         return service.resolve_plugins(req)
     except ValueError as exc:
