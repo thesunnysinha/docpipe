@@ -49,9 +49,9 @@
 
 ## 5. Security & multi-tenant (P2)
 
-- [x] Per-tenant allowlists via `X-Docpipe-Tenant-Id` + `DOCPIPE_TENANT_PLUGIN_POLICIES` JSON
+- [x] Per-tenant allowlists via authenticated username mapping (`DOCPIPE_TENANT_IDENTITY_MAP`) + `DOCPIPE_TENANT_PLUGIN_POLICIES` JSON
 - [x] SSRF hardening audit for new parsers (`url_safety.py`, `docs/SSRF_AUDIT.md`)
-- [x] Rate limits per preset (`PresetRateLimitMiddleware`, `PRESET_RATE_LIMITS`)
+- [x] Rate limit expensive routes before auth without buffering request bodies; use the strictest preset budget in middleware
 - [x] Audit log for plugin resolution decisions (`profiles/audit.py`)
 
 ---

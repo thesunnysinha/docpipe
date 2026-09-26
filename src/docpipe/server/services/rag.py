@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import json
 import logging
-from collections.abc import Iterator
+from collections.abc import AsyncIterator
 
+from docpipe.bootstrap.runtime import DocpipeRuntime
 from docpipe.config.settings import DocpipeSettings
 from docpipe.core.types import TokenUsage
 from docpipe.observability.metrics import observe_rag
@@ -19,8 +20,9 @@ logger = logging.getLogger(__name__)
 
 
 class RAGService:
-    def __init__(self, settings: DocpipeSettings) -> None:
+    def __init__(self, settings: DocpipeSettings, runtime: DocpipeRuntime | None = None) -> None:
         self._settings = settings
+        self._runtime = runtime
 
     def _resolve_request(self, req: RAGQueryRequest, *, endpoint: str) -> RAGQueryRequest:
         resolved = resolve_fields(
@@ -37,21 +39,21 @@ class RAGService:
         strategy = str(req.strategy or self._settings.default_rag_strategy)
         with observe_rag(strategy):
             config = rag_config_from_request(req, self._settings)
-            pipeline = RAGPipeline(config)
+            pipeline = RAGPipeline(config, runtime=self._runtime)
             result = await pipeline.aquery(req.question)
             return rag_result_to_response(result)
 
-    def stream(self, req: RAGQueryRequest) -> tuple[str, Iterator[str]]:
+    def stream(self, req: RAGQueryRequest) -> tuple[str, AsyncIterator[str]]:
         req = self._resolve_request(req, endpoint="rag/stream")
         strategy = str(req.strategy or self._settings.default_rag_strategy)
         config = rag_config_from_request(req, self._settings)
         config = config.model_copy(update={"stream": True})
-        pipeline = RAGPipeline(config)
+        pipeline = RAGPipeline(config, runtime=self._runtime)
 
-        def generate() -> Iterator[str]:
+        async def generate() -> AsyncIterator[str]:
             try:
                 with observe_rag(strategy):
-                    for token in pipeline.stream_query(req.question):
+                    async for token in pipeline.astream_query(req.question):
                         yield f"data: {token}\n\n"
                 usage = pipeline.last_usage
                 if isinstance(usage, TokenUsage):
@@ -59,7 +61,10 @@ class RAGService:
                     yield f"event: metadata\ndata: {json.dumps(meta)}\n\n"
                 yield "data: [DONE]\n\n"
             except Exception as exc:  # noqa: BLE001
-                logger.exception("stream_query failed")
-                yield f"event: error\ndata: {exc}\n\n"
+                logger.warning(
+                    "rag.stream.failed",
+                    extra={"event": "rag.stream.failed", "error_type": type(exc).__name__},
+                )
+                yield "event: error\ndata: RAG streaming failed\n\n"
 
         return strategy, generate()

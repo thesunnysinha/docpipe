@@ -1,0 +1,61 @@
+"""Optional LightRAG retrieval behind a lazy, injected graph-query boundary."""
+
+from __future__ import annotations
+
+from collections.abc import Awaitable, Callable
+from dataclasses import dataclass
+
+from docpipe.core.blocking import BoundedBlockingRunner
+from docpipe.core.errors import ConfigurationError, RAGError
+from docpipe.core.types import RAGChunk
+from docpipe.rag.retrieval.base import RetrievalResult, VectorSearch
+
+GraphQuery = Callable[[str, str], Awaitable[str]]
+
+
+@dataclass(frozen=True, slots=True)
+class LightRAGStrategy:
+    """Query a separately managed graph index, falling back on empty results."""
+
+    search: VectorSearch
+    working_dir: str | None
+    query_graph: GraphQuery
+    name: str = "lightrag"
+
+    async def retrieve(self, question: str) -> RetrievalResult:
+        if not self.working_dir:
+            raise ConfigurationError("lightrag_working_dir is required when strategy='lightrag'")
+        answer = await self.query_graph(question, self.working_dir)
+        chunks: tuple[RAGChunk, ...]
+        if answer:
+            chunks = (
+                RAGChunk(
+                    content=answer[:2000],
+                    score=1.0,
+                    source="lightrag",
+                    metadata={"strategy": "lightrag"},
+                ),
+            )
+        else:
+            chunks = await self.search.dense(question)
+        return RetrievalResult(chunks, {"lightrag_working_dir": self.working_dir})
+
+
+def graph_query_adapter(runner: BoundedBlockingRunner) -> GraphQuery:
+    """Build an adapter that imports LightRAG only after graph selection."""
+
+    async def query(question: str, working_dir: str) -> str:
+        try:
+            from lightrag import LightRAG, QueryParam
+        except ImportError as error:
+            raise RAGError(
+                "lightrag strategy requires lightrag. Install docpipe-sdk[lightrag]"
+            ) from error
+
+        def invoke() -> str:
+            rag = LightRAG(working_dir=working_dir)
+            return str(rag.query(question, param=QueryParam(mode="hybrid")) or "")
+
+        return await runner.run(invoke)
+
+    return query

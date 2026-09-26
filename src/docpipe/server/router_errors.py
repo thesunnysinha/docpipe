@@ -7,7 +7,8 @@ from functools import wraps
 from typing import ParamSpec, TypeVar
 
 from docpipe.core.errors import DocpipeError
-from docpipe.server.http_errors import docpipe_http_exception
+from docpipe.plugins.errors import PublicIntegrationError
+from docpipe.server.http_errors import docpipe_http_exception, integration_http_exception
 
 P = ParamSpec("P")
 T = TypeVar("T")
@@ -24,5 +25,7 @@ def handle_docpipe_errors(
             return await func(*args, **kwargs)
         except DocpipeError as exc:
             raise docpipe_http_exception(exc) from exc
+        except PublicIntegrationError as exc:
+            raise integration_http_exception(exc) from exc
 
     return wrapper

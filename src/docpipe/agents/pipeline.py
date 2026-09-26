@@ -130,8 +130,8 @@ class AgentRAGPipeline:
                 task_result = await researcher.run(task=question)
 
         answer = self._extract_answer(task_result)
-        chunks = self._rag._retrieve_naive(question)  # noqa: SLF001
-        result = self._rag._make_result(question, answer, chunks, None, None)  # noqa: SLF001
+        chunks = await self._rag.aretrieve_chunks(question)
+        result = self._rag.result_from_chunks(question, answer, chunks)
         result.metadata["orchestrator"] = "autogen"
         result.metadata["reviewer_enabled"] = self._enable_reviewer
         result.timing_seconds = time.perf_counter() - start

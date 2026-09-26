@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+import hashlib
+from urllib.parse import urlsplit
+
 from docpipe.parsers.router import resolve_parser
 from docpipe.profiles.audit import log_plugin_resolve
 from docpipe.profiles.catalog import RUNTIME_PRESETS
@@ -48,7 +51,8 @@ def resolve_recommendation(
         "strategy": resolved.get("strategy"),
     }
     log_plugin_resolve(
-        source=source,
+        source_scheme=_source_scheme(source),
+        source_key=_source_key(source),
         goal=goal,
         preset=preset,
         recommended=recommended,
@@ -61,3 +65,20 @@ def resolve_recommendation(
         "recommended": recommended,
         "preset_catalog": {k: v["description"] for k, v in RUNTIME_PRESETS.items()},
     }
+
+
+def _source_scheme(source: str | None) -> str | None:
+    """Return the URI scheme without retaining credentials or URL components."""
+    if source is None:
+        return None
+    try:
+        return urlsplit(source).scheme.casefold() or "local"
+    except ValueError:
+        return "invalid"
+
+
+def _source_key(source: str | None) -> str | None:
+    """Create a stable opaque identifier for audit correlation."""
+    if source is None:
+        return None
+    return hashlib.blake2b(source.encode("utf-8"), digest_size=12).hexdigest()

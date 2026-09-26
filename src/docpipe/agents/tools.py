@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import TYPE_CHECKING
 
 from docpipe.core.errors import ConfigurationError
@@ -10,12 +11,12 @@ if TYPE_CHECKING:
     from docpipe.rag.pipeline import RAGPipeline
 
 
-def make_search_tool(rag_pipeline: RAGPipeline):
+def make_search_tool(rag_pipeline: RAGPipeline) -> Callable[[str], str]:
     """Build a vector-search tool bound to a RAGPipeline instance."""
 
     def search_documents(query: str) -> str:
         """Search ingested documents for passages relevant to a question or topic."""
-        chunks = rag_pipeline._retrieve_naive(query)  # noqa: SLF001
+        chunks = rag_pipeline.retrieve_chunks(query)
         if not chunks:
             return "No relevant documents found."
         lines: list[str] = []
@@ -28,7 +29,7 @@ def make_search_tool(rag_pipeline: RAGPipeline):
     return search_documents
 
 
-def make_parse_tool(*, parser: str = "markitdown"):
+def make_parse_tool(*, parser: str = "markitdown") -> Callable[[str], str]:
     """Build a document parse tool using a registered docpipe parser."""
 
     def parse_document(source: str) -> str:
@@ -37,7 +38,7 @@ def make_parse_tool(*, parser: str = "markitdown"):
 
         p = PluginRegistry.get().get_parser(parser)
         parsed = p.parse(source)
-        return parsed.markdown or parsed.text
+        return str(parsed.markdown or parsed.text)
 
     return parse_document
 

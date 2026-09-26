@@ -8,6 +8,7 @@ from fastapi.responses import StreamingResponse
 
 from docpipe.core.errors import ConfigurationError, DocpipeError
 from docpipe.observability.spans import trace_operation
+from docpipe.plugins.errors import PublicIntegrationError
 from docpipe.schemas import (
     IngestRequest,
     IngestResponse,
@@ -18,7 +19,7 @@ from docpipe.schemas import (
 )
 from docpipe.schemas.delete import DeleteRequest, DeleteResponse
 from docpipe.server.deps import Auth, IngestServiceDep, SettingsDep
-from docpipe.server.http_errors import docpipe_http_exception
+from docpipe.server.http_errors import docpipe_http_exception, integration_http_exception
 from docpipe.server.router_errors import handle_docpipe_errors
 
 router = APIRouter(tags=["ingest"])
@@ -68,7 +69,7 @@ async def delete_document(
 ) -> DeleteResponse:
     with trace_operation("docpipe.ingest.delete", docpipe_table_name=req.table_name):
         try:
-            return service.delete(req)
+            return await service.delete(req)
         except ConfigurationError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         except psycopg2.errors.UndefinedTable as exc:
@@ -77,6 +78,8 @@ async def delete_document(
             ) from exc
         except DocpipeError as exc:
             raise docpipe_http_exception(exc) from exc
+        except PublicIntegrationError as exc:
+            raise integration_http_exception(exc) from exc
         except Exception as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
@@ -89,11 +92,13 @@ async def list_collection_sources(
 ) -> ListSourcesResponse:
     with trace_operation("docpipe.collection.sources", docpipe_table_name=req.table_name):
         try:
-            return service.list_sources(req)
+            return await service.list_sources(req)
         except ConfigurationError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
         except DocpipeError as exc:
             raise docpipe_http_exception(exc) from exc
+        except PublicIntegrationError as exc:
+            raise integration_http_exception(exc) from exc
         except Exception as exc:
             raise HTTPException(status_code=500, detail=str(exc)) from exc
 
@@ -105,4 +110,4 @@ async def search_documents(
     _: Auth,
     service: IngestServiceDep,
 ) -> SearchResponse:
-    return service.search(req)
+    return await service.search(req)

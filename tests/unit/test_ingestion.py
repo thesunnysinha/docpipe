@@ -1,6 +1,6 @@
 """Tests for ingestion pipeline (mocked)."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from docpipe.core.types import (
     DocumentFormat,
@@ -101,17 +101,24 @@ def test_extractions_to_lc_docs(mock_chunker, mock_embeddings):
     assert docs[0].metadata["entity_class"] == "person"
 
 
-@patch("docpipe.ingestion.pipeline.ingest_documents")
+@patch("docpipe.ingestion.pipeline.build_ingestion_coordinator")
 @patch("docpipe.ingestion.pipeline.IngestionPipeline._create_embeddings")
 @patch("docpipe.ingestion.pipeline.IngestionPipeline._create_chunker")
-def test_ingest_merges_chunk_metadata(mock_chunker, mock_embeddings, mock_ingest_docs):
-    from langchain_core.documents import Document as LCDocument
-
+def test_ingest_delegates_with_chunk_metadata(mock_chunker, mock_embeddings, mock_build):
+    from docpipe.core.types import IngestionResult
     from docpipe.ingestion.pipeline import IngestionPipeline
 
     mock_embeddings.return_value = MagicMock()
-    chunk = LCDocument(page_content="chunk text", metadata={"source": "test.pdf"})
-    mock_chunker.return_value.split_documents.return_value = [chunk]
+    mock_chunker.return_value = MagicMock()
+    coordinator = mock_build.return_value
+    coordinator.ingest = AsyncMock(
+        return_value=IngestionResult(
+            source="test.pdf",
+            chunks_ingested=1,
+            table_name="test_docs",
+            table_created=True,
+        )
+    )
 
     config = _make_config()
     config.chunk_metadata = {
@@ -122,7 +129,7 @@ def test_ingest_merges_chunk_metadata(mock_chunker, mock_embeddings, mock_ingest
     result = pipeline.ingest(_make_parsed_doc(), extractions=None)
 
     assert result.chunks_ingested == 1
-    mock_ingest_docs.assert_called_once()
-    ingested = mock_ingest_docs.call_args.kwargs["documents"]
-    assert ingested[0].metadata["document_id"] == "doc-uuid"
-    assert ingested[0].metadata["document_title"] == "My Doc"
+    passed_config = mock_build.call_args.args[0]
+    assert passed_config.chunk_metadata["document_id"] == "doc-uuid"
+    assert passed_config.chunk_metadata["document_title"] == "My Doc"
+    coordinator.ingest.assert_awaited_once()

@@ -29,7 +29,9 @@ class RAGQueryRequest(TableNameFieldMixin, VectorBackendFields, MetadataFiltersF
     """Retrieval-augmented generation query."""
 
     question: str = Field(..., min_length=1, description="User question to answer.")
-    connection_string: str = Field(..., min_length=1, description="Vector store connection string.")
+    connection_string: str | None = Field(
+        default=None, min_length=1, description="Legacy vector store connection string."
+    )
     embedding_provider: str = Field(..., min_length=1, description="Embedding provider name.")
     embedding_model: str = Field(..., min_length=1, description="Embedding model id.")
     llm_provider: str = Field(..., min_length=1, description="LLM provider name.")

@@ -20,7 +20,9 @@ class SourceSummary(ApiResponse):
 class ListSourcesRequest(TableNameFieldMixin, VectorBackendFields, MetadataFiltersFields):
     """List distinct sources in a vector collection."""
 
-    connection_string: str = Field(..., min_length=1, description="Vector store connection string.")
+    connection_string: str | None = Field(
+        default=None, min_length=1, description="Legacy vector store connection string."
+    )
 
 
 class ListSourcesResponse(ApiResponse):

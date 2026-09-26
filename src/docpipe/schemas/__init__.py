@@ -11,6 +11,7 @@ from docpipe.schemas.health import DependencyStatus, HealthResponse
 from docpipe.schemas.ingest import IngestRequest, IngestResponse
 from docpipe.schemas.mcp import McpCallRequest, McpCallResponse, McpToolDescriptor, McpToolsResponse
 from docpipe.schemas.parse import ParseRequest, ParseResponse
+from docpipe.schemas.plugin_catalog import CatalogPluginInfo
 from docpipe.schemas.plugins import PluginInfo, PluginsResponse
 from docpipe.schemas.profiles import (
     PluginResolveRequest,
@@ -35,6 +36,7 @@ __all__ = [
     "ApiRequest",
     "ApiResponse",
     "ChatMessage",
+    "CatalogPluginInfo",
     "CostEstimateRequest",
     "CostEstimateResponse",
     "DeleteRequest",

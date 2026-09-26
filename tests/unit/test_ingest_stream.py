@@ -43,11 +43,14 @@ def test_ingest_stream_returns_event_stream(client):
 
 @patch(
     "docpipe.server.services.ingest.IngestService._resolve_and_parse",
-    side_effect=RuntimeError("ingest failed"),
+    side_effect=RuntimeError("https://example.org/doc?signature=private"),
 )
-def test_ingest_stream_error_yields_error_event(_mock_resolve, client):
-    resp = client.post("/ingest/stream", json=VALID_REQUEST)
+def test_ingest_stream_error_is_safe_for_public_events_and_logs(_mock_resolve, client, caplog):
+    with caplog.at_level("ERROR"):
+        resp = client.post("/ingest/stream", json=VALID_REQUEST)
 
     assert resp.status_code == 200
     assert "event: error" in resp.text
-    assert "ingest failed" in resp.text
+    assert "ingest_failed" in resp.text
+    assert "private" not in resp.text
+    assert "private" not in caplog.text

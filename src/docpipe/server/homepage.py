@@ -11,6 +11,7 @@ def render_homepage(
     presets: list[dict[str, str]],
     parsers: list[str],
     extractors: list[str],
+    plugin_categories: dict[str, int] | None = None,
 ) -> str:
     """Render the server landing page from Jinja templates."""
     template = get_jinja_env().get_template("homepage.html")
@@ -20,4 +21,5 @@ def render_homepage(
         presets=presets,
         parsers=parsers,
         extractors=extractors,
+        plugin_categories=plugin_categories or {},
     )
