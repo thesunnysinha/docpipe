@@ -19,13 +19,14 @@ operation-scoped reader acquisition; the rollback sample uses the legacy vector-
 
 | Path | Ingest median / record | Search p50 | Search p95 | Median peak RSS |
 | --- | ---: | ---: | ---: | ---: |
-| Legacy rollback | 16.09 ms | 0.290 ms | 0.473 ms | 84.66 MiB |
-| Plugin | 14.35 ms | 0.462 ms | 0.830 ms | 65.00 MiB |
+| Legacy rollback | 16.29 ms | 0.260 ms | 0.383 ms | 84.86 MiB |
+| Plugin | 14.90 ms | 0.432 ms | 0.683 ms | 65.19 MiB |
 
-On this small local workload, plugin ingestion was about 11% faster and peak RSS about 23% lower;
-search p50 was about 0.17 ms slower. These results are directional only: one local index, 32 records,
-no concurrent load, and no server-side network/storage costs. Do not use them to size deployments or
-claim Qdrant/pgvector/MinIO performance.
+These measurements were refreshed against plugin-foundation commit `c588f3c` on the same local
+workload. Plugin ingestion was about 9% faster and peak RSS about 23% lower; search p50 was about
+0.17 ms slower. These results are directional only: one local index, 32 records, no concurrent load,
+and no server-side network/storage costs. Do not use them to size deployments or claim
+Qdrant/pgvector/S3-compatible-service performance.
 
 The default harness settings reproduce the workload:
 
@@ -41,7 +42,8 @@ available and peak RSS is reported as unavailable.
 
 As a separate check, 20 fresh Python processes per source tree measured `import docpipe` using the
 same Python 3.13.13 environment. The pre-plugin baseline was commit `7fb10a3`; the plugin result was
-commit `b2c3f39` plus its in-progress worktree changes.
+commit `b2c3f39` plus in-progress worktree changes, so it is not an exact measurement of the final
+plugin-foundation commit.
 
 | Source tree | Import median | Import p95 | Median peak RSS |
 | --- | ---: | ---: | ---: |
@@ -49,15 +51,16 @@ commit `b2c3f39` plus its in-progress worktree changes.
 | Plugin foundation | 114.29 ms | 116.45 ms | 44.10 MiB |
 
 The measured import-time change was under 1 ms in the median; peak import RSS increased by about
-4 MiB. This is a process-startup measurement, not steady-state server memory. Re-run it after the
-worktree changes are committed and on supported Python versions before treating it as a release
-baseline.
+4 MiB. This is a process-startup measurement, not steady-state server memory. Re-run it on the
+release candidate and supported Python versions before treating it as a release baseline. The source
+trees used for this import comparison are retained as historical context, not a measurement of the
+current commit.
 
 ## Remaining release evidence
 
 The local results do not replace live-service measurements. Before plugin API `1.0.0` can be marked
-stable, run the documented CI integration profiles against pgvector, remote Qdrant, and MinIO/S3,
-then add those workload sizes, deployment resources, latency percentiles, and RSS measurements here.
-The current local environment has no PostgreSQL DSN or MinIO endpoint; Docker image listing fails
-because the host's containerd content store reports an I/O error. API v1 therefore remains
-experimental.
+stable, run the documented CI integration profiles against pgvector, remote Qdrant, and the
+S3-compatible CI service, then add those workload sizes, deployment resources, latency percentiles,
+and RSS measurements here. This local run had no PostgreSQL, Qdrant, or S3-compatible service
+configured; service-backed integration checks were skipped locally. MinIO-specific interoperability
+still needs its own service-backed run. API v1 therefore remains experimental.

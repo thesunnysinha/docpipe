@@ -3,10 +3,12 @@
 ## Current status
 
 Plugin API `1.0.0` remains **experimental**. The vector-store and source contracts will be marked
-stable only after pgvector, TurboVec, Qdrant, local files, HTTP, and S3/MinIO pass their shared
-conformance suites, including the service-backed Qdrant and MinIO integration checks. Until that
-release is published, compatible additive changes are preferred, but plugin authors should not
-assume a stable API or deploy an experimental plugin across independently upgraded environments.
+stable only after pgvector, TurboVec, Qdrant, local files, HTTP, and S3-compatible sources pass their
+shared conformance suites, including service-backed Qdrant and SeaweedFS checks. The S3 adapter
+accepts MinIO-style endpoints, but this repository does not run its service-backed integration suite
+against MinIO itself. Until the stable release is published, compatible additive changes are
+preferred, but plugin authors should not assume a stable API or deploy an experimental plugin across
+independently upgraded environments.
 
 ## Version negotiation
 
@@ -57,6 +59,7 @@ explicitly promotes them.
 
 A stable release requires the shared conformance suite for every reference adapter, the external
 example-plugin wheel test, compatibility tests, strict typing and architecture gates, and the
-service-backed integration jobs for Qdrant and MinIO. If a required service-backed check has not run
-successfully for a release candidate, the corresponding contract remains experimental; a skipped
-local test is not treated as a pass.
+service-backed integration jobs for Qdrant and the configured S3-compatible CI service. If a
+required service-backed check has not run successfully for a release candidate, the corresponding
+contract remains experimental; a skipped local test is not treated as a pass. MinIO-specific
+interoperability must be tested against a supported MinIO deployment before claiming that evidence.
