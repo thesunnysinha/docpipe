@@ -17,18 +17,52 @@ HostResolver = Callable[[str, int], Awaitable[tuple[str, ...]]]
 
 @dataclass(frozen=True, slots=True)
 class HttpSecurityPolicy:
-    """Fail-closed network policy used for every initial URL and redirect."""
+    """Fail-closed network policy applied to HTTP sources and redirects.
+
+    Private, loopback, link-local, and other non-global destinations are
+    rejected unless ``allow_private`` is explicitly enabled. Port checks apply
+    both to parsed URLs and to the TCP connection attempt; enabling private
+    addresses does not bypass scheme, credential, or port validation.
+
+    Args:
+        allow_private: Whether non-global IP destinations are allowed. Keep
+            this false for deployments that accept untrusted URLs.
+        allowed_ports: Non-empty set of TCP destination ports. Defaults to
+            standard HTTP and HTTPS ports.
+
+    Raises:
+        ValueError: If the allowed-port collection is empty or contains an
+            invalid TCP port.
+    """
 
     allow_private: bool = False
     allowed_ports: tuple[int, ...] = (80, 443)
 
     def __post_init__(self) -> None:
+        """Reject invalid port policies at configuration construction time."""
         if not self.allowed_ports or any(port < 1 or port > 65535 for port in self.allowed_ports):
             raise ValueError("allowed_ports must contain valid TCP ports")
 
 
 def inspect_http_url(url: str, policy: HttpSecurityPolicy) -> SplitResult:
-    """Reject unsafe URI forms before making an outbound request."""
+    """Validate URL syntax and literal-IP policy before any network I/O.
+
+    This function does not resolve ordinary hostnames. Their complete DNS
+    answer set must be checked by :func:`validate_resolved_addresses` at the
+    transport boundary, immediately before connecting. URL credentials,
+    non-empty fragments, control characters, non-HTTP schemes, and disallowed ports are
+    rejected; ``localhost`` is checked as loopback even before DNS resolution.
+
+    Args:
+        url: Untrusted absolute HTTP(S) URL.
+        policy: Address and port policy to enforce.
+
+    Returns:
+        Parsed URL components after syntax, scheme, and literal-address checks.
+
+    Raises:
+        UnsafeSourceError: If the URL violates policy or is malformed.
+    """
     try:
         parts = urlsplit(url)
         port = parts.port or (443 if parts.scheme == "https" else 80)
@@ -55,7 +89,24 @@ def inspect_http_url(url: str, policy: HttpSecurityPolicy) -> SplitResult:
 
 
 def canonical_http_source_id(url: str, policy: HttpSecurityPolicy) -> str:
-    """Return a stable HTTP identity with credentials and query data removed."""
+    """Build a normalized, non-secret identifier for an HTTP source URL.
+
+    Hostnames are IDNA-normalized and case-folded, default ports are omitted,
+    and an empty path becomes ``/``. Query strings and fragments are excluded
+    so credentials or signed query parameters are not copied into source IDs;
+    callers must not treat the resulting ID as proof that two responses have
+    identical content.
+
+    Args:
+        url: Candidate URL, validated under the same policy as retrieval.
+        policy: Address and port policy used for URL validation.
+
+    Returns:
+        Canonical scheme/authority/path identifier without query or fragment.
+
+    Raises:
+        UnsafeSourceError: If URL syntax or policy validation fails.
+    """
     parts = inspect_http_url(url, policy)
     assert parts.hostname is not None
     host = parts.hostname.encode("idna").decode("ascii").casefold()
@@ -70,7 +121,25 @@ def canonical_http_source_id(url: str, policy: HttpSecurityPolicy) -> str:
 def validate_resolved_addresses(
     addresses: Iterable[str], policy: HttpSecurityPolicy
 ) -> tuple[str, ...]:
-    """Require every DNS answer to satisfy the same address policy."""
+    """Validate and deduplicate every IP address returned for a host.
+
+    Checking every answer prevents a hostname with a mixture of public and
+    private records from being accepted based only on resolver order. Results
+    preserve first-seen order so the transport can connect to a validated
+    literal address without performing another DNS lookup.
+
+    Args:
+        addresses: IP address strings returned by a resolver.
+        policy: Address policy; when private access is disabled, only globally
+            routable addresses are accepted.
+
+    Returns:
+        Unique canonical IP strings in their original order.
+
+    Raises:
+        UnsafeSourceError: If an answer is malformed or disallowed by policy.
+        SourceAccessError: If the resolver returned no addresses.
+    """
     vetted: list[str] = []
     for candidate in addresses:
         try:
@@ -86,7 +155,23 @@ def validate_resolved_addresses(
 
 
 async def resolve_host_addresses(host: str, port: int) -> tuple[str, ...]:
-    """Resolve all TCP addresses without performing a second lookup at connect."""
+    """Resolve a host to all candidate TCP IPs using the system resolver.
+
+    Literal IP inputs bypass DNS. Hostname resolution runs in a worker thread
+    to avoid blocking the event loop; the returned candidates are not trusted
+    until validated against policy and pinned by :class:`PinnedNetworkBackend`.
+
+    Args:
+        host: Hostname or literal IP from an inspected HTTP(S) URL.
+        port: Destination TCP port supplied to the system resolver.
+
+    Returns:
+        All resolved IP strings, possibly containing duplicates that a later
+        validation step removes.
+
+    Raises:
+        SourceAccessError: If DNS resolution fails.
+    """
     try:
         address = ipaddress.ip_address(host)
     except ValueError:
@@ -132,6 +217,14 @@ class PinnedNetworkBackend:
         *,
         resolve_host: HostResolver = resolve_host_addresses,
     ) -> None:
+        """Wrap a backend with policy validation and a controlled resolver.
+
+        Args:
+            backend: HTTP Core connector used only after an address is vetted.
+            policy: Port/address restrictions applied at connect time.
+            resolve_host: Injectable asynchronous resolver, useful for tests
+                and controlled runtime integrations.
+        """
         self._backend = backend
         self._policy = policy
         self._resolve_host = resolve_host
@@ -144,7 +237,18 @@ class PinnedNetworkBackend:
         local_address: str | None = None,
         socket_options: Iterable[Any] | None = None,
     ) -> Any:
-        """Use one validated DNS result, never a second resolver inside TCP."""
+        """Validate all DNS answers and connect to one literal vetted address.
+
+        The original hostname remains available to HTTP Core for TLS SNI,
+        certificate verification, and the HTTP Host header; only the socket
+        destination is pinned to the selected IP. This prevents a second DNS
+        lookup inside the TCP connector from rebinding the destination.
+
+        Raises:
+            UnsafeSourceError: If the port or any resolved address violates
+                the configured policy.
+            SourceAccessError: If hostname resolution yields no usable address.
+        """
         if port not in self._policy.allowed_ports:
             raise UnsafeSourceError("HTTP source TCP port is not permitted")
         addresses = validate_resolved_addresses(await self._resolve_host(host, port), self._policy)
@@ -157,8 +261,14 @@ class PinnedNetworkBackend:
         )
 
     async def connect_unix_socket(self, *args: object, **kwargs: object) -> Any:
-        """Reject non-TCP transport paths for externally supplied URLs."""
+        """Reject local-socket paths that bypass URL host validation.
+
+        Raises:
+            UnsafeSourceError: Always, because externally supplied HTTP(S)
+                sources must use the vetted TCP path.
+        """
         raise UnsafeSourceError("HTTP source cannot use local sockets")
 
     async def sleep(self, seconds: float) -> None:
+        """Delegate bounded retry delays to the wrapped HTTP Core backend."""
         await self._backend.sleep(seconds)

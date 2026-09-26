@@ -1,4 +1,12 @@
-"""Operator-managed bearer-token verification for hosted MCP deployments."""
+"""Operator-managed bearer authentication for hosted MCP deployments.
+
+The verifier accepts a configured allowlist of high-entropy bearer tokens and
+stores only their SHA-256 digests for comparisons. This is a shared operator
+credential model, not per-user or per-tenant authorization: every accepted
+token receives the same ``docpipe`` scope and operator identity. Terminate TLS
+at the service or a trusted ingress, and rotate tokens through the deployment's
+secret-management process.
+"""
 
 from __future__ import annotations
 
@@ -51,6 +59,27 @@ def create_operator_token_verifier(tokens: Iterable[str]) -> Any:
 
     FastMCP is an optional dependency, so its auth classes are imported only
     when the hosted MCP feature is actually configured.
+
+    Args:
+        tokens: Operator-managed bearer secrets. Every value must be a string
+            containing at least 32 characters; callers should provide
+            high-entropy values rather than human-selected passwords.
+
+    Returns:
+        A FastMCP ``TokenVerifier`` that returns the same operator identity
+        and scope for every matching configured token.
+
+    Raises:
+        ConfigurationError: If the token set is empty or contains an invalid
+            or too-short token.
+        ImportError: If hosted MCP support is configured without the optional
+            ``fastmcp`` dependency.
+
+    Security:
+        The raw secrets are captured only for the duration of validation and
+        are not retained by the returned verifier. Token digests are compared
+        with ``hmac.compare_digest``; this does not provide token revocation or
+        per-token authorization by itself.
     """
     try:
         from fastmcp.server.auth import AccessToken, TokenVerifier
@@ -63,6 +92,15 @@ def create_operator_token_verifier(tokens: Iterable[str]) -> Any:
         """Accept configured operator tokens using fixed-time digest checks."""
 
         async def verify_token(self, token: str) -> AccessToken | None:
+            """Validate a presented token and map it to operator access.
+
+            Args:
+                token: Bearer token presented by FastMCP.
+
+            Returns:
+                A FastMCP access token carrying the shared ``docpipe`` scope
+                when a configured token matches, otherwise ``None``.
+            """
             if not _matches_configured_token(token, expected_digests):
                 return None
             return AccessToken(

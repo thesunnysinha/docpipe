@@ -76,7 +76,15 @@ Store the user's choice on the assistant record; pass it on every ingest/RAG cal
 | `profile-quality` | `:quality` | OCR + BGE rerank |
 | `profile-agents` | `:agents` | AutoGen |
 | `profile-mcp` | `:mcp` | Streamable HTTP MCP server |
-| `profile-gpu` | `:gpu` | MinerU / PaddleOCR |
+| `profile-gpu` | Not published | MinerU / PaddleOCR; install or build explicitly |
+
+The `profile-gpu` extra is available for custom builds, but this repository
+does not currently publish a `:gpu` container image. The GPU Kubernetes example
+is kept outside the default `k8s/` deployment bundle because it requires a
+GPU-enabled node, a compatible NVIDIA device plugin, and namespace quotas sized
+for that workload. The shared Hostinger deployment is CPU-only. Do not apply
+the example to that namespace; see [`examples/k8s/gpu/README.md`](../examples/k8s/gpu/README.md)
+before adapting it to a GPU-capable cluster.
 
 ```bash
 pip install "docpipe-sdk[profile-balanced]"

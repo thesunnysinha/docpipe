@@ -23,7 +23,24 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class LocalSourceConfig(TypedPluginConfig):
-    """Restrict local sources to explicit roots and bounded streaming reads."""
+    """Restrict local sources to existing roots and bounded reads.
+
+    Root paths are canonicalized at model construction and must already exist
+    as directories. Source files are checked against those roots and their file
+    identity is revalidated when opened, reducing symlink/path-swap races.
+    Allowed roots are an operator trust decision: every file readable beneath
+    them may be exposed to the document pipeline.
+
+    Attributes:
+        allowed_roots: Non-empty set of existing directories from which local
+            documents may be read.
+        max_bytes: Maximum source size accepted during inspection and streaming.
+        chunk_bytes: Bounded read size used by asynchronous source streams.
+
+    Raises:
+        ValueError: If a root is missing, is not a directory, or no roots are
+            configured. Pydantic validation also rejects invalid byte limits.
+    """
 
     allowed_roots: tuple[Path, ...] = Field(...)
     max_bytes: int = Field(default=100 * 1024 * 1024, ge=1)
@@ -49,18 +66,57 @@ class LocalSourceResolver:
     """Return lifecycle-bound local handles without exposing raw paths in logs."""
 
     def __init__(self, config: LocalSourceConfig, blocking_runner: BoundedBlockingRunner) -> None:
+        """Create a resolver using validated policy and bounded file I/O.
+
+        Args:
+            config: Canonicalized allowed roots and source size/read limits.
+            blocking_runner: Runtime-owned executor used for filesystem
+                operations so blocking reads do not stall the event loop.
+        """
         self._config = config
         self._runner = blocking_runner
 
     def supports(self, source: str) -> bool:
-        """Recognize raw paths and file URIs without filesystem access."""
+        """Check whether a value has the shape of a local path or file URI.
+
+        This is only a scheme/shape check; it does not establish that the path
+        exists or is within an allowed root. Those checks occur in
+        :meth:`resolve`.
+        """
         if not source or any(character in source for character in "\x00\r\n"):
             return False
         scheme = urlparse(source).scheme
         return scheme in ("", "file")
 
     async def resolve(self, source: str) -> ManagedSourceHandle:
-        """Resolve, hash, and validate a regular file under configured roots."""
+        """Validate a local file and return an owned, lifecycle-bound handle.
+
+        The resolver checks that the target is a regular file under one of the
+        configured roots, enforces the maximum size, and computes a content
+        fingerprint before returning. File reads and hashing run through the
+        bounded blocking runner. Logs contain a stable hash derived from the
+        source input rather than the raw path; this reduces accidental path
+        disclosure but is not anonymization for guessable paths.
+
+        Args:
+            source: Raw filesystem path or ``file:`` URI.
+
+        Returns:
+            A one-shot handle exposing bounded streams and a lifecycle-bound
+            local path. The underlying file remains caller-owned; closing the
+            handle does not delete it.
+
+        Raises:
+            SourceError: If the path is invalid, outside allowed roots, cannot
+                be read safely, or changes identity during validation.
+            SourceTooLargeError: If the source exceeds the configured byte
+                limit.
+
+        Side effects:
+            Reads the file to inspect and fingerprint its contents and emits
+            structured success/failure log events. It does not modify or
+            delete the source file.
+        """
         started = time.monotonic()
         source_key = hashlib.blake2b(source.encode("utf-8"), digest_size=12).hexdigest()
         try:
@@ -94,6 +150,7 @@ class LocalSourceResolver:
         )
 
         async def stream() -> AsyncIterator[bytes]:
+            """Yield bounded file fragments and close the file on all exits."""
             file = await self._runner.run(
                 lambda: open_checked(path, self._config.max_bytes, identity=identity)
             )
@@ -108,6 +165,7 @@ class LocalSourceResolver:
                 file.close()
 
         async def materialize() -> Path:
+            """Revalidate the file and return its caller-owned local path."""
             file = await self._runner.run(
                 lambda: open_checked(path, self._config.max_bytes, identity=identity)
             )
@@ -115,6 +173,7 @@ class LocalSourceResolver:
             return path
 
         async def cleanup() -> None:
+            """Preserve the caller-owned file; this resolver owns no file to delete."""
             # Local files remain caller-owned. The handle still has a one-shot
             # lifetime so adapters cannot reuse a path after the operation.
             return None
@@ -139,7 +198,21 @@ class LocalSourceResolver:
 
 
 def create_plugin(config: PluginConfig, *, context: PluginFactoryContext) -> LocalSourceResolver:
-    """Validate a selected local plugin's options before creating its resolver."""
+    """Build a local resolver from loader-selected plugin configuration.
+
+    Args:
+        config: Provider identifier and untrusted plugin option mapping from
+            the runtime configuration.
+        context: Runtime factory context providing the bounded blocking runner.
+
+    Returns:
+        A resolver configured only with validated local-source options.
+
+    Raises:
+        PluginConfigurationError: If this factory receives another provider
+            or local options fail validation. Error context identifies the
+            invalid option path without echoing option values.
+    """
     if config.provider != "local":
         raise PluginConfigurationError(
             "local source factory received a different provider", plugin="local"
