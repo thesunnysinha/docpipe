@@ -21,7 +21,7 @@ docpipe connects document parsing (Docling, [MarkItDown](https://github.com/micr
 
 > docpipe does not own your RAG data — each client passes `connection_string` on `/ingest`. An optional control-plane DB (SQLite in Docker) stores admin login and opt-in audit metadata only.
 
-**Full documentation** (install extras, Docker, API reference, RAG strategies, observability, turbovec, plugins): **[docpipe docs](https://docpipe.sunnysinha.online/docs)** · [Marketing site](https://docpipe.sunnysinha.online)
+**Full documentation** (install extras, Docker, API reference, RAG strategies, observability, vector stores, plugins): **[docpipe docs](https://docpipe.sunnysinha.online/docs)** · [Source documentation map](docs/README.md) · [Marketing site](https://docpipe.sunnysinha.online)
 
 ---
 
@@ -101,9 +101,10 @@ docker pull ghcr.io/thesunnysinha/docpipe:balanced   # default production
 docker pull ghcr.io/thesunnysinha/docpipe:slim       # lightweight
 docker pull ghcr.io/thesunnysinha/docpipe:quality    # OCR + BGE rerank
 docker pull ghcr.io/thesunnysinha/docpipe:agents     # AutoGen
+docker pull ghcr.io/thesunnysinha/docpipe:mcp        # Streamable HTTP MCP server
 ```
 
-**pip profiles:** `profile-slim`, `profile-balanced`, `profile-quality`, `profile-agents`, `profile-mcp` — see [`.env.example`](.env.example) and [`docs/INTEGRATION.md`](docs/INTEGRATION.md).
+**pip profiles:** `profile-slim`, `profile-balanced`, `profile-quality`, `profile-agents`, `profile-mcp`, and `profile-gpu`. `profile-gpu` is available for custom installs/builds; there is no published `:gpu` image. See [`.env.example`](.env.example) and [`docs/INTEGRATION.md`](docs/INTEGRATION.md) for the current image/profile matrix.
 
 **Runtime presets** on `/ingest` and `/rag/query`: `preset=fast|balanced|quality|agents`. Discover options via `GET /profiles` and `GET /plugins`.
 
@@ -117,6 +118,7 @@ docker pull ghcr.io/thesunnysinha/docpipe:agents     # AutoGen
 
 | Topic | Where |
 |--------|--------|
+| Documentation map | [`docs/README.md`](docs/README.md) |
 | Docker examples & env flags | [`examples/README.md`](examples/README.md) |
 | App integration (Delegate, presets) | [`docs/INTEGRATION.md`](docs/INTEGRATION.md) |
 | Internal security model (open source) | [`docs/INTERNAL_SECURITY.md`](docs/INTERNAL_SECURITY.md) |
