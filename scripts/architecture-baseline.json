@@ -6,7 +6,7 @@
     "src/docpipe/cli/main.py": 412,
     "src/docpipe/ingestion/pipeline.py": 302,
     "src/docpipe/rag/pipeline.py": 638,
-    "tests/unit/test_improvements.py": 344
+    "tests/unit/improvements_spec.py": 344
   },
   "allowed_init_logic": [
     "src/docpipe/__init__.py",

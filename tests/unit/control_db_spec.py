@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from pathlib import Path
 
 import pytest
@@ -25,6 +26,8 @@ def test_password_hash_roundtrip() -> None:
 
 
 def test_seed_admin_user(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    sentinel_logger = logging.getLogger("docpipe.tests.migration_logging")
+    sentinel_logger.disabled = False
     db_path = tmp_path / "control.db"
     monkeypatch.setenv("DOCPIPE_CONTROL_DB_ENABLED", "true")
     monkeypatch.setenv("DOCPIPE_CONTROL_DB_PATH", str(db_path))
@@ -33,6 +36,7 @@ def test_seed_admin_user(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> Non
 
     shutdown_control_db()
     init_control_db()
+    assert sentinel_logger.disabled is False
 
     with session_scope() as session:
         user = session.scalar(select(AdminUser).where(AdminUser.username == "seedadmin"))

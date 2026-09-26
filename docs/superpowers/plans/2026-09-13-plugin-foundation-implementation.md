@@ -68,8 +68,8 @@ Run relevant integration tests after adapter changes and the full suite at each 
 **Create**
 
 - `scripts/check_architecture.py`
-- `tests/architecture/test_dependency_boundaries.py`
-- `tests/architecture/test_module_sizes.py`
+- `tests/architecture/dependency_boundaries_spec.py`
+- `tests/architecture/module_sizes_spec.py`
 - `docs/architecture/decisions/0001-plugin-boundaries.md`
 
 **Modify**
@@ -124,11 +124,11 @@ test: enforce architecture and module size boundaries
 - `src/docpipe/plugins/configuration.py`
 - `src/docpipe/plugins/credentials.py`
 - `src/docpipe/plugins/redaction.py`
-- `tests/unit/plugins/test_descriptors.py`
-- `tests/unit/plugins/test_configuration.py`
-- `tests/unit/plugins/test_credentials.py`
-- `tests/unit/plugins/test_redaction.py`
-- `tests/unit/plugins/test_errors.py`
+- `tests/unit/plugins/descriptors_spec.py`
+- `tests/unit/plugins/configuration_spec.py`
+- `tests/unit/plugins/credentials_spec.py`
+- `tests/unit/plugins/redaction_spec.py`
+- `tests/unit/plugins/errors_spec.py`
 
 **Test first**
 
@@ -159,7 +159,7 @@ Do not log inside value models. Errors carry safe fields; orchestration boundari
 **Verification**
 
 ```bash
-.venv/bin/python -m pytest tests/unit/plugins/test_descriptors.py tests/unit/plugins/test_configuration.py tests/unit/plugins/test_credentials.py tests/unit/plugins/test_redaction.py tests/unit/plugins/test_errors.py -q
+.venv/bin/python -m pytest tests/unit/plugins/descriptors_spec.py tests/unit/plugins/configuration_spec.py tests/unit/plugins/credentials_spec.py tests/unit/plugins/redaction_spec.py tests/unit/plugins/errors_spec.py -q
 .venv/bin/ruff check src/docpipe/plugins tests/unit/plugins
 .venv/bin/mypy src/docpipe/plugins --strict --ignore-missing-imports
 ```
@@ -178,9 +178,9 @@ feat: add typed plugin primitives and safe errors
 - `src/docpipe/plugins/discovery.py`
 - `src/docpipe/plugins/policy.py`
 - `src/docpipe/plugins/manifest.schema.json`
-- `tests/unit/plugins/test_catalog.py`
-- `tests/unit/plugins/test_discovery.py`
-- `tests/unit/plugins/test_policy.py`
+- `tests/unit/plugins/catalog_spec.py`
+- `tests/unit/plugins/discovery_spec.py`
+- `tests/unit/plugins/policy_spec.py`
 - `tests/fixtures/plugins/`
 
 **Test first**
@@ -217,7 +217,7 @@ Include duration, distribution, plugin name/category, outcome, and safe error co
 **Verification**
 
 ```bash
-.venv/bin/python -m pytest tests/unit/plugins/test_catalog.py tests/unit/plugins/test_discovery.py tests/unit/plugins/test_policy.py -q
+.venv/bin/python -m pytest tests/unit/plugins/catalog_spec.py tests/unit/plugins/discovery_spec.py tests/unit/plugins/policy_spec.py -q
 .venv/bin/ruff check src/docpipe/plugins tests/unit/plugins
 .venv/bin/mypy src/docpipe/plugins --strict --ignore-missing-imports
 ```
@@ -236,10 +236,10 @@ feat: add immutable plugin catalog and manifest discovery
 - `src/docpipe/plugins/lifecycle.py`
 - `src/docpipe/core/operation.py`
 - `src/docpipe/core/blocking.py`
-- `tests/unit/plugins/test_loader.py`
-- `tests/unit/plugins/test_lifecycle.py`
-- `tests/unit/core/test_blocking.py`
-- `tests/unit/core/test_operation.py`
+- `tests/unit/plugins/loader_spec.py`
+- `tests/unit/plugins/lifecycle_spec.py`
+- `tests/unit/core/blocking_spec.py`
+- `tests/unit/core/operation_spec.py`
 
 **Test first**
 
@@ -271,7 +271,7 @@ feat: add immutable plugin catalog and manifest discovery
 **Verification**
 
 ```bash
-.venv/bin/python -m pytest tests/unit/plugins/test_loader.py tests/unit/plugins/test_lifecycle.py tests/unit/core/test_blocking.py tests/unit/core/test_operation.py -q
+.venv/bin/python -m pytest tests/unit/plugins/loader_spec.py tests/unit/plugins/lifecycle_spec.py tests/unit/core/blocking_spec.py tests/unit/core/operation_spec.py -q
 .venv/bin/ruff check src/docpipe/plugins src/docpipe/core tests/unit/plugins tests/unit/core
 .venv/bin/mypy src/docpipe/plugins src/docpipe/core --strict --ignore-missing-imports
 ```
@@ -290,8 +290,8 @@ feat: add lazy plugin loading and scoped lifecycle
 - `src/docpipe/bootstrap/runtime.py`
 - `src/docpipe/bootstrap/sdk.py`
 - `src/docpipe/bootstrap/server.py`
-- `tests/unit/bootstrap/test_runtime.py`
-- `tests/unit/bootstrap/test_composition.py`
+- `tests/unit/bootstrap/runtime_spec.py`
+- `tests/unit/bootstrap/composition_spec.py`
 
 **Modify**
 
@@ -300,7 +300,7 @@ feat: add lazy plugin loading and scoped lifecycle
 - `src/docpipe/server/deps.py`
 - `src/docpipe/config/__init__.py`
 - `tests/conftest.py`
-- `tests/unit/test_registry.py`
+- `tests/unit/registry_spec.py`
 
 **Test first**
 
@@ -323,7 +323,7 @@ feat: add lazy plugin loading and scoped lifecycle
 **Verification**
 
 ```bash
-.venv/bin/python -m pytest tests/unit/bootstrap tests/unit/test_registry.py tests/unit/server/api -q
+.venv/bin/python -m pytest tests/unit/bootstrap tests/unit/registry_spec.py tests/unit/server/api -q
 .venv/bin/ruff check src/docpipe/bootstrap src/docpipe/registry src/docpipe/server tests/unit/bootstrap
 .venv/bin/mypy src/docpipe/bootstrap src/docpipe/registry src/docpipe/server --ignore-missing-imports
 ```
@@ -349,9 +349,9 @@ refactor: introduce explicit application composition roots
 - `src/docpipe/embeddings/langchain_adapter.py`
 - `src/docpipe/testing/__init__.py`
 - `src/docpipe/testing/vectorstores.py`
-- `tests/unit/vectorstores/test_models.py`
-- `tests/unit/vectorstores/test_contracts.py`
-- `tests/unit/embeddings/test_langchain_adapter.py`
+- `tests/unit/vectorstores/models_spec.py`
+- `tests/unit/vectorstores/contracts_spec.py`
+- `tests/unit/embeddings/langchain_adapter_spec.py`
 
 **Test first**
 
@@ -378,7 +378,7 @@ refactor: introduce explicit application composition roots
 **Verification**
 
 ```bash
-.venv/bin/python -m pytest tests/unit/vectorstores/test_models.py tests/unit/vectorstores/test_contracts.py tests/unit/embeddings -q
+.venv/bin/python -m pytest tests/unit/vectorstores/models_spec.py tests/unit/vectorstores/contracts_spec.py tests/unit/embeddings -q
 .venv/bin/ruff check src/docpipe/plugins/contracts src/docpipe/embeddings src/docpipe/testing tests/unit/vectorstores tests/unit/embeddings
 .venv/bin/mypy src/docpipe/plugins/contracts src/docpipe/embeddings src/docpipe/testing --strict --ignore-missing-imports
 ```
@@ -398,10 +398,10 @@ feat: define vector store facets and embedding boundary
 - `src/docpipe/vectorstores/pgvector/adapter.py`
 - `src/docpipe/vectorstores/pgvector/filters.py`
 - `src/docpipe/vectorstores/pgvector/queries.py`
-- `tests/unit/vectorstores/pgvector/test_configuration.py`
-- `tests/unit/vectorstores/pgvector/test_filters.py`
-- `tests/unit/vectorstores/pgvector/test_adapter.py`
-- `tests/integration/vectorstores/test_pgvector_contract.py`
+- `tests/unit/vectorstores/pgvector/configuration_spec.py`
+- `tests/unit/vectorstores/pgvector/filters_spec.py`
+- `tests/unit/vectorstores/pgvector/adapter_spec.py`
+- `tests/integration/vectorstores/pgvector_contract_spec.py`
 
 **Modify**
 
@@ -441,7 +441,7 @@ Use bounded-cardinality fields only.
 
 ```bash
 .venv/bin/python -m pytest tests/unit/vectorstores/pgvector -q
-.venv/bin/python -m pytest tests/integration/vectorstores/test_pgvector_contract.py -q
+.venv/bin/python -m pytest tests/integration/vectorstores/pgvector_contract_spec.py -q
 .venv/bin/ruff check src/docpipe/vectorstores/pgvector tests/unit/vectorstores/pgvector tests/integration/vectorstores
 .venv/bin/mypy src/docpipe/vectorstores/pgvector --strict --ignore-missing-imports
 ```
@@ -460,10 +460,10 @@ feat: add pgvector plugin adapter
 - `src/docpipe/vectorstores/turbovec/configuration.py`
 - `src/docpipe/vectorstores/turbovec/adapter.py`
 - `src/docpipe/vectorstores/turbovec/persistence.py`
-- `tests/unit/vectorstores/turbovec/test_configuration.py`
-- `tests/unit/vectorstores/turbovec/test_persistence.py`
-- `tests/unit/vectorstores/turbovec/test_adapter.py`
-- `tests/integration/vectorstores/test_turbovec_contract.py`
+- `tests/unit/vectorstores/turbovec/configuration_spec.py`
+- `tests/unit/vectorstores/turbovec/persistence_spec.py`
+- `tests/unit/vectorstores/turbovec/adapter_spec.py`
+- `tests/integration/vectorstores/turbovec_contract_spec.py`
 
 **Modify**
 
@@ -493,7 +493,7 @@ feat: add pgvector plugin adapter
 **Verification**
 
 ```bash
-.venv/bin/python -m pytest tests/unit/vectorstores/turbovec tests/integration/vectorstores/test_turbovec_contract.py -q
+.venv/bin/python -m pytest tests/unit/vectorstores/turbovec tests/integration/vectorstores/turbovec_contract_spec.py -q
 .venv/bin/ruff check src/docpipe/vectorstores/turbovec tests/unit/vectorstores/turbovec
 .venv/bin/mypy src/docpipe/vectorstores/turbovec --strict --ignore-missing-imports
 ```
@@ -513,11 +513,11 @@ feat: add turbovec plugin adapter
 - `src/docpipe/ingestion/incremental.py`
 - `src/docpipe/ingestion/contextualization.py`
 - `src/docpipe/ingestion/configuration.py`
-- `tests/unit/ingestion/test_coordinator.py`
-- `tests/unit/ingestion/test_document_builder.py`
-- `tests/unit/ingestion/test_incremental.py`
-- `tests/unit/ingestion/test_contextualization.py`
-- `tests/compat/test_ingestion_legacy.py`
+- `tests/unit/ingestion/coordinator_spec.py`
+- `tests/unit/ingestion/document_builder_spec.py`
+- `tests/unit/ingestion/incremental_spec.py`
+- `tests/unit/ingestion/contextualization_spec.py`
+- `tests/compat/ingestion_legacy_spec.py`
 
 **Modify**
 
@@ -525,8 +525,8 @@ feat: add turbovec plugin adapter
 - `src/docpipe/vectorstores/factory.py`
 - `src/docpipe/core/types.py`
 - `src/docpipe/server/request_mapping.py`
-- `tests/unit/test_ingestion.py`
-- `tests/unit/test_vector_backend.py`
+- `tests/unit/ingestion_spec.py`
+- `tests/unit/vector_backend_spec.py`
 
 **Test first**
 
@@ -566,7 +566,7 @@ Log counts and durations, never content, metadata payloads, vectors, DSNs, or so
 **Verification**
 
 ```bash
-.venv/bin/python -m pytest tests/unit/ingestion tests/compat/test_ingestion_legacy.py tests/unit/test_ingestion.py tests/unit/test_vector_backend.py -q
+.venv/bin/python -m pytest tests/unit/ingestion tests/compat/ingestion_legacy_spec.py tests/unit/ingestion_spec.py tests/unit/vector_backend_spec.py -q
 .venv/bin/ruff check src/docpipe/ingestion src/docpipe/vectorstores/factory.py tests/unit/ingestion tests/compat
 .venv/bin/mypy src/docpipe/ingestion --strict --ignore-missing-imports
 ```
@@ -593,17 +593,17 @@ refactor: migrate ingestion to vector plugin facets
 - `src/docpipe/rag/retrieval/hybrid.py`
 - `src/docpipe/rag/retrieval/lightrag.py`
 - `src/docpipe/rag/retrieval/automatic.py`
-- `tests/unit/rag/test_coordinator.py`
-- `tests/unit/rag/test_generation.py`
+- `tests/unit/rag/coordinator_spec.py`
+- `tests/unit/rag/generation_spec.py`
 - `tests/unit/rag/retrieval/` with one focused module per strategy
-- `tests/compat/test_rag_legacy.py`
+- `tests/compat/rag_legacy_spec.py`
 
 **Modify**
 
 - `src/docpipe/rag/pipeline.py`
 - `src/docpipe/server/services/rag.py`
-- `tests/unit/test_rag.py`
-- `tests/unit/test_rag_stream.py`
+- `tests/unit/rag_spec.py`
+- `tests/unit/rag_stream_spec.py`
 
 **Test first**
 
@@ -640,7 +640,7 @@ Questions, prompts, retrieved text, and answers are excluded from logs by defaul
 **Verification**
 
 ```bash
-.venv/bin/python -m pytest tests/unit/rag tests/compat/test_rag_legacy.py tests/unit/test_rag.py tests/unit/test_rag_stream.py -q
+.venv/bin/python -m pytest tests/unit/rag tests/compat/rag_legacy_spec.py tests/unit/rag_spec.py tests/unit/rag_stream_spec.py -q
 .venv/bin/ruff check src/docpipe/rag tests/unit/rag tests/compat
 .venv/bin/mypy src/docpipe/rag --strict --ignore-missing-imports
 ```
@@ -662,10 +662,10 @@ refactor: split rag strategies and inject vector reader
 - `src/docpipe/sources/__init__.py`
 - `src/docpipe/sources/local.py`
 - `src/docpipe/testing/sources.py`
-- `tests/unit/sources/test_models.py`
-- `tests/unit/sources/test_handle.py`
-- `tests/unit/sources/test_local.py`
-- `tests/unit/sources/test_contracts.py`
+- `tests/unit/sources/models_spec.py`
+- `tests/unit/sources/handle_spec.py`
+- `tests/unit/sources/local_spec.py`
+- `tests/unit/sources/contracts_spec.py`
 
 **Test first**
 
@@ -706,9 +706,9 @@ feat: add source resolver contract and local adapter
 - `src/docpipe/sources/http_security.py`
 - `src/docpipe/parsers/input_adapter.py`
 - `tests/unit/sources/http/`
-- `tests/unit/sources/test_http_security.py`
-- `tests/unit/parsers/test_input_adapter.py`
-- `tests/compat/test_source_legacy.py`
+- `tests/unit/sources/http_security_spec.py`
+- `tests/unit/parsers/input_adapter_spec.py`
+- `tests/compat/source_legacy_spec.py`
 
 **Modify**
 
@@ -755,8 +755,8 @@ Cleanup failures are warnings with an opaque handle ID and safe error code. They
 **Verification**
 
 ```bash
-.venv/bin/python -m pytest tests/unit/sources tests/unit/parsers/test_input_adapter.py tests/compat/test_source_legacy.py -q
-.venv/bin/python -m pytest tests/unit/server/api tests/unit/test_ingestion.py tests/unit/test_url_safety.py -q
+.venv/bin/python -m pytest tests/unit/sources tests/unit/parsers/input_adapter_spec.py tests/compat/source_legacy_spec.py -q
+.venv/bin/python -m pytest tests/unit/server/api tests/unit/ingestion_spec.py tests/unit/url_safety_spec.py -q
 .venv/bin/ruff check src/docpipe/sources src/docpipe/parsers src/docpipe/server/services tests/unit/sources tests/unit/parsers tests/compat
 .venv/bin/mypy src/docpipe/sources src/docpipe/parsers/input_adapter.py --strict --ignore-missing-imports
 ```
@@ -773,7 +773,7 @@ feat: route parser inputs through safe source resolvers
 
 - `src/docpipe/config/plugin_options.py`
 - `src/docpipe/config/compatibility.py`
-- `tests/unit/config/test_plugin_options.py`
+- `tests/unit/config/plugin_options_spec.py`
 - `tests/unit/config/compatibility/`
 
 **Modify**
@@ -808,7 +808,7 @@ feat: route parser inputs through safe source resolvers
 **Verification**
 
 ```bash
-.venv/bin/python -m pytest tests/unit/config tests/unit/test_config.py tests/unit/server/api -q
+.venv/bin/python -m pytest tests/unit/config tests/unit/config_spec.py tests/unit/server/api -q
 .venv/bin/ruff check src/docpipe/config src/docpipe/schemas src/docpipe/server/request_mapping.py tests/unit/config
 .venv/bin/mypy src/docpipe/config src/docpipe/schemas src/docpipe/server/request_mapping.py --ignore-missing-imports
 ```
@@ -824,8 +824,8 @@ feat: add namespaced plugin configuration with legacy mapping
 **Create**
 
 - `src/docpipe/schemas/plugin_catalog.py`
-- `tests/unit/server/test_plugin_discovery.py`
-- `tests/unit/server/test_plugin_health.py`
+- `tests/unit/server/plugin_discovery_spec.py`
+- `tests/unit/server/plugin_health_spec.py`
 
 **Modify**
 
@@ -835,9 +835,9 @@ feat: add namespaced plugin configuration with legacy mapping
 - `src/docpipe/server/health.py`
 - `src/docpipe/profiles/guardrails.py`
 - `src/docpipe/server/templates/homepage.html`
-- `tests/unit/test_profiles.py`
-- `tests/unit/test_health.py`
-- `tests/unit/test_homepage.py`
+- `tests/unit/profiles_spec.py`
+- `tests/unit/health_spec.py`
+- `tests/unit/homepage_spec.py`
 
 **Test first**
 
@@ -859,7 +859,7 @@ feat: add namespaced plugin configuration with legacy mapping
 **Verification**
 
 ```bash
-.venv/bin/python -m pytest tests/unit/server/test_plugin_discovery.py tests/unit/server/test_plugin_health.py tests/unit/test_profiles.py tests/unit/test_health.py tests/unit/test_homepage.py -q
+.venv/bin/python -m pytest tests/unit/server/plugin_discovery_spec.py tests/unit/server/plugin_health_spec.py tests/unit/profiles_spec.py tests/unit/health_spec.py tests/unit/homepage_spec.py -q
 .venv/bin/ruff check src/docpipe/schemas src/docpipe/server/services/discovery.py src/docpipe/server/health.py tests/unit/server
 .venv/bin/mypy src/docpipe/schemas src/docpipe/server/services/discovery.py src/docpipe/server/health.py --ignore-missing-imports
 ```
@@ -885,8 +885,8 @@ feat: expose safe plugin capabilities and health
 - `docs/migrations/plugin-configuration.md`
 - `examples/plugin-package/pyproject.toml`
 - `examples/plugin-package/src/example_docpipe_plugin/`
-- `tests/docs/test_plugin_examples.py`
-- `tests/packaging/test_plugin_wheel.py`
+- `tests/docs/plugin_examples_spec.py`
+- `tests/packaging/plugin_wheel_spec.py`
 
 **Modify**
 

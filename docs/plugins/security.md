@@ -4,7 +4,7 @@ Treat every plugin as executable code with the host process's privileges. Static
 
 Third-party plugins are not sandboxed: installed plugin factories execute in-process with Docpipe's filesystem, network, and environment access. Install only trusted distributions and use `DOCPIPE_ENABLED_SOURCES` / `DOCPIPE_ENABLED_VECTORSTORES` to allow the providers the deployment needs. For multi-tenant policies, bind Basic Auth usernames to tenant IDs with `DOCPIPE_TENANT_IDENTITY_MAP`; never select policy from a caller-controlled tenant header.
 
-The built-in expensive-route limiter keys on the TCP peer address and never trusts forwarded identity headers. Behind a shared reverse proxy, also configure per-client rate limits at the trusted ingress; otherwise all forwarded callers may share the proxy's peer-address budget.
+The built-in expensive-route limiter keys on the TCP peer address by default and never trusts forwarded identity headers from arbitrary peers. If requests arrive through a shared reverse proxy, configure `DOCPIPE_RATE_LIMIT_TRUSTED_PROXY_CIDRS` with only the proxy networks that overwrite or append the connecting client address in `X-Forwarded-For`; the limiter then walks that chain from the trusted peer. Keep per-client rate limits at the ingress as an additional boundary.
 
 Source plugins must enforce allowed roots, buckets, prefixes, endpoint policy, deadlines, and streamed byte limits. HTTP resolution checks each redirect and pins the vetted DNS address at connection time. Signed URLs, headers, credentials, local paths, document content, prompts, and vectors must not enter exception text returned to clients or structured logs.
 

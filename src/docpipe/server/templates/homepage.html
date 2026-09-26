@@ -67,6 +67,28 @@
 </section>
 
 <section class="card mb-16">
+  <h2 class="card-title">Production integrations</h2>
+  <div class="chips">
+    {% if mcp_enabled %}
+    <div class="chip">Hosted MCP · <code>/mcp</code> enabled</div>
+    {% else %}
+    <div class="chip">Hosted MCP · optional <code>profile-mcp</code> install</div>
+    {% endif %}
+    {% if rag_cache_enabled %}
+    <div class="chip">RAG response cache · enabled</div>
+    {% else %}
+    <div class="chip">RAG response cache · opt-in</div>
+    {% endif %}
+  </div>
+  <p class="hint">
+    MCP uses operator-managed bearer tokens and Streamable HTTP. RAG caching supports bounded
+    process memory or Redis; both are opt-in. Read the
+    <a href="https://github.com/thesunnysinha/docpipe/blob/main/docs/MCP_SERVER.md">MCP deployment guide</a>
+    and <a href="https://github.com/thesunnysinha/docpipe/blob/main/docs/RAG_CACHE.md">RAG cache operations guide</a>.
+  </p>
+</section>
+
+<section class="card mb-16">
   <h2 class="card-title">Quick Access</h2>
   <div class="link-grid">
     <a class="link-card" href="/docs">

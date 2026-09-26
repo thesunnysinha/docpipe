@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from contextlib import contextmanager
 from unittest.mock import patch
 
 import pytest
@@ -12,6 +13,27 @@ from docpipe.observability.metrics import metrics_available, record_error, recor
 from docpipe.observability.spans import trace_operation
 from docpipe.observability.tokens import extract_usage_from_langchain_response
 from docpipe.observability.tracing import configure_observability
+
+
+@contextmanager
+def _isolated_root_logging():
+    """Isolate root-logger mutations while preserving pytest's active handlers."""
+    import logging as stdlib_logging
+
+    import docpipe.observability.logging as log_mod
+
+    root = stdlib_logging.getLogger()
+    handlers = root.handlers[:]
+    level = root.level
+    configured = log_mod._CONFIGURED
+    root.handlers.clear()
+    log_mod._CONFIGURED = False
+    try:
+        yield
+    finally:
+        root.handlers[:] = handlers
+        root.setLevel(level)
+        log_mod._CONFIGURED = configured
 
 
 def test_configure_observability_disabled_by_default():
@@ -46,34 +68,27 @@ def test_extract_usage_from_langchain_response():
 def test_configure_logging_json_includes_request_id(capsys):
     import logging as stdlib_logging
 
-    import docpipe.observability.logging as log_mod
     from docpipe.observability.request_context import bind_request_id, reset_request_id
 
-    log_mod._CONFIGURED = False
-    root = stdlib_logging.getLogger()
-    root.handlers.clear()
-    settings = DocpipeSettings(log_format="json", log_level="INFO")
-    configure_logging(settings)
-    token = bind_request_id("json-req-99")
-    stdlib_logging.getLogger("docpipe.test.obs").info("hello json")
-    reset_request_id(token)
-    captured = capsys.readouterr().out.strip()
-    assert '"request_id": "json-req-99"' in captured
+    with _isolated_root_logging():
+        settings = DocpipeSettings(log_format="json", log_level="INFO")
+        configure_logging(settings)
+        token = bind_request_id("json-req-99")
+        stdlib_logging.getLogger("docpipe.test.obs").info("hello json")
+        reset_request_id(token)
+        captured = capsys.readouterr().out.strip()
+        assert '"request_id": "json-req-99"' in captured
 
 
 def test_configure_logging_json(capsys):
     import logging as stdlib_logging
 
-    import docpipe.observability.logging as log_mod
-
-    log_mod._CONFIGURED = False
-    root = stdlib_logging.getLogger()
-    root.handlers.clear()
-    settings = DocpipeSettings(log_format="json", log_level="INFO")
-    configure_logging(settings)
-    stdlib_logging.getLogger("docpipe.test.obs").info("hello json")
-    captured = capsys.readouterr().out.strip()
-    assert '"message": "hello json"' in captured
+    with _isolated_root_logging():
+        settings = DocpipeSettings(log_format="json", log_level="INFO")
+        configure_logging(settings)
+        stdlib_logging.getLogger("docpipe.test.obs").info("hello json")
+        captured = capsys.readouterr().out.strip()
+        assert '"message": "hello json"' in captured
 
 
 @pytest.mark.skipif(not metrics_available(), reason="prometheus-client not installed")

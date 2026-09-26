@@ -1,6 +1,6 @@
 # Test layout
 
-Tests are grouped first by scope (`unit`, `integration`, `compat`, `architecture`, `packaging`, and `docs`), then by the component or public behavior they exercise. New behavior modules use descriptive `*_spec.py` filenames and `should_*` case names; pytest is configured to discover these alongside the existing `test_*` convention. The older names remain supported so migration does not obscure coverage or break downstream test commands.
+Tests are grouped first by scope (`unit`, `integration`, `compat`, `architecture`, `packaging`, and `docs`), then by the component or public behavior they exercise. Test modules use descriptive `*_spec.py` filenames, and pytest discovers that convention across the suite. Test functions keep pytest's `test_*` naming convention for clear case-level discovery.
 
 Keep a behavior spec focused on one concern, normally below 200 lines. Put reusable fake clients, distribution metadata, and transport helpers in `support.py` or a narrowly scoped `conftest.py`, not among assertions in a large endpoint file. Fixtures should construct fresh state for each case. Integration specs must skip only when their external service is intentionally unavailable locally; their dedicated CI jobs provide the required live-service run.
 

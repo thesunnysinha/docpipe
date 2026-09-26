@@ -78,8 +78,9 @@ def get_ingest_service(
     return IngestService(settings, registry, runtime)
 
 
-def get_rag_service(settings: SettingsDep, runtime: RuntimeDep) -> RAGService:
-    return RAGService(settings, runtime)
+def get_rag_service(request: Request, settings: SettingsDep, runtime: RuntimeDep) -> RAGService:
+    """Inject the one application-owned cache into request-scoped services."""
+    return RAGService(settings, runtime, getattr(request.app.state, "rag_cache", None))
 
 
 def get_agent_service(settings: SettingsDep) -> AgentService:

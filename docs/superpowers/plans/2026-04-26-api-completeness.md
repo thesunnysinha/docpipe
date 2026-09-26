@@ -18,7 +18,7 @@
 | `src/docpipe/core/types.py` | Add `history` + `filters` to `RAGConfig`; add `DeleteRequest` / `DeleteResponse` |
 | `src/docpipe/rag/pipeline.py` | Thread `history` through `_generate()` and `_generate_stream()`; thread `filters` through all `_retrieve_*` methods |
 | `tests/unit/test_api.py` | New — HTTP-level tests for DELETE + streaming + history + filter via FastAPI `TestClient` |
-| `tests/unit/test_rag.py` | Extend — unit tests for history and filter plumbing inside `RAGPipeline` |
+| `tests/unit/rag_spec.py` | Extend — unit tests for history and filter plumbing inside `RAGPipeline` |
 
 ---
 
@@ -187,11 +187,11 @@ git commit -m "feat: add DELETE /ingest endpoint for chunk removal by source"
 - Modify: `src/docpipe/core/types.py`
 - Modify: `src/docpipe/rag/pipeline.py`
 - Modify: `src/docpipe/server/app.py`
-- Modify: `tests/unit/test_rag.py`
+- Modify: `tests/unit/rag_spec.py`
 
 - [ ] **Step 1: Write the failing test**
 
-Add to `tests/unit/test_rag.py`:
+Add to `tests/unit/rag_spec.py`:
 
 ```python
 @patch.object(RAGPipeline, "_create_embeddings")
@@ -236,7 +236,7 @@ def test_query_passes_history_to_llm(mock_llm_factory, mock_emb_factory):
 - [ ] **Step 2: Run test to verify it fails**
 
 ```bash
-.venv/bin/pytest tests/unit/test_rag.py::test_query_passes_history_to_llm -v
+.venv/bin/pytest tests/unit/rag_spec.py::test_query_passes_history_to_llm -v
 ```
 Expected: FAIL (history field does not exist in RAGConfig)
 
@@ -315,14 +315,14 @@ In the `rag_query` handler inside `create_app()`, add `history=req.history` to t
 - [ ] **Step 6: Run tests**
 
 ```bash
-.venv/bin/pytest tests/unit/test_rag.py -v
+.venv/bin/pytest tests/unit/rag_spec.py -v
 ```
 Expected: all tests PASS
 
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/docpipe/core/types.py src/docpipe/rag/pipeline.py src/docpipe/server/app.py tests/unit/test_rag.py
+git add src/docpipe/core/types.py src/docpipe/rag/pipeline.py src/docpipe/server/app.py tests/unit/rag_spec.py
 git commit -m "feat: add conversation history support to RAG query"
 ```
 
@@ -443,11 +443,11 @@ git commit -m "feat: add POST /rag/stream endpoint for Server-Sent Events stream
 - Modify: `src/docpipe/core/types.py`
 - Modify: `src/docpipe/rag/pipeline.py`
 - Modify: `src/docpipe/server/app.py`
-- Modify: `tests/unit/test_rag.py`
+- Modify: `tests/unit/rag_spec.py`
 
 - [ ] **Step 1: Write the failing test**
 
-Add to `tests/unit/test_rag.py`:
+Add to `tests/unit/rag_spec.py`:
 
 ```python
 @patch.object(RAGPipeline, "_create_embeddings")
@@ -474,7 +474,7 @@ def test_naive_query_passes_filters_to_vectorstore(mock_vs_factory, mock_llm_fac
 - [ ] **Step 2: Run test to verify it fails**
 
 ```bash
-.venv/bin/pytest tests/unit/test_rag.py::test_naive_query_passes_filters_to_vectorstore -v
+.venv/bin/pytest tests/unit/rag_spec.py::test_naive_query_passes_filters_to_vectorstore -v
 ```
 Expected: FAIL (`filters` field not in `RAGConfig`)
 
@@ -556,7 +556,7 @@ Expected: all tests PASS
 - [ ] **Step 7: Commit**
 
 ```bash
-git add src/docpipe/core/types.py src/docpipe/rag/pipeline.py src/docpipe/ingestion/pipeline.py src/docpipe/server/app.py tests/unit/test_rag.py
+git add src/docpipe/core/types.py src/docpipe/rag/pipeline.py src/docpipe/ingestion/pipeline.py src/docpipe/server/app.py tests/unit/rag_spec.py
 git commit -m "feat: add metadata filtering to search and RAG endpoints"
 ```
 

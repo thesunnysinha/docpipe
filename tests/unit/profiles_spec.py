@@ -75,6 +75,7 @@ def test_profiles_endpoint():
     body = response.json()
     assert "runtime_presets" in body
     assert "install_profiles" in body
+    assert body["install_profiles"]["mcp"]["docker_tag"] == "mcp"
 
 
 def test_plugins_resolve_endpoint():

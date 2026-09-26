@@ -35,7 +35,7 @@ class HealthResponse(ApiResponse):
     version: str = Field(..., description="Installed docpipe version.")
     profile: str | None = Field(
         default=None,
-        description="Active install profile (slim, balanced, quality, agents).",
+        description="Active install profile (slim, balanced, quality, agents, mcp, eval, or gpu).",
     )
     plugins: dict[str, list[str]] = Field(
         ...,
