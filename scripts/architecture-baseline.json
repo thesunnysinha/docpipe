@@ -1,0 +1,15 @@
+{
+  "target": 250,
+  "review": 300,
+  "hard_limit": 350,
+  "baseline": {
+    "src/docpipe/cli/main.py": 412,
+    "src/docpipe/ingestion/pipeline.py": 302,
+    "src/docpipe/rag/pipeline.py": 638,
+    "tests/unit/test_improvements.py": 344
+  },
+  "allowed_init_logic": [
+    "src/docpipe/__init__.py",
+    "src/docpipe/server/routers/__init__.py"
+  ]
+}

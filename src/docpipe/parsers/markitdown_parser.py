@@ -3,17 +3,12 @@
 from __future__ import annotations
 
 import asyncio
-import ipaddress
-import logging
-import socket
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlparse
 
 from docpipe.core.errors import ParseError, ParserNotInstalledError
 from docpipe.core.types import DocumentFormat, PageContent, ParsedDocument
-
-logger = logging.getLogger(__name__)
 
 FORMAT_MAP: dict[str, DocumentFormat] = {
     ".pdf": DocumentFormat.PDF,
@@ -59,36 +54,9 @@ class MarkItDownParser:
 
         self._converter = MarkItDown(**options)
 
-    @staticmethod
-    def _is_private_url(url: str) -> bool:
-        try:
-            parsed = urlparse(url)
-            hostname = parsed.hostname
-            if not hostname:
-                return False
-            try:
-                ip = ipaddress.ip_address(hostname)
-            except ValueError:
-                ip = ipaddress.ip_address(socket.gethostbyname(hostname))
-            return not ip.is_global or ip.is_private or ip.is_loopback or ip.is_link_local
-        except Exception:
-            return False
-
     def _convert_source(self, source: str, **kwargs: Any) -> Any:
         """Convert a file path or URL to MarkItDown result."""
-        from docpipe.config import get_settings
-
         if source.startswith(("http://", "https://")):
-            cfg = get_settings()
-            if cfg.allow_private_urls and self._is_private_url(source):
-                import requests
-
-                try:
-                    resp = requests.get(source, timeout=60, stream=True)
-                    resp.raise_for_status()
-                    return self._converter.convert_response(resp, url=source, **kwargs)
-                except Exception as exc:
-                    logger.warning("Pre-fetch of private URL failed, using convert(): %s", exc)
             return self._converter.convert(source, **kwargs)
 
         path = Path(source)

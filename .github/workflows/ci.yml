@@ -3,8 +3,8 @@ name: CI
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
+  pull_request: {}
+  workflow_dispatch:
 
 jobs:
   test:
@@ -25,14 +25,163 @@ jobs:
         run: pip install -e ".[dev,server,profile-slim]"
 
       - name: Lint with ruff
-        run: ruff check src/
+        run: ruff check src tests scripts/benchmark_plugin_foundation.py examples/plugin-package/src
 
-      - name: Run unit tests
-        run: pytest tests/unit/ -v --tb=short
+      - name: Check formatting
+        run: ruff format --check src tests scripts/benchmark_plugin_foundation.py
 
-      - name: Check types with mypy
-        run: mypy src/docpipe/ --ignore-missing-imports
-        continue-on-error: true
+      - name: Check architecture boundaries
+        run: python scripts/check_architecture.py --root . --baseline scripts/architecture-baseline.json
+
+      - name: Run complete test suite
+        run: pytest -q --tb=short
+
+      - name: Check new plugin boundaries with strict mypy
+        run: >-
+          mypy src/docpipe/plugins src/docpipe/sources src/docpipe/embeddings
+          src/docpipe/vectorstores/pgvector src/docpipe/vectorstores/turbovec
+          src/docpipe/ingestion src/docpipe/rag
+          --python-version 3.12
+          --strict --follow-imports=silent --ignore-missing-imports
+          --disable-error-code=import-untyped
+
+      - name: Build and validate distributions
+        run: |
+          python -m build
+          python -m twine check dist/*
+          python -m pip install --no-deps --target /tmp/docpipe-wheel-check dist/*.whl
+          PYTHONPATH=/tmp/docpipe-wheel-check python -c 'import docpipe; import docpipe.testing'
+
+  vector-conformance:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: docpipe
+          POSTGRES_PASSWORD: ${{ github.run_id }}
+          POSTGRES_DB: docpipe
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U docpipe -d docpipe"
+          --health-interval 10s --health-timeout 5s --health-retries 5
+    env:
+      DOCPIPE_TEST_PGVECTOR_DSN: postgresql://docpipe:${{ github.run_id }}@localhost:5432/docpipe
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Install vector extras
+        run: pip install -e ".[dev,server,pgvector,turbovec]"
+      - name: Run vector, ingestion, and legacy RAG conformance
+        run: >-
+          pytest tests/integration/vectorstores tests/integration/ingestion
+          tests/compat/test_rag_legacy.py -q --tb=short
+      - name: Record plugin performance baseline
+        run: >-
+          python scripts/benchmark_plugin_foundation.py
+          --records 64 --queries 40 --trials 3 > plugin-foundation-benchmark.json
+      - name: Upload plugin performance baseline
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: plugin-foundation-benchmark
+          path: plugin-foundation-benchmark.json
+          if-no-files-found: ignore
+
+  docker-profiles:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        profile: [slim, balanced, quality, agents]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build selected profile
+        run: docker build --build-arg DOPIPE_PROFILE=${{ matrix.profile }} -t docpipe-test:${{ matrix.profile }} .
+      - name: Verify base import without selecting another integration
+        run: docker run --rm --entrypoint python docpipe-test:${{ matrix.profile }} -c 'import docpipe; import docpipe.plugins'
+      - name: Smoke-test server startup
+        run: |
+          container="docpipe-profile-${{ matrix.profile }}"
+          docker run --detach --name "$container" --publish 8000:8000 \
+            --env DOCPIPE_HEALTH_CHECK_DB=false \
+            --env DOCPIPE_AUTH_ENABLED=false \
+            "docpipe-test:${{ matrix.profile }}"
+          trap 'docker rm --force "$container" >/dev/null 2>&1 || true' EXIT
+          for attempt in $(seq 1 45); do
+            if curl --fail --silent --output /dev/null http://127.0.0.1:8000/health; then
+              exit 0
+            fi
+            if [ "$(docker inspect --format '{{.State.Running}}' "$container" 2>/dev/null)" != "true" ]; then
+              docker logs "$container"
+              exit 1
+            fi
+            sleep 1
+          done
+          docker logs "$container"
+          exit 1
+
+  qdrant-conformance:
+    runs-on: ubuntu-latest
+    services:
+      qdrant:
+        image: qdrant/qdrant:v1.19.1
+        ports:
+          - 6333:6333
+    env:
+      DOCPIPE_TEST_QDRANT_URL: http://localhost:6333
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Install optional Qdrant extra
+        run: pip install -e ".[dev,server,qdrant]"
+      - name: Run Qdrant conformance against local and server modes
+        run: pytest tests/unit/vectorstores/qdrant tests/integration/vectorstores/qdrant_spec.py -q --tb=short
+      - name: Strict Qdrant adapter typing
+        run: mypy src/docpipe/vectorstores/qdrant --python-version 3.13 --strict --follow-imports=silent --ignore-missing-imports --disable-error-code=import-untyped
+
+  s3-conformance:
+    runs-on: ubuntu-latest
+    env:
+      DOCPIPE_TEST_S3_ENDPOINT: http://localhost:8333
+      DOCPIPE_TEST_S3_ACCESS_KEY: docpipe-ci-${{ github.run_id }}
+      DOCPIPE_TEST_S3_SECRET_KEY: ${{ github.run_id }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+      - name: Start ephemeral SeaweedFS S3 service
+        run: |
+          docker run -d --name docpipe-s3 -p 8333:8333 \
+            -e AWS_ACCESS_KEY_ID="$DOCPIPE_TEST_S3_ACCESS_KEY" \
+            -e AWS_SECRET_ACCESS_KEY="$DOCPIPE_TEST_S3_SECRET_KEY" \
+            -e S3_BUCKET=docpipe-ci \
+            chrislusf/seaweedfs:4.07 server -s3
+          for attempt in $(seq 1 30); do
+            if status=$(curl --silent --max-time 2 --output /dev/null \
+              --write-out '%{http_code}' http://localhost:8333/); then
+              if [ "$status" != "000" ]; then
+                exit 0
+              fi
+            fi
+            sleep 1
+          done
+          docker logs docpipe-s3
+          exit 1
+      - name: Install optional S3 extra
+        run: pip install -e ".[dev,s3]"
+      - name: Run S3 source conformance
+        run: >-
+          pytest tests/unit/sources/s3 tests/unit/sources/test_selection.py
+          tests/integration/sources/minio_spec.py -q --tb=short
+      - name: Strict S3 adapter typing
+        run: mypy src/docpipe/sources/s3 --python-version 3.13 --strict --follow-imports=silent --ignore-missing-imports --disable-error-code=import-untyped
 
   eval-regression:
     runs-on: ubuntu-latest

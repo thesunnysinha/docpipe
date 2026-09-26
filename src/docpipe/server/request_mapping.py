@@ -4,23 +4,52 @@ from __future__ import annotations
 
 from typing import Any
 
+from docpipe.config.compatibility import (
+    resolve_vector_options,
+    warn_legacy_field_once,
+)
 from docpipe.config.settings import DocpipeSettings
+from docpipe.core.errors import ConfigurationError
 from docpipe.core.types import RAGConfig
+from docpipe.schemas.delete import DeleteRequest
 from docpipe.schemas.ingest import IngestRequest
 from docpipe.schemas.rag import RAGQueryRequest
 from docpipe.schemas.search import SearchRequest
+from docpipe.schemas.sources import ListSourcesRequest
 
-VectorRequest = IngestRequest | SearchRequest | RAGQueryRequest
+VectorRequest = IngestRequest | SearchRequest | RAGQueryRequest | DeleteRequest | ListSourcesRequest
 
 
 def vector_fields_from_request(
     req: VectorRequest,
     settings: DocpipeSettings,
 ) -> dict[str, Any]:
+    if req.vector_backend is not None and req.vector_backend not in ("pgvector", "turbovec"):
+        raise ConfigurationError(
+            "vector_backend accepts only pgvector or turbovec; use vector_store.provider"
+        )
+    if "vector_backend" in req.model_fields_set and req.vector_store is None:
+        warn_legacy_field_once("vector_backend")
+    if "turbovec_index_dir" in req.model_fields_set and req.vector_store is None:
+        warn_legacy_field_once("turbovec_index_dir")
     backend = req.vector_backend or settings.vector_backend
+    namespaced_input = req.vector_store
+    if namespaced_input is None and "vector_backend" not in req.model_fields_set:
+        namespaced_input = settings.vector_store
+    namespaced = resolve_vector_options(
+        provider=backend,
+        connection_string=req.connection_string,
+        collection=req.table_name,
+        index_root=req.turbovec_index_dir,
+        bit_width=settings.turbovec_bit_width,
+        namespaced=namespaced_input,
+        explicit_legacy=req.model_fields_set,
+    )
     return {
-        "vector_backend": backend,
+        "vector_backend": backend if namespaced.provider in ("pgvector", "turbovec") else None,
+        "vector_store": namespaced,
         "turbovec_index_dir": req.turbovec_index_dir,
+        "turbovec_bit_width": settings.turbovec_bit_width,
     }
 
 

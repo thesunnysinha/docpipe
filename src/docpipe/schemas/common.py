@@ -4,8 +4,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, model_validator
 
+from docpipe.config.plugin_options import VectorStoreOptions
 from docpipe.core.types import validate_table_name
 from docpipe.schemas.base import ApiRequest
 
@@ -13,6 +14,13 @@ from docpipe.schemas.base import ApiRequest
 class VectorBackendFields(ApiRequest):
     """Optional per-request vector store overrides."""
 
+    vector_store: VectorStoreOptions | None = Field(
+        default=None,
+        description=(
+            "Namespaced vector plugin configuration. The selected provider "
+            "validates its options after plugin policy checks."
+        ),
+    )
     vector_backend: str | None = Field(
         default=None,
         description="Vector backend override: pgvector or turbovec.",
@@ -22,6 +30,13 @@ class VectorBackendFields(ApiRequest):
         default=None,
         description="Directory for on-disk TurboVec indexes.",
     )
+
+    @model_validator(mode="after")
+    def require_legacy_connection(self) -> VectorBackendFields:
+        """Keep legacy requests strict while allowing new provider envelopes."""
+        if self.vector_store is None and not getattr(self, "connection_string", None):
+            raise ValueError("connection_string is required without vector_store")
+        return self
 
 
 class TableNameFieldMixin(ApiRequest):

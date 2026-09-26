@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from contextlib import asynccontextmanager
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
@@ -12,7 +11,6 @@ from docpipe.config.settings import DocpipeSettings
 from docpipe.observability import (
     configure_logging,
     configure_observability,
-    shutdown_observability,
 )
 from docpipe.observability.metrics import setup_prometheus_instrumentation
 from docpipe.observability.middleware import (
@@ -32,26 +30,13 @@ def configure_app_runtime(app: FastAPI, settings: DocpipeSettings) -> None:
     configure_observability()
     configure_phoenix()
     setup_prometheus_instrumentation(app)
-    app.add_middleware(PresetRateLimitMiddleware)
     app.add_middleware(TenantContextMiddleware)
+    # The body-free limiter must run before tenant credential checks and route
+    # authentication so unauthenticated traffic is bounded first.
+    app.add_middleware(PresetRateLimitMiddleware)
     instrument_fastapi(app)
     if settings.http_request_logging_enabled:
         app.add_middleware(RequestResponseLoggingMiddleware)
-
-
-@asynccontextmanager
-async def app_lifespan(_: FastAPI):
-    from docpipe.config import get_settings
-    from docpipe.db import init_control_db, shutdown_control_db
-
-    settings = get_settings()
-    if settings.control_db_enabled and settings.control_db_auto_migrate:
-        init_control_db()
-    try:
-        yield
-    finally:
-        shutdown_control_db()
-        shutdown_observability()
 
 
 def register_exception_handlers(app: FastAPI) -> None:

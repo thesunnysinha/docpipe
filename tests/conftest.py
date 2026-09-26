@@ -6,6 +6,9 @@ from typing import Any
 
 import pytest
 
+from docpipe.bootstrap.runtime import DocpipeRuntime, build_runtime
+from docpipe.bootstrap.sdk import get_default_runtime
+from docpipe.config.settings import DocpipeSettings
 from docpipe.core.types import (
     DocumentFormat,
     ExtractionResult,
@@ -23,11 +26,17 @@ def _reset_registry():
     from docpipe.chunkers.recursive_chunker import RecursiveChunker
     from docpipe.eval.builtin_evaluator import BuiltinEvaluator
 
-    registry = PluginRegistry.get()
+    registry = get_default_runtime().legacy_registry
     registry.register_chunker("recursive", RecursiveChunker)
     registry.register_evaluator("builtin", BuiltinEvaluator)
     yield
     PluginRegistry.reset()
+
+
+@pytest.fixture
+def isolated_runtime() -> DocpipeRuntime:
+    """Return an unstarted runtime with no process-global state."""
+    return build_runtime(DocpipeSettings())
 
 
 @pytest.fixture(autouse=True)

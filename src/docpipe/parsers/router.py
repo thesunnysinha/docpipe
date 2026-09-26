@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import urlsplit
 
 from docpipe.registry.registry import PluginRegistry
 
@@ -27,9 +27,9 @@ _EXTENSION_HINTS: dict[str, list[str]] = {
 
 
 def _suffix(source: str) -> str:
-    if source.startswith(("http://", "https://")):
-        return Path(urlparse(source).path).suffix.lower()
-    return Path(source).suffix.lower()
+    parsed = urlsplit(source)
+    candidate = parsed.path if parsed.scheme else source
+    return Path(candidate).suffix.lower()
 
 
 def resolve_parser(

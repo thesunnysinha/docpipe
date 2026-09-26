@@ -12,6 +12,14 @@ from docpipe.core.errors import (
     RAGError,
     TranscriptionError,
 )
+from docpipe.plugins.errors import (
+    PluginConfigurationError,
+    PluginDependencyError,
+    PluginNotFoundError,
+    PluginPolicyError,
+    PublicIntegrationError,
+    SourceAccessError,
+)
 
 # Google retired models/embedding-001 on v1beta; callers still copy old examples.
 DEPRECATED_GOOGLE_EMBEDDING_MODELS = frozenset({"models/embedding-001", "embedding-001"})
@@ -87,6 +95,25 @@ def docpipe_http_exception(exc: DocpipeError) -> HTTPException:
                 break
 
     return HTTPException(status_code=status, detail=detail)
+
+
+def integration_http_exception(exc: PublicIntegrationError) -> HTTPException:
+    """Map stable integration failures without exposing vendor exception text."""
+    if isinstance(exc, SourceAccessError):
+        status = 502
+    elif isinstance(
+        exc,
+        (
+            PluginConfigurationError,
+            PluginDependencyError,
+            PluginNotFoundError,
+            PluginPolicyError,
+        ),
+    ):
+        status = 422
+    else:
+        status = 400
+    return HTTPException(status_code=status, detail=exc.to_dict())
 
 
 def record_http_error_metrics(error_type: str, phase: str, handler: str = "unknown") -> None:

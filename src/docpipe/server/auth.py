@@ -5,11 +5,12 @@ from __future__ import annotations
 import secrets
 from typing import Annotated
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, status
 from fastapi.security import HTTPBasic, HTTPBasicCredentials
 from sqlalchemy import select
 
 from docpipe.config import get_settings
+from docpipe.config.settings import DocpipeSettings
 from docpipe.db.models import AdminUser
 from docpipe.db.security import verify_password
 from docpipe.db.session import get_session_factory
@@ -17,17 +18,23 @@ from docpipe.db.session import get_session_factory
 _security = HTTPBasic(auto_error=False)
 
 
-def _verify_env_credentials(username: str, password: str) -> bool:
-    cfg = get_settings()
+def _verify_env_credentials(
+    username: str, password: str, *, settings: DocpipeSettings | None = None
+) -> bool:
+    cfg = settings or get_settings()
+    if not cfg.password:
+        return False
     ok_user = secrets.compare_digest(username.encode(), cfg.username.encode())
     ok_pass = secrets.compare_digest(password.encode(), cfg.password.encode())
     return ok_user and ok_pass
 
 
-def _verify_db_credentials(username: str, password: str) -> bool:
+def _verify_db_credentials(
+    username: str, password: str, *, settings: DocpipeSettings | None = None
+) -> bool:
     factory = get_session_factory()
     if factory is None:
-        return _verify_env_credentials(username, password)
+        return _verify_env_credentials(username, password, settings=settings)
 
     with factory() as session:
         user = session.scalar(
@@ -41,18 +48,21 @@ def _verify_db_credentials(username: str, password: str) -> bool:
         return verify_password(password, user.password_hash)
 
 
-def verify_credentials(username: str, password: str) -> bool:
-    cfg = get_settings()
+def verify_credentials(
+    username: str, password: str, *, settings: DocpipeSettings | None = None
+) -> bool:
+    cfg = settings or get_settings()
     if cfg.control_db_enabled:
-        return _verify_db_credentials(username, password)
-    return _verify_env_credentials(username, password)
+        return _verify_db_credentials(username, password, settings=cfg)
+    return _verify_env_credentials(username, password, settings=cfg)
 
 
 def require_auth(
     credentials: Annotated[HTTPBasicCredentials | None, Depends(_security)],
+    request: Request,
 ) -> None:
     """FastAPI dependency — enforces Basic Auth when auth is enabled."""
-    cfg = get_settings()
+    cfg: DocpipeSettings = request.app.state.docpipe_runtime.settings
     if not cfg.auth_enabled:
         return
 
@@ -63,7 +73,7 @@ def require_auth(
             headers={"WWW-Authenticate": 'Basic realm="docpipe"'},
         )
 
-    if not verify_credentials(credentials.username, credentials.password):
+    if not verify_credentials(credentials.username, credentials.password, settings=cfg):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials",

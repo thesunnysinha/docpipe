@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "plugins": [
+    {
+      "name": "acmevector",
+      "category": "vectorstore",
+      "description": "Acme vector storage.",
+      "api_min": "1.0.0",
+      "api_max": "1.2.0",
+      "capabilities": ["dense-search", "metadata-filter"],
+      "stability": "experimental",
+      "license_id": "Apache-2.0",
+      "runtime_requirements": ["external-service"]
+    }
+  ]
+}

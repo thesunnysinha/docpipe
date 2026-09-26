@@ -1,5 +1,7 @@
 """Exception hierarchy for docpipe."""
 
+from docpipe.plugins.errors import PublicIntegrationError, RetryClassification
+
 
 class DocpipeError(Exception):
     """Base exception for all docpipe errors."""
@@ -63,3 +65,10 @@ class RerankerNotFoundError(DocpipeError):
 
 class EvaluatorNotFoundError(DocpipeError):
     """Raised when a requested evaluator is not registered."""
+
+
+class OperationDeadlineExceededError(PublicIntegrationError):
+    """Raised when an operation has no remaining execution time."""
+
+    code = "operation_deadline_exceeded"
+    default_retry = RetryClassification.NEVER

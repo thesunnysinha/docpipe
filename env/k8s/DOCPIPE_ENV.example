@@ -4,7 +4,8 @@
 # pgvector connection_string on /ingest and /rag/* requests.
 
 DOCPIPE_USERNAME=admin
-DOCPIPE_PASSWORD=change-me
+DOCPIPE_PASSWORD=
+DOCPIPE_SOURCE_ALLOWED_ROOTS=[]
 
 # Optional server defaults when requests omit api_key
 GEMINI_API_KEY=
