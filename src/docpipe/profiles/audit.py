@@ -25,6 +25,7 @@ def _emit(event: str, **fields: Any) -> None:
 
 
 def log_plugin_denied(*, group: str, name: str, tenant: str | None = None) -> None:
+    """Emit a structured denial event and best-effort persist its audit record."""
     _emit("plugin_denied", group=group, plugin=name, tenant=tenant)
 
 
@@ -37,6 +38,7 @@ def log_plugin_resolve(
     recommended: dict[str, Any],
     tenant: str | None = None,
 ) -> None:
+    """Emit the plugin-resolution inputs and outcome for operational auditing."""
     _emit(
         "plugin_resolve",
         source_scheme=source_scheme,

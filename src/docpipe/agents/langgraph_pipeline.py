@@ -11,6 +11,7 @@ from docpipe.rag.pipeline import RAGPipeline
 
 
 def require_langgraph() -> None:
+    """Raise a configuration error when the optional LangGraph extra is absent."""
     try:
         import langgraph  # noqa: F401
     except ImportError as err:
@@ -30,6 +31,13 @@ class LangGraphRAGPipeline:
         self._rag = RAGPipeline(config)
 
     def query(self, question: str) -> RAGResult:
+        """Answer a question with a LangGraph ReAct agent and RAG search tool.
+
+        The agent can invoke document retrieval before composing its response.
+        The returned result includes retrieved chunks, timing, and a
+        ``langgraph`` strategy marker; graph recursion is bounded by the
+        pipeline's ``max_steps`` setting.
+        """
         from langchain_core.messages import HumanMessage
         from langgraph.prebuilt import create_react_agent
 

@@ -45,7 +45,13 @@ def _client_key(
     *,
     trusted_proxy_cidrs: Sequence[str] = (),
 ) -> str:
-    """Use X-Forwarded-For only when the immediate TCP peer is a trusted proxy."""
+    """Derive a client key, trusting forwarding data only from configured proxies.
+
+    When the direct peer is trusted, the forwarded chain is traversed from the
+    nearest hop toward the originating client, skipping configured proxy hops.
+    Invalid addresses or trust-network configuration fall back to the direct
+    peer rather than trusting an unverified header.
+    """
     client = request.client
     if client is None or not client.host:
         return "unknown"
@@ -65,6 +71,7 @@ def _client_key(
         return peer_text
 
     def is_trusted(address: ipaddress.IPv4Address | ipaddress.IPv6Address) -> bool:
+        """Check whether an address belongs to a configured proxy network."""
         return any(
             address.version == network.version and address in network
             for network in trusted_networks
@@ -96,7 +103,12 @@ def _client_key(
 
 
 def _check_limit(key: str, limit: int) -> str | None:
-    """Enforce a sliding window while bounding keys and per-key timestamps."""
+    """Record a hit in the process-local sliding window, if capacity permits.
+
+    Expired keys and timestamps are removed during each check. The bucket count
+    is bounded; reaching capacity rejects new keys instead of evicting active
+    clients. This limiter is per process, not a distributed quota.
+    """
     now = time.monotonic()
     window_start = now - _WINDOW_SECONDS
     with _BUCKETS_LOCK:
@@ -126,13 +138,20 @@ def _check_limit(key: str, limit: int) -> str | None:
 
 
 class PresetRateLimitMiddleware(BaseHTTPMiddleware):
-    """Limit expensive POST throughput per transport client and route."""
+    """Limit configured expensive POST routes before auth and body parsing.
+
+    Only selected paths are counted, keyed by transport client and path. The
+    middleware never reads request bodies, so its limit is independent of the
+    requested preset and uses the strictest configured preset limit; MCP uses
+    its dedicated limit. Disabled limiting or other requests pass through.
+    """
 
     async def dispatch(
         self,
         request: Request,
         call_next: Callable[[Request], Awaitable[Response]],
     ) -> Response:
+        """Apply the configured limiter, returning 429 when a bucket is full."""
         settings = request.app.state.docpipe_runtime.settings
         if not settings.rate_limit_enabled:
             return await call_next(request)

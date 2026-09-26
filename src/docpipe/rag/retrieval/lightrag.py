@@ -23,6 +23,13 @@ class LightRAGStrategy:
     name: str = "lightrag"
 
     async def retrieve(self, question: str) -> RetrievalResult:
+        """Query the configured graph index, using dense search for empty output.
+
+        A missing ``working_dir`` raises ``ConfigurationError``. A non-empty
+        graph response becomes one synthetic source chunk; an empty response
+        falls back to dense vector search. Graph/model errors are not converted
+        to fallback results and propagate to the caller.
+        """
         if not self.working_dir:
             raise ConfigurationError("lightrag_working_dir is required when strategy='lightrag'")
         answer = await self.query_graph(question, self.working_dir)
@@ -42,9 +49,16 @@ class LightRAGStrategy:
 
 
 def graph_query_adapter(runner: BoundedBlockingRunner) -> GraphQuery:
-    """Build an adapter that imports LightRAG only after graph selection."""
+    """Build a lazy adapter for the separately managed LightRAG index.
+
+    The optional package is imported only when the returned callable is used.
+    Synchronous index construction and querying run through ``runner`` so they
+    do not block the event loop; cancellation and execution errors follow the
+    blocking runner's contract.
+    """
 
     async def query(question: str, working_dir: str) -> str:
+        """Query one graph index; raise a dependency error when not installed."""
         try:
             from lightrag import LightRAG, QueryParam
         except ImportError as error:
@@ -53,6 +67,7 @@ def graph_query_adapter(runner: BoundedBlockingRunner) -> GraphQuery:
             ) from error
 
         def invoke() -> str:
+            """Construct a request-scoped LightRAG object and query it."""
             rag = LightRAG(working_dir=working_dir)
             return str(rag.query(question, param=QueryParam(mode="hybrid")) or "")
 

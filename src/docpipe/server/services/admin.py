@@ -12,6 +12,8 @@ from docpipe.server.template_env import render_template
 
 @dataclass(frozen=True)
 class AdminFlags:
+    """Snapshot of admin feature and persistence settings for templates."""
+
     control_db_enabled: bool
     admin_panel_enabled: bool
     persist_audit_events: bool
@@ -21,7 +23,10 @@ class AdminFlags:
 
 
 class AdminService:
+    """Build admin HTML from current configuration and bounded DB queries."""
+
     def flags(self) -> AdminFlags:
+        """Return the current control-plane feature and persistence flags."""
         settings = get_settings()
         return AdminFlags(
             control_db_enabled=settings.control_db_enabled,
@@ -33,6 +38,7 @@ class AdminService:
         )
 
     def dashboard_html(self) -> str:
+        """Render the dashboard without querying audit or job records."""
         flags = self.flags()
         return render_template(
             "admin/dashboard.html",
@@ -40,6 +46,7 @@ class AdminService:
         )
 
     def audit_html(self) -> str:
+        """Render up to 100 audit events when audit persistence is enabled."""
         flags = self.flags()
         events: list[Any] = list_audit_events(limit=100) if flags.persist_audit_events else []
         return render_template(
@@ -49,6 +56,7 @@ class AdminService:
         )
 
     def jobs_html(self) -> str:
+        """Render up to 100 ingest jobs when job persistence is enabled."""
         flags = self.flags()
         jobs: list[Any] = list_ingest_jobs(limit=100) if flags.persist_ingest_jobs else []
         return render_template(

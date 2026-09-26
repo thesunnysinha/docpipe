@@ -7,7 +7,10 @@ from docpipe.schemas.cost import CostEstimateRequest, CostEstimateResponse
 
 
 class CostService:
+    """Calculate local ingestion-cost estimates without provider calls."""
+
     def estimate(self, req: CostEstimateRequest) -> CostEstimateResponse:
+        """Estimate cost from the selected preset, page count, and embedder."""
         data = estimate_ingest_cost(
             preset=req.preset,
             page_count=req.page_count,

@@ -9,14 +9,27 @@ from docpipe.core.types import RAGChunk
 
 
 class FlashRankReranker:
+    """Rerank candidates locally with the optional FlashRank package.
+
+    Model loading and inference are delegated to FlashRank on each call; the
+    adapter does not retain a ranker instance between calls.
+    """
+
     name = "flashrank"
     license = "MIT"
     requires_gpu = False
 
     def __init__(self, model: str | None = None, **kwargs: Any) -> None:
+        """Select a FlashRank model without downloading or loading it yet."""
         self._model = model or "ms-marco-MiniLM-L-12-v2"
 
     def rerank(self, query: str, chunks: list[RAGChunk], *, top_n: int) -> list[RAGChunk]:
+        """Return provider-ranked candidates, truncated to ``top_n``.
+
+        Candidate text is sent to the local ranker. Install the optional
+        ``docpipe-sdk[rerank]`` extra to use this adapter; model and inference
+        errors from FlashRank propagate to the caller.
+        """
         try:
             from flashrank import Ranker as FlashRanker
             from flashrank import RerankRequest
@@ -33,6 +46,7 @@ class FlashRankReranker:
 
     @classmethod
     def is_available(cls) -> bool:
+        """Return whether the optional FlashRank package can import."""
         try:
             import flashrank  # noqa: F401
 

@@ -17,10 +17,17 @@ T = TypeVar("T")
 def handle_docpipe_errors(
     func: Callable[P, Awaitable[T]],
 ) -> Callable[P, Awaitable[T]]:
-    """Decorator for thin routers: map DocpipeError to structured HTTP errors."""
+    """Wrap an async route/service call with public HTTP error translation.
+
+    Domain ``DocpipeError`` and sanitized ``PublicIntegrationError`` instances
+    are mapped to structured HTTP exceptions. Other exceptions propagate to
+    FastAPI's normal error handling. ``wraps`` preserves the wrapped callable's
+    metadata and the ParamSpec keeps its call signature for type checkers.
+    """
 
     @wraps(func)
     async def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
+        """Translate known domain errors while preserving other failures."""
         try:
             return await func(*args, **kwargs)
         except DocpipeError as exc:

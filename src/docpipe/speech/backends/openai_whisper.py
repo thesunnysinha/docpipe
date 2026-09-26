@@ -15,6 +15,12 @@ def transcribe_file(
     api_key: str | None,
     language: str | None = None,
 ) -> TranscribeResult:
+    """Transcribe a local audio file through OpenAI's Whisper API.
+
+    Uses ``api_key`` when supplied, otherwise reads ``OPENAI_API_KEY``. The
+    optional language is forwarded as a Whisper hint; the response text is
+    returned as plain text without timestamped segments.
+    """
     if not api_key:
         api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:

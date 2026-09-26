@@ -55,6 +55,12 @@ class ManagedSourceHandle:
         materialize_factory: MaterializeFactory,
         cleanup: Cleanup,
     ) -> None:
+        """Create a one-shot handle around deferred source operations.
+
+        The factories are invoked only through the active handle. The caller
+        transfers ownership of any resources created by those operations to
+        ``cleanup``, which this handle invokes at most once when it closes.
+        """
         self.descriptor = descriptor
         self._stream_factory = stream_factory
         self._materialize_factory = materialize_factory

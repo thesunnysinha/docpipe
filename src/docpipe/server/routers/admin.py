@@ -12,6 +12,7 @@ router = APIRouter(tags=["admin"])
 
 
 def _ensure_admin_panel() -> None:
+    """Hide the panel unless both its database and UI features are enabled."""
     settings = get_settings()
     if not settings.control_db_enabled or not settings.admin_panel_enabled:
         raise HTTPException(status_code=404, detail="Admin panel is disabled")
@@ -19,17 +20,20 @@ def _ensure_admin_panel() -> None:
 
 @router.get("/admin", response_class=HTMLResponse, include_in_schema=False)
 async def admin_dashboard(_: Auth, service: AdminServiceDep) -> HTMLResponse:
+    """Render the authenticated control-plane configuration dashboard."""
     _ensure_admin_panel()
     return HTMLResponse(content=service.dashboard_html())
 
 
 @router.get("/admin/audit", response_class=HTMLResponse, include_in_schema=False)
 async def admin_audit(_: Auth, service: AdminServiceDep) -> HTMLResponse:
+    """Render recent audit events when audit persistence is enabled."""
     _ensure_admin_panel()
     return HTMLResponse(content=service.audit_html())
 
 
 @router.get("/admin/jobs", response_class=HTMLResponse, include_in_schema=False)
 async def admin_jobs(_: Auth, service: AdminServiceDep) -> HTMLResponse:
+    """Render recent ingest jobs when job persistence is enabled."""
     _ensure_admin_panel()
     return HTMLResponse(content=service.jobs_html())

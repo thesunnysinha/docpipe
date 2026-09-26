@@ -24,6 +24,13 @@ def vector_fields_from_request(
     req: VectorRequest,
     settings: DocpipeSettings,
 ) -> dict[str, Any]:
+    """Resolve legacy and namespaced vector-store request fields.
+
+    Explicit request values take precedence over configured defaults. Legacy
+    aliases remain accepted during migration and emit a once-only warning;
+    unsupported legacy backend names fail as configuration errors. The
+    returned mapping is suitable for merging into vector-aware core configs.
+    """
     if req.vector_backend is not None and req.vector_backend not in ("pgvector", "turbovec"):
         raise ConfigurationError(
             "vector_backend accepts only pgvector or turbovec; use vector_store.provider"
@@ -57,6 +64,13 @@ def rag_config_from_request(
     req: RAGQueryRequest,
     settings: DocpipeSettings,
 ) -> RAGConfig:
+    """Translate an API RAG request into the core pipeline configuration.
+
+    Request credentials and options are mapped into runtime input fields while
+    defaults for strategy, reranker, and vector-store provider come from the
+    supplied settings. This function validates legacy vector options through
+    :func:`vector_fields_from_request` but does not execute the RAG pipeline.
+    """
     return RAGConfig(
         connection_string=req.connection_string,
         table_name=req.table_name,

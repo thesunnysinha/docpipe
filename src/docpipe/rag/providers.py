@@ -24,7 +24,14 @@ LLM_PROVIDERS: dict[str, tuple[str, str, str | None]] = {
 
 
 def create_embeddings(config: RAGConfig) -> Any:
-    """Construct the requested embedding provider only for a selected query."""
+    """Construct the configured LangChain embedding adapter lazily by provider.
+
+    Only the selected provider package is imported. API credentials are passed
+    from ``config`` when explicitly supplied; local providers keep their normal
+    operator-managed configuration. Unknown providers or missing provider
+    packages raise ``ConfigurationError``. Construction does not run embedding
+    inference, though a provider SDK may perform its own setup work.
+    """
     if config.embedding_provider not in EMBEDDING_PROVIDERS:
         raise ConfigurationError(
             f"Unknown embedding provider: '{config.embedding_provider}'. "
@@ -39,7 +46,17 @@ def create_embeddings(config: RAGConfig) -> Any:
 
 
 def create_llm(provider: str, model: str, api_key: str | None = None) -> Any:
-    """Construct a selected LangChain LLM without importing unused providers."""
+    """Construct a selected LangChain chat model without importing other SDKs.
+
+    Args:
+        provider: Supported provider registry key.
+        model: Provider model identifier.
+        api_key: Optional explicit credential passed only when that provider
+            accepts the corresponding LangChain keyword.
+
+    Raises:
+        ConfigurationError: If the provider is unknown or its package is missing.
+    """
     if provider not in LLM_PROVIDERS:
         raise ConfigurationError(
             f"Unknown LLM provider: '{provider}'. Available: {list(LLM_PROVIDERS)}"

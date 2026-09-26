@@ -212,6 +212,7 @@ class TurboVecFileRepository:
     @staticmethod
     def _publish(target: Path, index: TurboVecIndex, records: Docstore) -> None:
         def write_generation(staging: Path) -> None:
+            """Write a complete index/docstore pair into a staging directory."""
             index_path = staging / INDEX_FILENAME
             index.write(str(index_path))
             write_docstore(

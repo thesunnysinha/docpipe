@@ -17,6 +17,12 @@ class AutomaticStrategy:
     name: str = "auto"
 
     async def retrieve(self, question: str) -> RetrievalResult:
+        """Classify a question, then delegate to a registered strategy.
+
+        A selector response naming this strategy or an unknown strategy uses
+        ``fallback``. The selector and chosen strategy errors propagate. Result
+        metadata includes the normalized key under ``auto_selected_strategy``.
+        """
         raw_choice = await self.selector.complete(self.prompt.format(question=question))
         choice = raw_choice.strip().casefold().replace("-", "_")
         if choice == self.name or choice not in self.strategies.names:

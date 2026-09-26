@@ -17,10 +17,19 @@ logger = logging.getLogger(__name__)
 
 
 class TranscribeService:
+    """Convert multipart audio uploads into transcription responses."""
+
     def __init__(self, settings: DocpipeSettings) -> None:
+        """Keep application settings for backend selection and transcription."""
         self._settings = settings
 
     async def transcribe(self, request: Request) -> TranscribeResponse:
+        """Stream an uploaded file into a temporary file and transcribe it.
+
+        Multipart `file` is required; optional backend, format, hotwords, key, and
+        language fields are normalized before calling the selected backend. The
+        temporary file is removed in a `finally` block, including on failure.
+        """
         form = await request.form()
         upload = form.get("file")
         if upload is None or not hasattr(upload, "read"):

@@ -11,9 +11,20 @@ from docpipe.plugins.contracts.vectorstore import CollectionRef
 class PgVectorConfig(TypedPluginConfig):
     """Immutable connection and default collection settings for pgvector."""
 
-    dsn: SecretStr = Field(...)
-    collection: str = Field(default="documents")
-    connect_timeout_seconds: float = Field(default=10.0, gt=0, le=120)
+    dsn: SecretStr = Field(
+        ...,
+        description="PostgreSQL connection string, retained as a masked secret value.",
+    )
+    collection: str = Field(
+        default="documents",
+        description="Default pgvector collection name, validated using Docpipe's collection policy.",
+    )
+    connect_timeout_seconds: float = Field(
+        default=10.0,
+        gt=0,
+        le=120,
+        description="Maximum connection-establishment time in seconds, from greater than 0 to 120.",
+    )
 
     @field_validator("collection")
     @classmethod

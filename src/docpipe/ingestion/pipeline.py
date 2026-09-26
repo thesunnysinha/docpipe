@@ -41,6 +41,17 @@ class IngestionPipeline:
         *,
         runtime: DocpipeRuntime | None = None,
     ) -> None:
+        """Create the backward-compatible ingestion facade.
+
+        Args:
+            config: Source, chunking, embedding, and selected vector-store
+                settings for ingestion.
+            runtime: Optional already-active runtime owned by the caller. When
+                omitted, the facade creates a short-lived runtime per ingest call.
+
+        Provider objects are initialized once for this facade; runtime/plugin
+        operation scopes are still acquired and released for each ingestion.
+        """
         self._config = config
         self._runtime = runtime
         self._embeddings = self._create_embeddings(config)
@@ -71,7 +82,13 @@ class IngestionPipeline:
         *,
         extractions: list[ExtractionResult] | None = None,
     ) -> IngestionResult:
-        """Asynchronously ingest while preserving runtime lifecycle ownership."""
+        """Asynchronously ingest parsed content through the configured pipeline.
+
+        The caller-supplied runtime must be active and remains caller-owned.
+        Without one, a temporary runtime is closed even if ingestion fails or is
+        cancelled. Provider, plugin, and persistence failures propagate as
+        ingestion errors according to the selected coordinator.
+        """
         if self._runtime is not None:
             if not self._runtime.is_active:
                 raise RuntimeError("caller-owned Docpipe runtime is not active")
