@@ -20,7 +20,10 @@ class McpToolDescriptor(ApiResponse):
 class McpToolsResponse(ApiResponse):
     """List of tools exposed by the docpipe MCP surface."""
 
-    tools: list[McpToolDescriptor] = Field(default_factory=list)
+    tools: list[McpToolDescriptor] = Field(
+        default_factory=list,
+        description="Available MCP tools and their input schemas.",
+    )
 
 
 class McpCallRequest(ApiRequest):

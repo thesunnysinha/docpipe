@@ -214,7 +214,7 @@ data: {"type":"usage","usage":{"input_tokens":123,"output_tokens":45,"total_toke
 
 - [ ] `POST /rag/query` JSON includes `"usage": {"input_tokens": N, ...}` when mock LLM returns `usage_metadata`
 - [ ] Stream still delivers only token strings to clients that ignore events; clients opting in read `event: metadata`
-- [ ] Existing tests in `tests/unit/test_rag_stream.py` pass unchanged
+- [ ] Existing tests in `tests/unit/rag_stream_spec.py` pass unchanged
 
 ---
 
@@ -430,7 +430,7 @@ flowchart LR
 | `src/docpipe/observability/metrics.py` | New |
 | `src/docpipe/observability/logging.py` | New |
 | `src/docpipe/observability/tokens.py` | New |
-| `tests/unit/test_observability.py` | New |
+| `tests/unit/observability_spec.py` | New |
 
 ### Phase 1 — Wire server (1 PR)
 
@@ -442,7 +442,7 @@ flowchart LR
 | `src/docpipe/server/http_errors.py` | Optional: `record_error` hook |
 | `src/docpipe/cli/main.py` | Call `configure_observability()` on `serve` |
 | `tests/unit/test_api.py` | Health deps, metrics endpoint smoke |
-| `tests/unit/test_rag_stream.py` | Metadata event |
+| `tests/unit/rag_stream_spec.py` | Metadata event |
 
 ### Phase 2 — Pipeline depth (1 PR)
 
@@ -451,7 +451,7 @@ flowchart LR
 | `src/docpipe/rag/pipeline.py` | Spans + usage callbacks |
 | `src/docpipe/ingestion/pipeline.py` | Ingest spans + metrics |
 | `src/docpipe/core/types.py` | `TokenUsage`, extend `RAGResult` |
-| `tests/unit/test_rag.py` | Usage on mocked LLM |
+| `tests/unit/rag_spec.py` | Usage on mocked LLM |
 
 ### Phase 3 — P1 API + SDK (1–2 PRs)
 
@@ -495,12 +495,12 @@ After docpipe ships P0 token fields:
 
 | Module | Tests |
 |--------|-------|
-| `tests/unit/test_observability.py` | `configure_observability` idempotent; tracer None when disabled |
+| `tests/unit/observability_spec.py` | `configure_observability` idempotent; tracer None when disabled |
 | `tests/unit/test_metrics.py` | Counter/histogram increments via handler mocks |
 | `tests/unit/test_api.py` | `/metrics` 200; error response increments `docpipe_errors_total` (use `prometheus_client.REGISTRY` sample check) |
-| `tests/unit/test_health.py` | DB mock fail → degraded/unavailable body |
-| `tests/unit/test_rag.py` | Mock LLM with `usage_metadata` → `RAGResult.usage` populated |
-| `tests/unit/test_rag_stream.py` | Stream contains `event: metadata` before `[DONE]` |
+| `tests/unit/health_spec.py` | DB mock fail → degraded/unavailable body |
+| `tests/unit/rag_spec.py` | Mock LLM with `usage_metadata` → `RAGResult.usage` populated |
+| `tests/unit/rag_stream_spec.py` | Stream contains `event: metadata` before `[DONE]` |
 | `tests/unit/test_http_client.py` | `DocpipeClient` against `TestClient` (P1) |
 
 ### Span name contract test

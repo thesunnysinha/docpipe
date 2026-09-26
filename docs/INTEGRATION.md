@@ -47,8 +47,10 @@ curl -u admin:your-password -N -X POST http://docpipe:8000/ingest/stream \
 
 ## MCP tools (agents)
 
-- `GET /mcp/tools` — tool descriptors for `docpipe_parse`, `docpipe_rag_query`
-- `POST /mcp/call` — invoke a tool with JSON arguments
+- The optional `docpipe-sdk[mcp-server]` extra exposes a standard Streamable HTTP MCP endpoint at `/mcp`.
+- Configure operator-managed tokens and an explicit `DOCPIPE_MCP_ALLOWED_HOSTS` allowlist before enabling it; see [`MCP_SERVER.md`](MCP_SERVER.md).
+- Available tools are `docpipe_parse` and `docpipe_rag_query`. Database URLs, API keys, tenant identity, and source access policy remain operator-controlled.
+- The legacy `GET /mcp/tools` and `POST /mcp/call` routes remain for existing Docpipe integrations; they are not the standard MCP protocol transport.
 
 ## Cost estimation
 
@@ -73,6 +75,7 @@ Store the user's choice on the assistant record; pass it on every ingest/RAG cal
 | `profile-balanced` | `:balanced` | **Default** K8s / internal shared |
 | `profile-quality` | `:quality` | OCR + BGE rerank |
 | `profile-agents` | `:agents` | AutoGen |
+| `profile-mcp` | `:mcp` | Streamable HTTP MCP server |
 | `profile-gpu` | `:gpu` | MinerU / PaddleOCR |
 
 ```bash

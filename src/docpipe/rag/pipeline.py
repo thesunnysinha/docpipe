@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import math
+import time
 from collections.abc import AsyncGenerator, AsyncIterator, Iterator
 from contextlib import asynccontextmanager
 from typing import Any, cast
@@ -14,12 +16,14 @@ from docpipe.core.errors import ConfigurationError
 from docpipe.core.types import RAGChunk, RAGConfig, RAGResult, TokenUsage
 from docpipe.embeddings.langchain_adapter import LangChainEmbeddingAdapter, LangChainEmbeddingsLike
 from docpipe.plugins.lifecycle import PluginScopeHandle
-from docpipe.rag.cache import cache_namespace
+from docpipe.rag.cache import cache_key, cache_namespace
+from docpipe.rag.cache_backends import AsyncKVCache
 from docpipe.rag.composition import build_rag_coordinator
 from docpipe.rag.generation import build_context, normalize_content
 from docpipe.rag.providers import create_embeddings, create_llm
 
 _stream_chunk_to_text = normalize_content
+logger = logging.getLogger(__name__)
 
 
 class RAGPipeline:
@@ -32,9 +36,22 @@ class RAGPipeline:
 
     STRATEGIES = ["naive", "hyde", "multi_query", "parent_document", "hybrid", "auto", "lightrag"]
 
-    def __init__(self, config: RAGConfig, *, runtime: DocpipeRuntime | None = None) -> None:
+    def __init__(
+        self,
+        config: RAGConfig,
+        *,
+        runtime: DocpipeRuntime | None = None,
+        cache_backend: AsyncKVCache | None = None,
+        cache_tenant_scope: str | None = None,
+        cache_ttl_seconds: int = 300,
+        cache_max_payload_bytes: int = 256 * 1024,
+    ) -> None:
         self._config = config
         self._runtime = runtime
+        self._cache_backend = cache_backend
+        self._cache_tenant_scope = cache_tenant_scope
+        self._cache_ttl_seconds = cache_ttl_seconds
+        self._cache_max_payload_bytes = cache_max_payload_bytes
         self._embeddings = self._create_embeddings(config)
         self._llm = self._create_llm(config)
         self._cache: list[tuple[str, tuple[float, ...], RAGResult]] = []
@@ -60,11 +77,22 @@ class RAGPipeline:
             return await self._query_with_runtime(question, runtime)
 
     async def _query_with_runtime(self, question: str, runtime: DocpipeRuntime) -> RAGResult:
+        query_started = time.perf_counter()
         if self._config.cache_enabled:
-            cached = await self._cache_lookup(question, runtime)
+            cached = (
+                await self._kv_cache_lookup(question)
+                if self._cache_backend is not None
+                else await self._cache_lookup(question, runtime)
+            )
             if cached is not None:
-                self.last_usage = cached.usage
-                return cached.model_copy(deep=True)
+                self.last_usage = None
+                return cached.model_copy(
+                    update={
+                        "timing_seconds": max(0.0, time.perf_counter() - query_started),
+                        "usage": None,
+                    },
+                    deep=True,
+                )
         async with _operation_scope(runtime) as scope:
             coordinator, _generator = await build_rag_coordinator(
                 self._config,
@@ -76,8 +104,44 @@ class RAGPipeline:
             result = await coordinator.query(question)
         self.last_usage = result.usage
         if self._config.cache_enabled:
-            await self._cache_store(question, result, runtime)
+            if self._cache_backend is not None:
+                await self._kv_cache_store(question, result)
+            else:
+                await self._cache_store(question, result, runtime)
         return result
+
+    async def _kv_cache_lookup(self, question: str) -> RAGResult | None:
+        """Use an exact opaque key; cache backend failures never fail a query."""
+        if self._cache_backend is None:
+            return None
+        key = cache_key(self._config, question, tenant_scope=self._cache_tenant_scope)
+        try:
+            payload = await self._cache_backend.get(key)
+            if payload is None or len(payload) > self._cache_max_payload_bytes:
+                return None
+            return RAGResult.model_validate_json(payload)
+        except Exception as exc:  # noqa: BLE001 - cache is explicitly best-effort
+            logger.warning(
+                "rag.cache.read_failed",
+                extra={"event": "rag.cache.read_failed", "error_type": type(exc).__name__},
+            )
+            return None
+
+    async def _kv_cache_store(self, question: str, result: RAGResult) -> None:
+        """Store only bounded JSON values, with no raw key material in logs."""
+        if self._cache_backend is None:
+            return
+        payload = result.model_dump_json(exclude_none=True).encode("utf-8")
+        if len(payload) > self._cache_max_payload_bytes:
+            return
+        key = cache_key(self._config, question, tenant_scope=self._cache_tenant_scope)
+        try:
+            await self._cache_backend.set(key, payload, ttl_seconds=self._cache_ttl_seconds)
+        except Exception as exc:  # noqa: BLE001 - cache is explicitly best-effort
+            logger.warning(
+                "rag.cache.write_failed",
+                extra={"event": "rag.cache.write_failed", "error_type": type(exc).__name__},
+            )
 
     async def aretrieve_chunks(self, question: str) -> tuple[RAGChunk, ...]:
         """Retrieve chunks without generation for agent and evaluation callers."""

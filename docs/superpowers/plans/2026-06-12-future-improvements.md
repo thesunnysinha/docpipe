@@ -18,11 +18,11 @@
 
 ## 2. Plugin hardening (P1)
 
-- [x] **MinerU / PaddleOCR** — mocked contract tests (`test_mineru_parser.py`, `test_paddleocr_parser.py`)
+- [x] **MinerU / PaddleOCR** — mocked contract tests (`mineru_parser_spec.py`, `paddleocr_parser_spec.py`)
 - [x] **pymupdf** — opt-in only; commercial license page at `GET /licenses/pymupdf`
 - [x] **LightRAG** — `graph_index` + `lightrag_working_dir` on ingest; `docs/LIGHTRAG.md`
 - [x] **LangGraph agent** — retrieval-only tool path (no duplicate full RAG query)
-- [x] **RAGAS** — pin `ragas>=0.4`; mock tests in `test_ragas_evaluator.py`
+- [x] **RAGAS** — pin `ragas>=0.4`; mock tests in `ragas_evaluator_spec.py`
 - [x] **deepeval** — `profile-eval-ci` extra + `tests/eval/` CI job
 
 ---

@@ -17,7 +17,9 @@ from docpipe.db import models  # noqa: F401,E402
 
 config = context.config
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    # Migrations run inside the application process; preserve application and
+    # test loggers instead of disabling every logger created before Alembic.
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 target_metadata = Base.metadata
 

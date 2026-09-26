@@ -32,7 +32,8 @@ class TenantContextMiddleware(BaseHTTPMiddleware):
     ) -> Response:
         settings: DocpipeSettings = request.app.state.docpipe_runtime.settings
         tenant_id: str | None = None
-        if settings.tenant_plugin_policies and request.url.path not in _PUBLIC_HEALTH_PATHS:
+        tenant_scoped = bool(settings.tenant_plugin_policies or settings.tenant_identity_map)
+        if tenant_scoped and request.url.path not in _PUBLIC_HEALTH_PATHS:
             username, password = _basic_credentials(request)
             if username is None or password is None:
                 # Let the normal auth dependency produce its standard 401.
@@ -47,8 +48,10 @@ class TenantContextMiddleware(BaseHTTPMiddleware):
                 return await call_next(request)
 
             tenant_id = settings.tenant_identity_map.get(username)
-            configured_tenants = _configured_tenants(settings.tenant_plugin_policies)
-            if tenant_id is None or tenant_id not in configured_tenants:
+            configured_tenants = _configured_tenants(settings.tenant_plugin_policies or "")
+            if tenant_id is None or (
+                settings.tenant_plugin_policies and tenant_id not in configured_tenants
+            ):
                 return JSONResponse(
                     status_code=403,
                     content={"detail": "Authenticated user has no configured tenant policy."},
