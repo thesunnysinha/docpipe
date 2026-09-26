@@ -42,11 +42,26 @@ class PluginInfo(ApiResponse):
 class PluginsResponse(ApiResponse):
     """Full plugin catalog grouped by capability."""
 
-    parsers: dict[str, PluginInfo] = Field(default_factory=dict)
-    extractors: dict[str, PluginInfo] = Field(default_factory=dict)
-    chunkers: dict[str, PluginInfo] = Field(default_factory=dict)
-    rerankers: dict[str, PluginInfo] = Field(default_factory=dict)
-    evaluators: dict[str, PluginInfo] = Field(default_factory=dict)
+    parsers: dict[str, PluginInfo] = Field(
+        default_factory=dict,
+        description="Parser plugins indexed by registry name.",
+    )
+    extractors: dict[str, PluginInfo] = Field(
+        default_factory=dict,
+        description="Structured extraction plugins indexed by registry name.",
+    )
+    chunkers: dict[str, PluginInfo] = Field(
+        default_factory=dict,
+        description="Text chunking plugins indexed by registry name.",
+    )
+    rerankers: dict[str, PluginInfo] = Field(
+        default_factory=dict,
+        description="Retrieval reranking plugins indexed by registry name.",
+    )
+    evaluators: dict[str, PluginInfo] = Field(
+        default_factory=dict,
+        description="Evaluation plugins indexed by registry name.",
+    )
     catalog: dict[str, dict[str, CatalogPluginInfo]] = Field(
         default_factory=dict,
         description="Static source and vector-store plugins grouped by extension category.",

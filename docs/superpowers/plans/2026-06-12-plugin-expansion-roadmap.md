@@ -107,7 +107,7 @@ Surface in `GET /` and `GET /plugins` (new lightweight introspection route).
 - [ ] `src/docpipe/parsers/markitdown_parser.py`
 - [ ] `src/docpipe/agents/{pipeline,tools,__init__}.py`
 - [ ] `pyproject.toml` extras: `markitdown`, `autogen`
-- [ ] `tests/unit/test_markitdown_parser.py`, `test_autogen_agents.py`
+- [ ] `tests/unit/markitdown_parser_spec.py`, `autogen_agents_spec.py`
 - [ ] README examples
 
 ### 3.2 Remaining Phase 0 tasks

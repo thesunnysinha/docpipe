@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Any, Literal
 
-InstallProfile = Literal["slim", "balanced", "quality", "agents", "eval", "gpu", "custom"]
+InstallProfile = Literal["slim", "balanced", "quality", "agents", "mcp", "eval", "gpu", "custom"]
 
 RuntimePreset = Literal["fast", "balanced", "quality", "agents"]
 
@@ -58,6 +58,12 @@ INSTALL_PROFILES: dict[str, dict[str, Any]] = {
         "pip_extra": "profile-agents",
         "docker_tag": "agents",
         "recommended_for": ["tool-using-assistants", "jingo", "andocs"],
+    },
+    "mcp": {
+        "description": "Balanced API stack plus the hosted Streamable HTTP MCP server.",
+        "pip_extra": "profile-mcp",
+        "docker_tag": "mcp",
+        "recommended_for": ["remote-mcp-clients", "hosted-ai-integrations"],
     },
     "eval": {
         "description": "Balanced stack plus RAGAS evaluation metrics.",

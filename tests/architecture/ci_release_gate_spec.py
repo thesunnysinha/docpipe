@@ -37,6 +37,7 @@ def test_ci_runs_vector_conformance_and_docker_profile_matrix() -> None:
         "balanced",
         "quality",
         "agents",
+        "mcp",
     ]
     assert "qdrant-conformance" in jobs
     assert "s3-conformance" in jobs
