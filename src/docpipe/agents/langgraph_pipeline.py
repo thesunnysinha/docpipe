@@ -40,8 +40,8 @@ class LangGraphRAGPipeline:
         @tool
         def search_documents(query: str) -> str:
             """Search ingested documents for relevant passages."""
-            chunks = self._rag._retrieve_naive(query)  # noqa: SLF001
-            return self._rag._build_context(chunks)  # noqa: SLF001
+            chunks = self._rag.retrieve_chunks(query)
+            return self._rag._build_context(list(chunks))  # noqa: SLF001
 
         llm = self._rag._llm
         agent = create_react_agent(llm, tools=[search_documents])
@@ -58,8 +58,8 @@ class LangGraphRAGPipeline:
                 answer = content
                 break
 
-        chunks = self._rag._retrieve_naive(question)  # noqa: SLF001
-        result = self._rag._make_result(question, answer, chunks, None, None)  # noqa: SLF001
+        chunks = self._rag.retrieve_chunks(question)
+        result = self._rag.result_from_chunks(question, answer, chunks)
         result.strategy = "langgraph"
         result.timing_seconds = time.perf_counter() - start
         result.metadata["agent"] = "langgraph"

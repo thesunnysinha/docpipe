@@ -86,8 +86,8 @@ async def test_agent_rag_pipeline_runs_researcher_agent(
         patch("docpipe.agents.pipeline.RAGPipeline") as mock_rag_cls,
     ):
         mock_rag = mock_rag_cls.return_value
-        mock_rag._retrieve_naive.return_value = []
-        mock_rag._make_result.return_value = MagicMock(
+        mock_rag.aretrieve_chunks = AsyncMock(return_value=())
+        mock_rag.result_from_chunks.return_value = MagicMock(
             answer="",
             metadata={},
             timing_seconds=0.0,
@@ -101,5 +101,5 @@ async def test_agent_rag_pipeline_runs_researcher_agent(
         result = await pipeline.aquery("What is the total?")
 
     mock_agent.run.assert_awaited_once()
-    mock_rag._make_result.assert_called_once()
+    mock_rag.result_from_chunks.assert_called_once()
     assert result.metadata["orchestrator"] == "autogen"

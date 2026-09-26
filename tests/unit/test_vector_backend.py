@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -85,19 +85,23 @@ def test_ingest_documents_routes_turbovec(mock_pgvector_cls, mock_turbovec_inges
     mock_pgvector_cls.return_value.from_documents.assert_not_called()
 
 
-@patch("docpipe.ingestion.pipeline.ingest_documents")
+@patch("docpipe.ingestion.pipeline.build_ingestion_coordinator")
 @patch("docpipe.ingestion.pipeline.IngestionPipeline._create_embeddings")
 @patch("docpipe.ingestion.pipeline.IngestionPipeline._create_chunker")
-def test_ingestion_pipeline_uses_factory(mock_chunker, mock_embeddings, mock_ingest):
+def test_ingestion_pipeline_uses_plugin_composition(mock_chunker, mock_embeddings, mock_build):
+    from docpipe.core.types import IngestionResult
     from docpipe.ingestion.pipeline import IngestionPipeline
 
     mock_embeddings.return_value = MagicMock()
-    splitter = MagicMock()
-    chunk = MagicMock()
-    chunk.page_content = "chunk"
-    chunk.metadata = {}
-    splitter.split_documents.return_value = [chunk]
-    mock_chunker.return_value = splitter
+    mock_chunker.return_value = MagicMock()
+    mock_build.return_value.ingest = AsyncMock(
+        return_value=IngestionResult(
+            source="test.pdf",
+            chunks_ingested=1,
+            table_name="test_docs",
+            table_created=True,
+        )
+    )
 
     config = IngestionConfig(
         connection_string="postgresql://localhost/db",
@@ -109,7 +113,7 @@ def test_ingestion_pipeline_uses_factory(mock_chunker, mock_embeddings, mock_ing
     pipeline = IngestionPipeline(config)
     result = pipeline.ingest(_make_parsed())
 
-    mock_ingest.assert_called_once()
+    mock_build.assert_called_once()
     assert result.chunks_ingested == 1
     assert result.table_name == "test_docs"
 
@@ -124,16 +128,9 @@ def _make_parsed():
     )
 
 
-@patch("docpipe.rag.pipeline.create_vectorstore")
-@patch("docpipe.rag.pipeline.RAGPipeline._create_embeddings")
-@patch("docpipe.rag.pipeline.RAGPipeline._create_llm")
-def test_rag_get_vectorstore_pgvector(mock_llm, mock_embeddings, mock_create_vs):
+def test_rag_plugin_config_pgvector_preserves_legacy_fields():
     from docpipe.core.types import RAGConfig
-    from docpipe.rag.pipeline import RAGPipeline
-
-    mock_embeddings.return_value = MagicMock()
-    mock_llm.return_value = MagicMock()
-    mock_create_vs.return_value = MagicMock()
+    from docpipe.rag.composition import _vector_plugin_config
 
     config = RAGConfig(
         connection_string="postgresql://localhost/db",
@@ -144,19 +141,18 @@ def test_rag_get_vectorstore_pgvector(mock_llm, mock_embeddings, mock_create_vs)
         llm_model="gpt-4o-mini",
         vector_backend="pgvector",
     )
-    pipeline = RAGPipeline(config)
-    vs = pipeline._get_vectorstore()
-
-    mock_create_vs.assert_called_once()
-    call_kwargs = mock_create_vs.call_args.kwargs
-    assert call_kwargs["vector_backend"] == "pgvector"
-    assert vs is mock_create_vs.return_value
+    plugin_config = _vector_plugin_config(config, "pgvector")
+    assert plugin_config.provider == "pgvector"
+    assert plugin_config.options == {
+        "dsn": "postgresql://localhost/db",
+        "collection": "docs",
+    }
 
 
 @pytest.mark.requires_turbovec
 def test_turbovec_import_optional():
-    pytest.importorskip("turbovec")
-    from turbovec.langchain import TurboQuantVectorStore  # noqa: F401
+    module = pytest.importorskip("turbovec.langchain")
+    TurboQuantVectorStore = module.TurboQuantVectorStore
 
     assert TurboQuantVectorStore is not None
 

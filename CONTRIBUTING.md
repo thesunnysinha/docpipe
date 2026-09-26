@@ -11,6 +11,7 @@ Thanks for your interest in contributing. docpipe is a plugin-based Python SDK â
 | [.env.example](.env.example) | All `DOCPIPE_*` environment variables |
 | [CHANGELOG.md](CHANGELOG.md) | Release history |
 | [pyproject.toml](pyproject.toml) | Package metadata and optional extras |
+| [docs/plugins/authoring.md](docs/plugins/authoring.md) | Source and vector plugin authoring and conformance |
 
 **User-facing guides** (install extras, Docker, REST API, RAG strategies, observability, turbovec): **[docpipe docs](https://docpipe.sunnysinha.online/docs)** on the marketing site. Keep detailed tables and compose examples there; update [`lib/docs-content.ts`](https://github.com/thesunnysinha/docpipe-site/blob/main/lib/docs-content.ts) in the [docpipe-site](https://github.com/thesunnysinha/docpipe-site) repo when the public API changes.
 
@@ -26,6 +27,8 @@ pip install -e ".[dev,all]"
 python run.py test    # or: pytest tests/unit/ -v
 python run.py lint
 ```
+
+For a new source or vector-store adapter, use the [external plugin example](examples/plugin-package/README.md), declare its static manifest and optional extra, and run the public conformance suite. Keep vendor SDKs out of core contracts and preserve the architecture gate (`python scripts/check_architecture.py --root . --baseline scripts/architecture-baseline.json`). The HTTP and configuration migration policy is in [docs/migrations/plugin-configuration.md](docs/migrations/plugin-configuration.md). Update the public site in the same release sequence when changing user-visible fields.
 
 ## Project structure
 
@@ -141,6 +144,22 @@ Conventions:
 - Lazy-import optional deps inside methods with clear `ImportError` messages
 - Pipeline classes expose sync and async (`asyncio.to_thread`) where applicable
 - Raise `ConfigurationError` with an install hint when an optional extra is missing
+
+### Architecture boundaries
+
+New integration code follows the dependency rules in
+[`docs/architecture/decisions/0001-plugin-boundaries.md`](docs/architecture/decisions/0001-plugin-boundaries.md).
+Run the architecture checks locally:
+
+```bash
+python scripts/check_architecture.py --root . --baseline scripts/architecture-baseline.json
+pytest tests/architecture/ -q
+```
+
+New production modules should remain under 250 logical lines and fail CI above 350 lines unless an
+architecture decision records why splitting would reduce cohesion. Existing oversized modules are
+baselined and may not grow. Split code by responsibility rather than creating arbitrary fragments to
+satisfy the line count.
 
 ## Commit messages
 

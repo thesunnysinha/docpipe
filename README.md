@@ -35,6 +35,8 @@ pip install "docpipe-sdk[server,observability]"
 
 Optional extras (`docling`, `openai`, `google`, `pgvector`, `turbovec`, `rag`, `rerank`, `http`, `all`, …) are listed on the **[Install guide](https://docpipe.sunnysinha.online/docs)**.
 
+The new source and vector-store plugin foundation lets you select an installed provider with a namespaced `provider`/`options` envelope while legacy settings continue to work. See the [plugin architecture](docs/architecture/plugins.md), [configuration guide](docs/plugins/configuration.md), and [external plugin example](examples/plugin-package/README.md). The plugin API is experimental until the Qdrant and S3/MinIO reference adapters pass conformance.
+
 For unreleased commits: `pip install git+https://github.com/thesunnysinha/docpipe.git`
 
 ---

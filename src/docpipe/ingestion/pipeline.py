@@ -1,72 +1,48 @@
-"""Ingestion pipeline: chunk, embed, and store in user's vector DB."""
+"""Backward-compatible facade over the vendor-neutral ingestion coordinator."""
 
 from __future__ import annotations
 
 import asyncio
 import hashlib
-import importlib
-import logging
-from typing import Any
+from pathlib import Path
+from typing import cast
 
+from docpipe.bootstrap.runtime import DocpipeRuntime, build_runtime
+from docpipe.config.settings import DocpipeSettings
 from docpipe.core.errors import ConfigurationError, IngestionError
-from docpipe.core.types import (
-    ExtractionResult,
-    IngestionConfig,
-    IngestionResult,
-    ParsedDocument,
+from docpipe.core.types import ExtractionResult, IngestionConfig, IngestionResult, ParsedDocument
+from docpipe.ingestion.composition import build_ingestion_coordinator
+from docpipe.ingestion.contextualization import ContextualInjector
+from docpipe.ingestion.legacy import (
+    LangChainContextGenerator,
+    LegacyLlm,
+    create_chunker,
+    create_context_llm,
+    create_embeddings,
+    extractions_to_langchain,
+    inject_context_sync,
+    parsed_to_langchain,
 )
-from docpipe.vectorstores.base import resolve_vector_backend
-from docpipe.vectorstores.factory import create_vectorstore, ingest_documents, resolve_index_dir
-
-logger = logging.getLogger(__name__)
-
-# Tuple: (module, class, param_map, api_key_kwarg | None)
-# param_map maps constructor kwarg → config attribute suffix (embedding_{suffix})
-# api_key_kwarg is the constructor kwarg name for the API key, or None if not applicable
-EMBEDDING_PROVIDERS = {
-    "openai": ("langchain_openai", "OpenAIEmbeddings", {"model": "model"}, "openai_api_key"),
-    "google": (
-        "langchain_google_genai",
-        "GoogleGenerativeAIEmbeddings",
-        {"model": "model"},
-        "google_api_key",
-    ),
-    "ollama": ("langchain_ollama", "OllamaEmbeddings", {"model": "model"}, None),
-    "huggingface": (
-        "langchain_huggingface",
-        "HuggingFaceEmbeddings",
-        {"model_name": "model"},
-        None,
-    ),
-}
-
-LLM_PROVIDERS: dict[str, tuple[str, str]] = {
-    "openai": ("langchain_openai", "ChatOpenAI"),
-    "google": ("langchain_google_genai", "ChatGoogleGenerativeAI"),
-    "ollama": ("langchain_ollama", "ChatOllama"),
-    "anthropic": ("langchain_anthropic", "ChatAnthropic"),
-}
-
-CONTEXTUAL_INJECTION_PROMPT = """\
-Document:
-{full_text}
-
-Chunk:
-{chunk_text}
-
-Write a 1-2 sentence context that situates this chunk within the full document. \
-Be specific about what section or topic this chunk covers. Reply with only the context sentences."""
+from docpipe.ingestion.legacy_executor import LegacyIngestionExecutor
+from docpipe.vectorstores.factory import create_vectorstore
 
 
 class IngestionPipeline:
-    """Orchestrates chunking, embedding, and vector store ingestion.
+    """Compatibility API delegating writes to typed vector plugin facets.
 
-    Uses LangChain text splitters, embeddings, and PGVector.
-    Does NOT manage any database - connects to user's existing DB.
+    A caller-supplied runtime remains caller-owned and must already be active.
+    Legacy SDK callers receive a short-lived runtime whose blocking and plugin
+    resources close after each ingestion operation.
     """
 
-    def __init__(self, config: IngestionConfig) -> None:
+    def __init__(
+        self,
+        config: IngestionConfig,
+        *,
+        runtime: DocpipeRuntime | None = None,
+    ) -> None:
         self._config = config
+        self._runtime = runtime
         self._embeddings = self._create_embeddings(config)
         self._chunker = self._create_chunker(config)
 
@@ -76,81 +52,18 @@ class IngestionPipeline:
         *,
         extractions: list[ExtractionResult] | None = None,
     ) -> IngestionResult:
-        """Ingest parsed document and/or extractions into the user's vector DB.
+        """Synchronously ingest through the async coordinator.
 
-        1. Convert to LangChain Documents based on ingest_mode
-        2. Split into chunks
-        3. Connect to user's DB via connection_string
-        4. Embed and insert via PGVector
+        Raises:
+            ConfigurationError: If called from an active event loop. Async callers
+                must use :meth:`aingest` to preserve cancellation and cleanup.
+            IngestionError: If ingestion cannot complete safely.
         """
-        lc_docs: list[Any] = []
-        mode = self._config.ingest_mode
-
-        if mode in ("chunks", "both"):
-            lc_docs.extend(self._parsed_to_lc_docs(parsed))
-
-        if mode in ("extractions", "both") and extractions:
-            lc_docs.extend(self._extractions_to_lc_docs(extractions, parsed.source))
-
-        if not lc_docs:
-            return IngestionResult(
-                source=parsed.source,
-                chunks_ingested=0,
-                table_name=self._config.table_name,
-                table_created=False,
-            )
-
-        # Incremental mode: skip if source hash already exists in the DB
-        if self._config.incremental:
-            source_hash = self._compute_source_hash(parsed.source)
-            if self._hash_exists(source_hash):
-                logger.info("Skipping %s (unchanged, incremental mode)", parsed.source)
-                return IngestionResult(
-                    source=parsed.source,
-                    chunks_ingested=0,
-                    skipped=1,
-                    table_name=self._config.table_name,
-                    table_created=False,
-                )
-            # Stamp all docs with the hash so future runs can detect them
-            for doc in lc_docs:
-                doc.metadata["source_hash"] = source_hash
-
-        # Split documents into chunks
-        chunks = self._chunker.split_documents(lc_docs)
-        if self._config.chunk_metadata:
-            for chunk in chunks:
-                chunk.metadata.update(self._config.chunk_metadata)
-        logger.info("Split into %d chunks from %d documents", len(chunks), len(lc_docs))
-
-        # Contextual chunk injection
-        if self._config.contextual_injection:
-            full_text = parsed.text
-            context_llm = self._create_context_llm(self._config)
-            chunks = self._inject_context(chunks, full_text, context_llm)
-
         try:
-            ingest_documents(
-                documents=chunks,
-                embeddings=self._embeddings,
-                table_name=self._config.table_name,
-                connection_string=self._config.connection_string,
-                vector_backend=self._vector_backend(),
-                turbovec_index_dir=self._turbovec_index_dir(),
-                turbovec_bit_width=self._turbovec_bit_width(),
-            )
-            table_created = True
-        except ConfigurationError:
-            raise
-        except Exception as e:
-            raise IngestionError(f"Failed to ingest into vector store: {e}") from e
-
-        return IngestionResult(
-            source=parsed.source,
-            chunks_ingested=len(chunks),
-            table_name=self._config.table_name,
-            table_created=table_created,
-        )
+            asyncio.get_running_loop()
+        except RuntimeError:
+            return asyncio.run(self.aingest(parsed, extractions=extractions))
+        raise ConfigurationError("ingest() cannot run inside an event loop; use aingest()")
 
     async def aingest(
         self,
@@ -158,217 +71,162 @@ class IngestionPipeline:
         *,
         extractions: list[ExtractionResult] | None = None,
     ) -> IngestionResult:
-        """Async variant."""
-        return await asyncio.to_thread(self.ingest, parsed, extractions=extractions)
+        """Asynchronously ingest while preserving runtime lifecycle ownership."""
+        if self._runtime is not None:
+            if not self._runtime.is_active:
+                raise RuntimeError("caller-owned Docpipe runtime is not active")
+            return await self._ingest_with_runtime(self._runtime, parsed, extractions)
+
+        runtime = _build_compatibility_runtime(self._config.max_in_flight)
+        async with runtime:
+            return await self._ingest_with_runtime(runtime, parsed, extractions)
+
+    async def _ingest_with_runtime(
+        self,
+        runtime: DocpipeRuntime,
+        parsed: ParsedDocument,
+        extractions: list[ExtractionResult] | None,
+    ) -> IngestionResult:
+        if not runtime.settings.plugin_foundation_enabled:
+            legacy = LegacyIngestionExecutor(
+                self._config,
+                embeddings=self._embeddings,
+                chunker=self._chunker,
+                context_llm_factory=self._create_context_llm,
+            )
+            return await runtime.blocking_runner.run(legacy.ingest, parsed, extractions)
+        contextualizer = None
+        if self._config.contextual_injection:
+            llm = cast(LegacyLlm, self._create_context_llm(self._config))
+            contextualizer = ContextualInjector(
+                LangChainContextGenerator(llm, runtime.blocking_runner)
+            )
+        coordinator = build_ingestion_coordinator(
+            self._config,
+            runtime=runtime,
+            embeddings=self._embeddings,
+            chunker=self._chunker,
+            contextualizer=contextualizer,
+        )
+        return await coordinator.ingest(parsed, extractions=extractions)
 
     def search(
-        self, query: str, top_k: int = 10, filters: dict[str, Any] | None = None
-    ) -> list[dict[str, Any]]:
-        """Similarity search against the user's vector DB."""
+        self,
+        query: str,
+        top_k: int = 10,
+        filters: dict[str, object] | None = None,
+    ) -> list[dict[str, object]]:
+        """Preserve legacy similarity-search behavior until retrieval migration."""
         try:
+            connection_string = self._config.connection_string
+            if connection_string is None:
+                raise ConfigurationError("legacy search requires connection_string")
             vectorstore = create_vectorstore(
                 embeddings=self._embeddings,
                 table_name=self._config.table_name,
-                connection_string=self._config.connection_string,
+                connection_string=connection_string,
                 vector_backend=self._vector_backend(),
                 turbovec_index_dir=self._turbovec_index_dir(),
-                turbovec_bit_width=self._turbovec_bit_width(),
+                turbovec_bit_width=self._config.turbovec_bit_width,
             )
             results = vectorstore.similarity_search_with_score(
-                query, k=top_k, filter=filters or None
+                query,
+                k=top_k,
+                filter=filters or None,
             )
             return [
                 {
-                    "content": doc.page_content,
-                    "metadata": doc.metadata,
+                    "content": document.page_content,
+                    "metadata": document.metadata,
                     "score": float(score),
                 }
-                for doc, score in results
+                for document, score in results
             ]
-        except Exception as e:
-            raise IngestionError(f"Search failed: {e}") from e
+        except Exception as exc:
+            raise IngestionError("vector search failed") from exc
+
+    def _vector_backend(self) -> str:
+        return self._config.vector_backend or "pgvector"
+
+    def _turbovec_index_dir(self) -> str:
+        return str(Path(self._config.turbovec_index_dir or ".docpipe/indices").expanduser())
 
     @staticmethod
     def _compute_source_hash(source: str) -> str:
-        """SHA-256 of file bytes (or source string for non-file sources)."""
+        """Preserve the deprecated source-only hashing helper."""
         try:
-            with open(source, "rb") as f:
-                return hashlib.sha256(f.read()).hexdigest()
+            with Path(source).open("rb") as stream:
+                return hashlib.sha256(stream.read()).hexdigest()
         except OSError:
-            return hashlib.sha256(source.encode()).hexdigest()
+            return hashlib.sha256(source.encode("utf-8")).hexdigest()
 
     def _hash_exists(self, source_hash: str) -> bool:
-        """Check if a source_hash already exists in the vector store metadata."""
+        """Preserve deprecated fail-open lookup for explicit legacy callers."""
         try:
-            vs = create_vectorstore(
+            connection_string = self._config.connection_string
+            if connection_string is None:
+                return False
+            store = create_vectorstore(
                 embeddings=self._embeddings,
                 table_name=self._config.table_name,
-                connection_string=self._config.connection_string,
+                connection_string=connection_string,
                 vector_backend=self._vector_backend(),
                 turbovec_index_dir=self._turbovec_index_dir(),
-                turbovec_bit_width=self._turbovec_bit_width(),
+                turbovec_bit_width=self._config.turbovec_bit_width,
             )
-            results = vs.similarity_search("", k=1, filter={"source_hash": source_hash})
-            return len(results) > 0
-        except Exception:  # noqa: BLE001
+            return bool(store.similarity_search("", k=1, filter={"source_hash": source_hash}))
+        except Exception:  # noqa: BLE001 -- retained only as explicit legacy behavior.
             return False
 
-    def _vector_backend(self) -> str:
-        from docpipe.config import get_settings
-
-        settings = get_settings()
-        return resolve_vector_backend(
-            config=self._config.vector_backend,
-            default=settings.vector_backend,
-        )
-
-    def _turbovec_index_dir(self) -> str:
-        from docpipe.config import get_settings
-
-        settings = get_settings()
-        return str(
-            resolve_index_dir(
-                config=self._config.turbovec_index_dir,
-                default=settings.turbovec_index_dir,
-            )
-        )
-
-    def _turbovec_bit_width(self) -> int:
-        from docpipe.config import get_settings
-
-        return get_settings().turbovec_bit_width
+    @staticmethod
+    def _parsed_to_lc_docs(parsed: ParsedDocument) -> list[object]:
+        """Preserve the deprecated LangChain conversion helper."""
+        return parsed_to_langchain(parsed)
 
     @staticmethod
-    def _parsed_to_lc_docs(parsed: ParsedDocument) -> list[Any]:
-        """Convert ParsedDocument to LangChain Documents."""
-        from langchain_core.documents import Document as LCDocument
-
-        if parsed.pages:
-            page_docs = [
-                LCDocument(
-                    page_content=page.text,
-                    metadata={
-                        "source": parsed.source,
-                        "page": page.page_number,
-                        "source_type": "parsed",
-                    },
-                )
-                for page in parsed.pages
-                if page.text.strip()
-            ]
-            if page_docs:
-                return page_docs
-            logger.warning(
-                "Parsed document has %d pages but no non-empty page text; "
-                "falling back to document-level text for %s",
-                len(parsed.pages),
-                parsed.source,
-            )
-
-        if parsed.text.strip():
-            return [
-                LCDocument(
-                    page_content=parsed.text,
-                    metadata={"source": parsed.source, "source_type": "parsed"},
-                )
-            ]
-        return []
+    def _extractions_to_lc_docs(
+        extractions: list[ExtractionResult],
+        source: str,
+    ) -> list[object]:
+        """Preserve the deprecated LangChain extraction conversion helper."""
+        return extractions_to_langchain(extractions, source)
 
     @staticmethod
-    def _extractions_to_lc_docs(extractions: list[ExtractionResult], source: str) -> list[Any]:
-        """Convert ExtractionResults to LangChain Documents."""
-        from langchain_core.documents import Document as LCDocument
-
-        return [
-            LCDocument(
-                page_content=f"{ext.entity_class}: {ext.text}",
-                metadata={
-                    "source": source,
-                    "source_type": "extraction",
-                    "entity_class": ext.entity_class,
-                    **ext.attributes,
-                },
-            )
-            for ext in extractions
-        ]
+    def _create_embeddings(config: IngestionConfig) -> object:
+        """Preserve the patchable legacy embedding construction seam."""
+        return create_embeddings(config)
 
     @staticmethod
-    def _create_embeddings(config: IngestionConfig) -> Any:
-        """Create LangChain embeddings based on provider config."""
-        if config.embedding_provider not in EMBEDDING_PROVIDERS:
-            raise ConfigurationError(
-                f"Unknown embedding provider: '{config.embedding_provider}'. "
-                f"Available: {list(EMBEDDING_PROVIDERS.keys())}"
-            )
-
-        provider_entry = EMBEDDING_PROVIDERS[config.embedding_provider]
-        module_name, class_name, param_map, api_key_kwarg = provider_entry
-
-        try:
-            module = importlib.import_module(module_name)
-            embeddings_cls = getattr(module, class_name)
-        except ImportError as err:
-            raise ConfigurationError(
-                f"Embedding provider '{config.embedding_provider}' requires '{module_name}'. "
-                f"Install with: pip install {module_name}"
-            ) from err
-
-        kwargs: dict[str, Any] = {}
-        for param_key, config_key in param_map.items():
-            kwargs[param_key] = getattr(config, f"embedding_{config_key}")
-
-        if api_key_kwarg and config.embedding_api_key:
-            kwargs[api_key_kwarg] = config.embedding_api_key
-
-        return embeddings_cls(**kwargs)
-
-    @staticmethod
-    def _create_splitter(config: IngestionConfig) -> Any:
-        """Backward-compatible alias — returns LangChain text splitter."""
+    def _create_splitter(config: IngestionConfig) -> object:
+        """Return the legacy recursive splitter for compatibility."""
         from docpipe.chunkers.recursive_chunker import RecursiveChunker
 
         return RecursiveChunker._build_splitter(config)
 
     @staticmethod
-    def _create_chunker(config: IngestionConfig) -> Any:
-        """Create chunker plugin from registry."""
-        from docpipe.registry.registry import PluginRegistry
-
-        name = getattr(config, "chunker", "recursive") or "recursive"
-        return PluginRegistry.get().get_chunker(name, config=config)
+    def _create_chunker(config: IngestionConfig) -> object:
+        """Preserve the patchable legacy chunker construction seam."""
+        return create_chunker(config)
 
     @staticmethod
-    def _create_context_llm(config: IngestionConfig) -> Any:
-        """Create LLM for contextual chunk injection."""
-        if config.contextual_llm_provider not in LLM_PROVIDERS:
-            raise ConfigurationError(
-                f"Unknown LLM provider: '{config.contextual_llm_provider}'. "
-                f"Available: {list(LLM_PROVIDERS)}"
-            )
-        module_name, class_name = LLM_PROVIDERS[config.contextual_llm_provider]
-        try:
-            module = importlib.import_module(module_name)
-            cls = getattr(module, class_name)
-        except ImportError as err:
-            raise ConfigurationError(
-                f"LLM provider '{config.contextual_llm_provider}' requires '{module_name}'. "
-                f"Install with: pip install {module_name}"
-            ) from err
-        return cls(model=config.contextual_llm_model)
+    def _create_context_llm(config: IngestionConfig) -> object:
+        """Preserve the patchable legacy contextual-model construction seam."""
+        return create_context_llm(config)
 
     @staticmethod
-    def _inject_context(chunks: list[Any], full_text: str, llm: Any) -> list[Any]:
-        """Prepend LLM-generated situational context to each chunk."""
-        from langchain_core.messages import HumanMessage
+    def _inject_context(
+        chunks: list[object],
+        full_text: str,
+        llm: object,
+    ) -> list[object]:
+        """Preserve deprecated synchronous contextual injection."""
+        return inject_context_sync(chunks, full_text, cast(LegacyLlm, llm))
 
-        for chunk in chunks:
-            prompt = CONTEXTUAL_INJECTION_PROMPT.format(
-                full_text=full_text[:4000],  # truncate to avoid token limits
-                chunk_text=chunk.page_content,
-            )
-            try:
-                context_sentence = llm.invoke([HumanMessage(content=prompt)]).content.strip()
-                chunk.page_content = f"{context_sentence}\n\n{chunk.page_content}"
-            except Exception as e:  # noqa: BLE001
-                logger.warning("Contextual injection failed for chunk: %s", e)
-        return chunks
+
+def _build_compatibility_runtime(max_concurrency: int) -> DocpipeRuntime:
+    """Build an explicit runtime without reading process-global settings."""
+    settings = DocpipeSettings.model_construct(
+        max_concurrency=max_concurrency,
+        disabled_plugins=None,
+    )
+    return build_runtime(settings)

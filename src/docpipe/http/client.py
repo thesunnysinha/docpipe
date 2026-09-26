@@ -28,7 +28,7 @@ class DocpipeClient:
         base_url: str,
         *,
         username: str = "admin",
-        password: str = "docpipe",
+        password: str = "",
         timeout: float = 120.0,
     ) -> None:
         self._client = httpx.Client(

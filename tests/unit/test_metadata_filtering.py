@@ -1,6 +1,6 @@
 """Tests for metadata filtering support in RAG query, stream, and search endpoints."""
 
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -10,7 +10,8 @@ from docpipe.server.app import create_app
 
 @pytest.fixture()
 def client():
-    return TestClient(create_app())
+    with TestClient(create_app()) as test_client:
+        yield test_client
 
 
 VALID_RAG_REQUEST = {
@@ -96,12 +97,19 @@ def test_rag_query_default_filters_is_empty_dict(client):
         assert filters_passed == {}
 
 
-def test_search_passes_filters_to_ingestion_pipeline(client):
-    """Filters sent in the /search request should be forwarded to IngestionPipeline.search()."""
-    with patch("docpipe.server.services.ingest.IngestionPipeline") as MockIngestion:
-        mock_pipeline = MagicMock()
-        MockIngestion.return_value = mock_pipeline
-        mock_pipeline.search.return_value = []
+def test_search_passes_filters_to_selected_reader(client):
+    """Filters sent in the /search request reach the selected search coordinator."""
+    with (
+        patch("docpipe.server.services.ingest.IngestionPipeline") as MockIngestion,
+        patch(
+            "docpipe.server.services.ingest.build_search_coordinator",
+            new_callable=AsyncMock,
+        ) as build_search,
+    ):
+        selected = MagicMock()
+        selected.search = AsyncMock(return_value=())
+        build_search.return_value = selected
+        MockIngestion._create_embeddings.return_value = object()
 
         resp = client.post(
             "/search",
@@ -109,12 +117,7 @@ def test_search_passes_filters_to_ingestion_pipeline(client):
         )
 
         assert resp.status_code == 200
-        call_args = mock_pipeline.search.call_args
-        # Check keyword args first, then fall back to positional
-        filters_passed = call_args.kwargs.get("filters")
-        if filters_passed is None and len(call_args.args) >= 3:
-            filters_passed = call_args.args[2]
-        assert filters_passed == {"type": "report"}
+        assert selected.search.call_args.kwargs["filters"] == {"type": "report"}
 
 
 def test_rag_config_accepts_filters_field():
@@ -146,15 +149,19 @@ def test_rag_config_accepts_filters_field():
 
 
 def test_search_default_filters_passes_none_after_guard(client):
-    with patch("docpipe.server.services.ingest.IngestionPipeline") as MockIngestion:
-        mock_pipeline = MagicMock()
-        MockIngestion.return_value = mock_pipeline
-        mock_pipeline.search.return_value = []
+    with (
+        patch("docpipe.server.services.ingest.IngestionPipeline") as MockIngestion,
+        patch(
+            "docpipe.server.services.ingest.build_search_coordinator",
+            new_callable=AsyncMock,
+        ) as build_search,
+    ):
+        selected = MagicMock()
+        selected.search = AsyncMock(return_value=())
+        build_search.return_value = selected
+        MockIngestion._create_embeddings.return_value = object()
 
         resp = client.post("/search", json=VALID_SEARCH_REQUEST)  # no filters key
 
         assert resp.status_code == 200
-        # When filters={} (default), the search method receives {} which guards to None
-        # Verify filters kwarg is the empty dict {} (or None after or-guard in search())
-        filters_passed = mock_pipeline.search.call_args.kwargs.get("filters")
-        assert filters_passed == {}  # app.py passes req.filters which defaults to {}
+        assert selected.search.call_args.kwargs["filters"] == {}

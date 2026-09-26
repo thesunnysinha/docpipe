@@ -6,6 +6,7 @@ from typing import Any, Literal
 
 from pydantic import Field
 
+from docpipe.config.plugin_options import SourcePluginOptions
 from docpipe.schemas.base import ApiResponse
 from docpipe.schemas.common import TableNameFieldMixin, VectorBackendFields
 
@@ -19,7 +20,13 @@ class IngestRequest(TableNameFieldMixin, VectorBackendFields):
         description="File path or URL to ingest (not raw bytes).",
         examples=["/data/manual.pdf"],
     )
-    connection_string: str = Field(..., min_length=1, description="Vector store connection string.")
+    source_plugin: SourcePluginOptions | None = Field(
+        default=None,
+        description="Namespaced source plugin options; provider must match the source URI scheme.",
+    )
+    connection_string: str | None = Field(
+        default=None, min_length=1, description="Legacy vector store connection string."
+    )
     embedding_provider: str = Field(..., min_length=1, description="Embedding provider name.")
     embedding_model: str = Field(..., min_length=1, description="Embedding model id.")
     api_key: str | None = Field(
@@ -53,6 +60,25 @@ class IngestRequest(TableNameFieldMixin, VectorBackendFields):
     incremental: bool = Field(
         default=False,
         description="Skip re-ingest when source hash is unchanged.",
+    )
+    incremental_failure_mode: Literal["fail_closed", "legacy_best_effort"] = Field(
+        default="fail_closed",
+        description=(
+            "Fail when duplicate state is unavailable, or explicitly preserve the "
+            "deprecated fail-open behavior."
+        ),
+    )
+    write_batch_size: int = Field(
+        default=64,
+        ge=1,
+        le=10_000,
+        description="Maximum records submitted in one vector write.",
+    )
+    max_in_flight: int = Field(
+        default=4,
+        ge=1,
+        le=64,
+        description="Maximum concurrent embedding/write batches.",
     )
     chunk_metadata: dict[str, Any] = Field(
         default_factory=dict,

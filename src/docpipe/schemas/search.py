@@ -22,10 +22,10 @@ class SearchRequest(TableNameFieldMixin, VectorBackendFields, MetadataFiltersFie
         min_length=1,
         description="Natural-language search query.",
     )
-    connection_string: str = Field(
-        ...,
+    connection_string: str | None = Field(
+        default=None,
         min_length=1,
-        description="Database connection string for the vector store.",
+        description="Legacy database connection string for the vector store.",
     )
     embedding_provider: str = Field(..., min_length=1, description="Embedding provider name.")
     embedding_model: str = Field(..., min_length=1, description="Embedding model id.")

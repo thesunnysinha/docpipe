@@ -1,17 +1,37 @@
-"""Factory for pgvector vs optional turbovec vector stores."""
+"""Deprecated LangChain vector-store compatibility facade.
+
+Application ingestion and retrieval code should consume typed plugin facets.
+These functions remain for third-party callers during the compatibility window.
+"""
 
 from __future__ import annotations
 
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from docpipe.core.errors import ConfigurationError
 from docpipe.vectorstores.base import VectorBackend, resolve_vector_backend
-from docpipe.vectorstores.turbovec_store import (
-    delete_by_source_turbovec,
-    ingest_documents_turbovec,
-    load_or_create_turbovec_store,
-)
+
+
+def load_or_create_turbovec_store(**kwargs: Any) -> Any:
+    """Lazily delegate to the deprecated TurboVec LangChain facade."""
+    from docpipe.vectorstores.turbovec_store import load_or_create_turbovec_store as load
+
+    return load(**kwargs)
+
+
+def ingest_documents_turbovec(**kwargs: Any) -> None:
+    """Lazily delegate legacy TurboVec ingestion."""
+    from docpipe.vectorstores.turbovec_store import ingest_documents_turbovec as ingest
+
+    ingest(**kwargs)
+
+
+def delete_by_source_turbovec(**kwargs: Any) -> int:
+    """Lazily delegate legacy TurboVec deletion."""
+    from docpipe.vectorstores.turbovec_store import delete_by_source_turbovec as delete
+
+    return delete(**kwargs)
 
 
 def _pgvector_class() -> Any:
@@ -37,7 +57,7 @@ def create_vectorstore(
     connection_string: str,
     vector_backend: VectorBackend | str = "pgvector",
     turbovec_index_dir: str | Path | None = None,
-    turbovec_bit_width: int = 4,
+    turbovec_bit_width: Literal[2, 3, 4] = 4,
 ) -> Any:
     """Return a LangChain-compatible vector store for the chosen backend."""
     backend = resolve_vector_backend(config=vector_backend)
@@ -217,6 +237,61 @@ def delete_by_source(
         embeddings=embeddings,
         table_name=table_name,
         index_dir=index_dir,
+        source=source,
+        source_contains=source_contains,
+        match_mode=match_mode,
+    )
+
+
+def delete_legacy_source(
+    *,
+    connection_string: str,
+    table_name: str,
+    vector_backend: VectorBackend | str = "pgvector",
+    embedding_provider: str | None = None,
+    embedding_model: str | None = None,
+    embedding_api_key: str | None = None,
+    turbovec_index_dir: str | Path | None = None,
+    turbovec_bit_width: Literal[2, 3, 4] = 4,
+    source: str | None = None,
+    source_contains: str | None = None,
+    match_mode: str = "exact",
+) -> int:
+    """Adapt legacy deletion inputs before delegating to the vector-store facade.
+
+    TurboVec's deprecated LangChain deletion path needs an embedding object,
+    while pgvector deletion is metadata-only. Keep that backend distinction at
+    this compatibility boundary instead of exposing it to server services.
+    """
+    backend = resolve_vector_backend(config=vector_backend)
+    embeddings = None
+    if backend == "turbovec":
+        if not embedding_provider or not embedding_model:
+            raise ConfigurationError(
+                "embedding_provider and embedding_model are required when vector_backend=turbovec"
+            )
+
+        from docpipe.core.types import IngestionConfig
+        from docpipe.ingestion.legacy import create_embeddings
+
+        config = IngestionConfig(
+            connection_string=connection_string,
+            table_name=table_name,
+            embedding_provider=embedding_provider,
+            embedding_model=embedding_model,
+            embedding_api_key=embedding_api_key,
+            vector_backend="turbovec",
+            turbovec_index_dir=str(turbovec_index_dir) if turbovec_index_dir else None,
+            turbovec_bit_width=turbovec_bit_width,
+        )
+        embeddings = create_embeddings(config)
+
+    return delete_by_source(
+        embeddings=embeddings,
+        table_name=table_name,
+        connection_string=connection_string,
+        vector_backend=backend,
+        turbovec_index_dir=turbovec_index_dir,
         source=source,
         source_contains=source_contains,
         match_mode=match_mode,

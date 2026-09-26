@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from concurrent.futures import ThreadPoolExecutor
-from typing import Any
+from typing import Any, Protocol
 
 from docpipe.core.errors import ConfigurationError
 from docpipe.core.types import (
@@ -20,6 +20,14 @@ from docpipe.core.types import (
 logger = logging.getLogger(__name__)
 
 
+class AsyncSourceParser(Protocol):
+    """Injected source-resolution boundary used by asynchronous pipelines."""
+
+    async def parse(self, parser: object, source: str) -> ParsedDocument:
+        """Resolve and parse one external source."""
+        ...
+
+
 class Pipeline:
     """Orchestrates document parsing, structured extraction, and optional ingestion."""
 
@@ -30,6 +38,7 @@ class Pipeline:
         ingestion_config: IngestionConfig | None = None,
         parser_options: dict[str, Any] | None = None,
         extractor_options: dict[str, Any] | None = None,
+        source_parser: AsyncSourceParser | None = None,
     ) -> None:
         from docpipe.registry.registry import PluginRegistry
 
@@ -47,6 +56,7 @@ class Pipeline:
 
         self._ingestion_config = ingestion_config
         self._ingestion_pipeline: Any = None
+        self._source_parser = source_parser
 
     def _get_ingestion_pipeline(self) -> Any:
         """Lazily create ingestion pipeline."""
@@ -62,7 +72,7 @@ class Pipeline:
 
     def run(self, source: str, schema: ExtractionSchema) -> PipelineResult:
         """Run full pipeline: parse + extract. Optionally ingest if configured."""
-        logger.info("Pipeline run: parsing '%s'", source)
+        logger.info("pipeline.parse.started")
         parsed = self._parser.parse(source)
 
         logger.info("Pipeline run: extracting from parsed text (%d chars)", len(parsed.text))
@@ -84,11 +94,14 @@ class Pipeline:
 
     async def arun(self, source: str, schema: ExtractionSchema) -> PipelineResult:
         """Async full pipeline."""
-        parsed = await self._parser.aparse(source)
+        if self._source_parser is None:
+            parsed = await self._parser.aparse(source)
+        else:
+            parsed = await self._source_parser.parse(self._parser, source)
         extractions = await self._extractor.aextract(parsed.text, schema)
 
         result = PipelineResult(
-            source=source,
+            source=parsed.source if self._source_parser is not None else source,
             parsed=parsed,
             extractions=extractions,
         )

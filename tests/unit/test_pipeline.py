@@ -3,7 +3,7 @@
 import pytest
 
 from docpipe.core.pipeline import Pipeline
-from docpipe.core.types import ExtractionSchema
+from docpipe.core.types import DocumentFormat, ExtractionSchema, ParsedDocument
 from docpipe.registry.registry import PluginRegistry
 from tests.conftest import MockExtractor, MockParser
 
@@ -61,3 +61,31 @@ class TestPipeline:
 
         assert result.source == "test.pdf"
         assert len(result.extractions) == 1
+
+    @pytest.mark.asyncio
+    async def test_arun_uses_injected_source_parser(self, sample_schema: ExtractionSchema) -> None:
+        seen: list[tuple[object, str]] = []
+
+        class ResolvedParser:
+            async def parse(self, parser: object, source: str) -> ParsedDocument:
+                seen.append((parser, source))
+                return ParsedDocument(
+                    source="https://example.org/report.pdf",
+                    format=DocumentFormat.PDF,
+                    text="resolved content",
+                )
+
+        parser = MockParser()
+        pipeline = Pipeline(
+            parser=parser,
+            extractor=MockExtractor(),
+            source_parser=ResolvedParser(),
+        )
+
+        result = await pipeline.arun(
+            "https://example.org/report.pdf?signature=private", sample_schema
+        )
+
+        assert seen == [(parser, "https://example.org/report.pdf?signature=private")]
+        assert result.source == "https://example.org/report.pdf"
+        assert result.parsed.source == result.source

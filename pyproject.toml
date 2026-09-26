@@ -54,7 +54,9 @@ google = ["langchain-google-genai>=2.0"]
 ollama = ["langchain-ollama>=0.3"]
 huggingface = ["langchain-huggingface>=0.1"]
 pgvector = ["langchain-postgres>=0.0.12", "psycopg2-binary>=2.9"]
-turbovec = ["turbovec[langchain]>=0.1"]
+turbovec = ["turbovec[langchain]>=1.0,<2"]
+qdrant = ["qdrant-client>=1.15,<2"]
+s3 = ["boto3>=1.34,<2"]
 semchunk = ["semchunk>=2.0"]
 chonkie = ["chonkie>=1.0"]
 server = [
@@ -74,7 +76,7 @@ observability = [
     "opentelemetry-instrumentation-fastapi>=0.48b0",
 ]
 phoenix = ["arize-phoenix>=5.0"]
-http = ["httpx>=0.27"]
+http = ["httpx>=0.28,<0.29"]
 rag = ["langchain-community>=0.3", "langchain-classic>=0.1", "rank-bm25>=0.2"]
 rerank = ["flashrank>=0.2"]
 rerank-quality = ["sentence-transformers>=3.0", "cohere>=5.0"]
@@ -108,6 +110,11 @@ all = [
     "docpipe-sdk[profile-balanced,profile-quality,profile-agents,profile-eval,turbovec,anthropic,google,ollama,huggingface,langgraph,outlines,lightrag,unstructured,pymupdf]",
 ]
 dev = [
+    "build>=1.2",
+    "hatchling>=1.26",
+    "twine>=6.0",
+    "jsonschema>=4.18",
+    "tomli>=2; python_version < '3.11'",
     "pytest>=7.0",
     "pytest-asyncio>=0.21",
     "pytest-cov",
@@ -153,6 +160,16 @@ mxbai = "docpipe.rerankers.mxbai_reranker:MxbaiReranker"
 builtin = "docpipe.eval.builtin_evaluator:BuiltinEvaluator"
 ragas = "docpipe.eval.ragas_evaluator:RagasEvaluator"
 
+[project.entry-points."docpipe.vectorstores"]
+pgvector = "docpipe.vectorstores.pgvector.factory:create_plugin"
+turbovec = "docpipe.vectorstores.turbovec.factory:create_plugin"
+qdrant = "docpipe.vectorstores.qdrant.factory:create_plugin"
+
+[project.entry-points."docpipe.sources"]
+local = "docpipe.sources.local:create_plugin"
+http = "docpipe.sources.http:create_plugin"
+s3 = "docpipe.sources.s3.factory:create_plugin"
+
 [project.urls]
 Homepage = "https://docpipe.sunnysinha.online"
 Documentation = "https://docpipe.sunnysinha.online"
@@ -179,6 +196,8 @@ warn_unused_configs = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+python_files = ["test_*.py", "*_spec.py"]
+python_functions = ["test_*", "should_*"]
 asyncio_mode = "auto"
 pythonpath = ["src"]
 markers = [

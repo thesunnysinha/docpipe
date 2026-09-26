@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "plugins": [
+    {
+      "name": "example-memory",
+      "category": "vectorstore",
+      "description": "Minimal in-memory vector store for plugin authors.",
+      "implementation_version": "0.1.0",
+      "api_min": "1.0.0",
+      "api_max": "1.0.0",
+      "capabilities": [
+        "dense-search",
+        "upsert",
+        "delete-by-source",
+        "collection-admin",
+        "health"
+      ],
+      "runtime_requirements": ["cpu"],
+      "stability": "experimental",
+      "license_id": "MIT"
+    }
+  ]
+}

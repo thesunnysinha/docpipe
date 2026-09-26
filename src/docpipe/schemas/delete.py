@@ -6,15 +6,15 @@ from typing import Literal
 
 from pydantic import Field, model_validator
 
-from docpipe.schemas.base import ApiRequest, ApiResponse
-from docpipe.schemas.common import TableNameFieldMixin
+from docpipe.schemas.base import ApiResponse
+from docpipe.schemas.common import TableNameFieldMixin, VectorBackendFields
 
 
-class DeleteRequest(TableNameFieldMixin, ApiRequest):
+class DeleteRequest(TableNameFieldMixin, VectorBackendFields):
     """Remove ingested chunks for a source from a vector collection."""
 
-    connection_string: str = Field(
-        ...,
+    connection_string: str | None = Field(
+        default=None,
         min_length=1,
         description="PostgreSQL or vector-store connection string.",
         examples=["postgresql://user:pass@localhost:5432/docpipe"],
@@ -32,14 +32,6 @@ class DeleteRequest(TableNameFieldMixin, ApiRequest):
     match_mode: Literal["exact", "contains"] = Field(
         default="exact",
         description="Whether to match source exactly or by substring.",
-    )
-    vector_backend: Literal["pgvector", "turbovec"] | None = Field(
-        default=None,
-        description="Override vector backend; defaults to server configuration.",
-    )
-    turbovec_index_dir: str | None = Field(
-        default=None,
-        description="On-disk TurboVec index directory (required for turbovec deletes).",
     )
     embedding_provider: str | None = Field(
         default=None,
