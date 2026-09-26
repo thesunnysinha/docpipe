@@ -25,7 +25,7 @@ spec:
           effect: NoSchedule
       containers:
         - name: docpipe
-          image: ghcr.io/thesunnysinha/docpipe:gpu
+          image: ghcr.io/your-org/docpipe:gpu
           ports:
             - containerPort: 8000
           envFrom:
@@ -34,8 +34,6 @@ spec:
           env:
             - name: DOCPIPE_PROFILE
               value: "gpu"
-            - name: DOCPIPE_ALLOW_PRIVATE_URLS
-              value: "true"
             - name: DOCPIPE_MAX_CONCURRENCY
               value: "1"
             - name: DOCPIPE_MODEL_CACHE_DIR

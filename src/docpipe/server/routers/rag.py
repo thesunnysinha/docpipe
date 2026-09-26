@@ -21,6 +21,7 @@ async def rag_query(
     _: Auth,
     service: RAGServiceDep,
 ) -> RAGQueryResponse:
+    """Authenticate, trace, and return a completed RAG query response."""
     settings = get_settings()
     with trace_operation(
         "docpipe.rag.query",
@@ -37,6 +38,7 @@ async def rag_stream(
     _: Auth,
     service: RAGServiceDep,
 ) -> StreamingResponse:
+    """Return an authenticated SSE response for generated RAG tokens."""
     settings = get_settings()
     with trace_operation(
         "docpipe.rag.stream",

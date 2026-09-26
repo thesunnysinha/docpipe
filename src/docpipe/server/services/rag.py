@@ -22,6 +22,13 @@ logger = logging.getLogger(__name__)
 
 
 class RAGService:
+    """Run non-streaming and streaming RAG requests against shared app resources.
+
+    Each call resolves a request-specific configuration and creates a pipeline.
+    The runtime and cache backend may be shared across calls; the configured
+    cache is used only when its tenant-scoping requirements can be satisfied.
+    """
+
     def __init__(
         self,
         settings: DocpipeSettings,
@@ -30,12 +37,19 @@ class RAGService:
         *,
         cache_backend_provider: Callable[[], AsyncKVCache | None] | None = None,
     ) -> None:
+        """Store settings and optional runtime/cache dependencies.
+
+        ``cache_backend_provider`` supports lazy cache resolution for services
+        created before application lifespan initialization; when supplied, it
+        takes precedence over the directly supplied backend.
+        """
         self._settings = settings
         self._runtime = runtime
         self._cache_backend = cache_backend
         self._cache_backend_provider = cache_backend_provider
 
     def _resolve_request(self, req: RAGQueryRequest, *, endpoint: str) -> RAGQueryRequest:
+        """Apply preset-derived strategy fields while honoring explicit request fields."""
         resolved = resolve_fields(
             {"strategy": req.strategy, "reranker": req.reranker},
             preset=req.preset,
@@ -46,6 +60,14 @@ class RAGService:
         return req.model_copy(update=resolved)
 
     async def query(self, req: RAGQueryRequest) -> RAGQueryResponse:
+        """Retrieve context and generate one answer for a validated request.
+
+        The request's resolved strategy is measured and passed with server
+        settings to a request-local pipeline. An optional cache is disabled
+        when tenant policies are configured but no tenant context is available.
+        Pipeline, provider, and configuration errors propagate to the HTTP
+        error adapter; this method does not alter source documents.
+        """
         req = self._resolve_request(req, endpoint="rag/query")
         strategy = str(req.strategy or self._settings.default_rag_strategy)
         with observe_rag(strategy):
@@ -69,12 +91,20 @@ class RAGService:
         return rag_result_to_response(result)
 
     def _resolve_cache_backend(self) -> AsyncKVCache | None:
-        """Resolve a shared backend lazily for services created before lifespan."""
+        """Return the provider-resolved cache or the backend supplied at construction."""
         if self._cache_backend_provider is not None:
             return self._cache_backend_provider()
         return self._cache_backend
 
     def stream(self, req: RAGQueryRequest) -> tuple[str, AsyncIterator[str]]:
+        """Prepare a streaming query and return its strategy and lazy SSE iterator.
+
+        Pipeline execution begins as the iterator is consumed. Tokens and
+        optional usage metadata are emitted before the completion sentinel; a
+        failure during iteration is logged and represented by a generic SSE
+        error event because the response may already have started. Unlike
+        ``query``, this path constructs the pipeline without a cache backend.
+        """
         req = self._resolve_request(req, endpoint="rag/stream")
         strategy = str(req.strategy or self._settings.default_rag_strategy)
         config = rag_config_from_request(req, self._settings)
