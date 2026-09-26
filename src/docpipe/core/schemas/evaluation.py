@@ -23,15 +23,11 @@ class EvalQuestion(BaseModel):
 class EvalConfig(BaseModel):
     """Inputs and metric selection for a batch RAG evaluation run."""
 
-    rag_config: RAGConfig = Field(
-        ..., description="RAG configuration applied to every question."
-    )
+    rag_config: RAGConfig = Field(..., description="RAG configuration applied to every question.")
     questions: list[EvalQuestion] = Field(
         ..., description="Ground-truth questions evaluated in this run."
     )
-    evaluator: str = Field(
-        default="builtin", description="Registered evaluator plugin name."
-    )
+    evaluator: str = Field(default="builtin", description="Registered evaluator plugin name.")
     metrics: list[str] = Field(
         default_factory=lambda: ["hit_rate", "answer_similarity"],
         description="Metric identifiers requested from the evaluator.",

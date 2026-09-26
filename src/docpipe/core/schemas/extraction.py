@@ -13,9 +13,7 @@ class SourceSpan(BaseModel):
     start: int = Field(
         ..., description="Zero-based character offset where the span begins, inclusive."
     )
-    end: int = Field(
-        ..., description="Zero-based character offset where the span ends, exclusive."
-    )
+    end: int = Field(..., description="Zero-based character offset where the span ends, exclusive.")
 
 
 class ExtractionResult(BaseModel):
