@@ -72,7 +72,7 @@ def test_repository_uses_relative_baseline_paths(tmp_path: Path) -> None:
 
 def test_repository_checks_source_and_test_modules(tmp_path: Path) -> None:
     source = tmp_path / "src/docpipe/too_large.py"
-    test = tmp_path / "tests/unit/test_large.py"
+    test = tmp_path / "tests/unit/large_spec.py"
     source.parent.mkdir(parents=True)
     test.parent.mkdir(parents=True)
     _write_module(source, 351)
@@ -82,5 +82,5 @@ def test_repository_checks_source_and_test_modules(tmp_path: Path) -> None:
 
     assert {finding.path.relative_to(tmp_path).as_posix() for finding in findings} == {
         "src/docpipe/too_large.py",
-        "tests/unit/test_large.py",
+        "tests/unit/large_spec.py",
     }

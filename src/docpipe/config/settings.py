@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
+import ipaddress
 import tempfile
 from pathlib import Path
 from typing import Any, Literal
 
-from pydantic import Field, JsonValue
+from pydantic import Field, JsonValue, SecretStr, field_validator
 from pydantic_settings import BaseSettings
 
 from docpipe.config.plugin_options import VectorStoreOptions
@@ -18,9 +19,11 @@ class DocpipeSettings(BaseSettings):
     model_config = {"env_prefix": "DOCPIPE_", "env_nested_delimiter": "__"}
 
     # Install profile (set in Docker OCI label / DOCPIPE_PROFILE)
-    profile: Literal["slim", "balanced", "quality", "agents", "eval", "gpu", "custom"] = Field(
-        default="balanced",
-        description="Dependency and runtime profile used to select Docpipe defaults.",
+    profile: Literal["slim", "balanced", "quality", "agents", "mcp", "eval", "gpu", "custom"] = (
+        Field(
+            default="balanced",
+            description="Dependency and runtime profile used to select Docpipe defaults.",
+        )
     )
 
     # Parser settings
@@ -204,6 +207,79 @@ class DocpipeSettings(BaseSettings):
         default=0, description="Parser-result cache lifetime in seconds; zero disables caching."
     )
 
+    # Optional RAG response KV cache. Redis is operator-managed and may be shared
+    # by replicas; process memory is bounded but never distributed or durable.
+    rag_cache_enabled: bool = Field(
+        default=False, description="Enable exact-question answer caching for HTTP RAG requests."
+    )
+    rag_cache_backend: Literal["memory", "redis"] = Field(
+        default="memory", description="RAG cache backend; Redis requires the rag-redis extra."
+    )
+    rag_cache_redis_url: str | None = Field(
+        default=None,
+        description="Operator-managed Redis URL; keep credentials secret and prefer TLS/ACLs.",
+    )
+    rag_cache_ttl_seconds: int = Field(
+        default=300, ge=1, le=86_400, description="Maximum lifetime of a cached RAG answer."
+    )
+    rag_cache_max_entries: int = Field(
+        default=10_000,
+        ge=1,
+        le=1_000_000,
+        description="Maximum entries for process-local RAG cache.",
+    )
+    rag_cache_max_payload_bytes: int = Field(
+        default=256 * 1024,
+        ge=1024,
+        le=10 * 1024 * 1024,
+        description="Maximum serialized answer size eligible for the RAG cache.",
+    )
+    rag_cache_socket_timeout_seconds: float = Field(
+        default=1.0,
+        gt=0,
+        le=30,
+        description="Redis connect/read timeout; cache outages fall back to uncached RAG.",
+    )
+
+    # Optional hosted MCP endpoint. Tokens are operator-provisioned bearer
+    # credentials; host rules are mandatory to protect the HTTP transport.
+    mcp_server_enabled: bool = Field(
+        default=False, description="Expose the standard Streamable HTTP MCP endpoint at /mcp."
+    )
+    mcp_operator_tokens: tuple[SecretStr, ...] = Field(
+        default_factory=tuple,
+        description=(
+            "Operator-managed bearer tokens for MCP clients; provide as a JSON list secret."
+        ),
+    )
+    mcp_allowed_hosts: tuple[str, ...] = Field(
+        default_factory=tuple,
+        description="Exact HTTP Host values trusted by the MCP transport; wildcards are rejected.",
+    )
+    mcp_allowed_origins: tuple[str, ...] = Field(
+        default_factory=tuple,
+        description="Exact browser origins allowed by the MCP transport; wildcards are rejected.",
+    )
+    mcp_tool_timeout_seconds: float = Field(
+        default=300.0,
+        gt=0,
+        le=3600,
+        description="Maximum duration in seconds for one MCP tool call.",
+    )
+    mcp_rate_limit_per_minute: int = Field(
+        default=60,
+        ge=1,
+        le=10_000,
+        description="Maximum MCP HTTP POST requests per minute per transport peer.",
+    )
+    mcp_tenant_id: str | None = Field(
+        default=None,
+        description=(
+            "Operator-assigned tenant scope for MCP bearer clients when tenant policies "
+            "are enabled."
+        ),
+    )
+
     # Source resolution. Provider-specific request envelopes are introduced by
     # the plugin configuration layer; these values remain safe process defaults.
     # Local-path ingestion is disabled until an operator grants explicit roots;
@@ -248,6 +324,13 @@ class DocpipeSettings(BaseSettings):
     rate_limit_enabled: bool = Field(
         default=True, description="Apply bounded in-memory rate limiting to expensive HTTP routes."
     )
+    rate_limit_trusted_proxy_cidrs: tuple[str, ...] = Field(
+        default=(),
+        description=(
+            "Proxy CIDRs allowed to supply X-Forwarded-For for rate limiting. "
+            "Only configure proxies that overwrite or append the connecting client address."
+        ),
+    )
 
     # JSON map: {"tenant-id": {"enabled_parsers": "markitdown,docling", ...}}
     tenant_plugin_policies: str | None = Field(
@@ -269,6 +352,17 @@ class DocpipeSettings(BaseSettings):
         default=False,
         description="Permit private or loopback source URLs; enable only for trusted deployments.",
     )
+
+    @field_validator("rate_limit_trusted_proxy_cidrs")
+    @classmethod
+    def validate_rate_limit_trusted_proxy_cidrs(cls, value: tuple[str, ...]) -> tuple[str, ...]:
+        """Normalize configured proxy networks and reject malformed entries."""
+        try:
+            return tuple(str(ipaddress.ip_network(cidr, strict=False)) for cidr in value)
+        except ValueError as error:
+            raise ValueError(
+                "rate_limit_trusted_proxy_cidrs must contain valid IP CIDRs"
+            ) from error
 
     # Speech-to-text (POST /transcribe)
     # openai: Whisper via OPENAI_API_KEY | vibevoice: local GPU (pip install VibeVoice)

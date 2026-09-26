@@ -22,7 +22,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
-        run: pip install -e ".[dev,server,profile-slim]"
+        run: pip install -e ".[dev,server,profile-slim,mcp-server]"
 
       - name: Lint with ruff
         run: ruff check src tests scripts/benchmark_plugin_foundation.py examples/plugin-package/src
@@ -78,7 +78,7 @@ jobs:
       - name: Run vector, ingestion, and legacy RAG conformance
         run: >-
           pytest tests/integration/vectorstores tests/integration/ingestion
-          tests/compat/test_rag_legacy.py -q --tb=short
+          tests/compat/rag_legacy_spec.py -q --tb=short
       - name: Record plugin performance baseline
         run: >-
           python scripts/benchmark_plugin_foundation.py
@@ -96,7 +96,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        profile: [slim, balanced, quality, agents]
+        profile: [slim, balanced, quality, agents, mcp]
     steps:
       - uses: actions/checkout@v4
       - name: Build selected profile
@@ -178,7 +178,7 @@ jobs:
         run: pip install -e ".[dev,s3]"
       - name: Run S3 source conformance
         run: >-
-          pytest tests/unit/sources/s3 tests/unit/sources/test_selection.py
+          pytest tests/unit/sources/s3 tests/unit/sources/selection_spec.py
           tests/integration/sources/minio_spec.py -q --tb=short
       - name: Strict S3 adapter typing
         run: mypy src/docpipe/sources/s3 --python-version 3.13 --strict --follow-imports=silent --ignore-missing-imports --disable-error-code=import-untyped

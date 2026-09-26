@@ -9,6 +9,7 @@ from fastapi import FastAPI
 
 from docpipe.bootstrap.runtime import DocpipeRuntime, build_runtime
 from docpipe.config.settings import DocpipeSettings
+from docpipe.rag.cache_backends import InMemoryKVCache, RedisKVCache
 
 
 def create_server_runtime(settings: DocpipeSettings) -> DocpipeRuntime:
@@ -29,15 +30,38 @@ def create_server_lifespan(
         app.state.docpipe_runtime = runtime
         _validate_server_security(runtime.settings)
         async with runtime:
+            rag_cache = _create_rag_cache(runtime.settings)
+            app.state.rag_cache = rag_cache
             try:
                 if runtime.settings.control_db_enabled and runtime.settings.control_db_auto_migrate:
                     init_control_db()
                 yield
             finally:
-                shutdown_control_db()
-                shutdown_observability()
+                try:
+                    if rag_cache is not None:
+                        await rag_cache.close()
+                finally:
+                    app.state.rag_cache = None
+                    shutdown_control_db()
+                    shutdown_observability()
 
     return lifespan
+
+
+def _create_rag_cache(settings: DocpipeSettings):
+    """Build one app-owned RAG cache, leaving network connections lazy."""
+    if not settings.rag_cache_enabled:
+        return None
+    if settings.rag_cache_backend == "memory":
+        return InMemoryKVCache(max_entries=settings.rag_cache_max_entries)
+    if not settings.rag_cache_redis_url:
+        raise RuntimeError(
+            "Redis RAG caching is enabled but DOCPIPE_RAG_CACHE_REDIS_URL is not configured."
+        )
+    return RedisKVCache.from_url(
+        settings.rag_cache_redis_url,
+        socket_timeout_seconds=settings.rag_cache_socket_timeout_seconds,
+    )
 
 
 def _validate_server_security(settings: DocpipeSettings) -> None:

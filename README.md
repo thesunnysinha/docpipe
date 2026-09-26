@@ -33,7 +33,7 @@ pip install docpipe-sdk
 pip install "docpipe-sdk[server,observability]"
 ```
 
-Optional extras (`docling`, `openai`, `google`, `pgvector`, `turbovec`, `rag`, `rerank`, `http`, `all`, …) are listed on the **[Install guide](https://docpipe.sunnysinha.online/docs)**.
+Optional extras (`docling`, `openai`, `google`, `pgvector`, `turbovec`, `rag`, `rag-redis`, `mcp-server`, `rerank`, `http`, `all`, …) are listed on the **[Install guide](https://docpipe.sunnysinha.online/docs)**. See [`docs/MCP_SERVER.md`](docs/MCP_SERVER.md) for hosted MCP setup and [`docs/RAG_CACHE.md`](docs/RAG_CACHE.md) for shared RAG caching.
 
 The new source and vector-store plugin foundation lets you select an installed provider with a namespaced `provider`/`options` envelope while legacy settings continue to work. See the [plugin architecture](docs/architecture/plugins.md), [configuration guide](docs/plugins/configuration.md), and [external plugin example](examples/plugin-package/README.md). The plugin API is experimental until the Qdrant and S3/MinIO reference adapters pass conformance.
 
@@ -103,7 +103,7 @@ docker pull ghcr.io/thesunnysinha/docpipe:quality    # OCR + BGE rerank
 docker pull ghcr.io/thesunnysinha/docpipe:agents     # AutoGen
 ```
 
-**pip profiles:** `profile-slim`, `profile-balanced`, `profile-quality`, `profile-agents` — see [`.env.example`](.env.example) and [`docs/INTEGRATION.md`](docs/INTEGRATION.md).
+**pip profiles:** `profile-slim`, `profile-balanced`, `profile-quality`, `profile-agents`, `profile-mcp` — see [`.env.example`](.env.example) and [`docs/INTEGRATION.md`](docs/INTEGRATION.md).
 
 **Runtime presets** on `/ingest` and `/rag/query`: `preset=fast|balanced|quality|agents`. Discover options via `GET /profiles` and `GET /plugins`.
 

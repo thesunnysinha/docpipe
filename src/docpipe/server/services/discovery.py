@@ -45,6 +45,8 @@ class DiscoveryService:
                 "source": len(self._runtime.catalog.registrations(PluginCategory.SOURCE)),
                 "vectorstore": len(self._runtime.catalog.registrations(PluginCategory.VECTORSTORE)),
             },
+            mcp_enabled=self._settings.mcp_server_enabled,
+            rag_cache_enabled=self._settings.rag_cache_enabled,
         )
         return HTMLResponse(content=html)
 
