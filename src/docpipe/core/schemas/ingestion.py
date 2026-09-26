@@ -122,9 +122,7 @@ class IngestionConfig(BaseModel):
 class IngestionResult(BaseModel):
     """Summary of records and collection state after an ingestion operation."""
 
-    source: str = Field(
-        ..., description="Source path, URL, or stable source identifier processed."
-    )
+    source: str = Field(..., description="Source path, URL, or stable source identifier processed.")
     chunks_ingested: int = Field(
         ..., description="Number of chunks confirmed written to the vector store."
     )
@@ -132,9 +130,7 @@ class IngestionResult(BaseModel):
         default=0,
         description="Number of source documents skipped; a single-source run reports zero or one.",
     )
-    table_name: str = Field(
-        ..., description="Vector collection or table receiving the records."
-    )
+    table_name: str = Field(..., description="Vector collection or table receiving the records.")
     table_created: bool = Field(
         ...,
         description=(

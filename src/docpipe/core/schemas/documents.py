@@ -26,9 +26,7 @@ class DocumentFormat(str, Enum):
 class PageContent(BaseModel):
     """Text and parser metadata associated with one source page."""
 
-    page_number: int = Field(
-        ..., description="Source page number as reported by the parser."
-    )
+    page_number: int = Field(..., description="Source page number as reported by the parser.")
     text: str = Field(..., description="Extracted text for this page; may be empty.")
     metadata: dict[str, Any] = Field(
         default_factory=dict, description="Parser-provided page metadata."
@@ -43,9 +41,7 @@ class ParsedDocument(BaseModel):
     """
 
     source: str = Field(..., description="Original source path, URL, or source identifier.")
-    format: DocumentFormat = Field(
-        ..., description="Detected or selected source document format."
-    )
+    format: DocumentFormat = Field(..., description="Detected or selected source document format.")
     text: str = Field(..., description="Plain-text representation produced by the parser.")
     markdown: str = Field(
         default="", description="Markdown representation when the parser provides one."
