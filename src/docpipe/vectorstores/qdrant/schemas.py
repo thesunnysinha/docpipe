@@ -16,7 +16,7 @@ class QdrantConfig(TypedPluginConfig):
 
     url: str | None = Field(
         default=None,
-        description="HTTP(S) endpoint for a remote Qdrant service; mutually exclusive with location.",
+        description="Remote HTTP(S) endpoint; exclusive with the local in-memory location.",
     )
     location: Literal[":memory:"] | None = Field(
         default=None,
@@ -48,7 +48,7 @@ class QdrantConfig(TypedPluginConfig):
     )
     allow_insecure_http: bool = Field(
         default=False,
-        description="Explicitly permit an unencrypted HTTP endpoint; HTTPS is otherwise required for remote connections.",
+        description="Allow unencrypted remote HTTP; HTTPS is required otherwise.",
     )
 
     @model_validator(mode="after")

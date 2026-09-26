@@ -44,7 +44,10 @@ class LocalSourceConfig(TypedPluginConfig):
 
     allowed_roots: tuple[Path, ...] = Field(
         ...,
-        description="Existing directories whose files may be read as local sources; paths are canonicalized during validation.",
+        description=(
+            "Existing directories allowed as local sources; "
+            "paths are canonicalized during validation."
+        ),
     )
     max_bytes: int = Field(
         default=100 * 1024 * 1024,
@@ -55,7 +58,7 @@ class LocalSourceConfig(TypedPluginConfig):
         default=1024 * 1024,
         ge=1,
         le=8 * 1024 * 1024,
-        description="Maximum number of bytes read per filesystem operation while streaming a source.",
+        description="Maximum bytes read per filesystem operation while streaming a source.",
     )
 
     def model_post_init(self, __context: object) -> None:
