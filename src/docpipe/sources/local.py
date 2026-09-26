@@ -42,9 +42,24 @@ class LocalSourceConfig(TypedPluginConfig):
             configured. Pydantic validation also rejects invalid byte limits.
     """
 
-    allowed_roots: tuple[Path, ...] = Field(...)
-    max_bytes: int = Field(default=100 * 1024 * 1024, ge=1)
-    chunk_bytes: int = Field(default=1024 * 1024, ge=1, le=8 * 1024 * 1024)
+    allowed_roots: tuple[Path, ...] = Field(
+        ...,
+        description=(
+            "Existing directories allowed as local sources; "
+            "paths are canonicalized during validation."
+        ),
+    )
+    max_bytes: int = Field(
+        default=100 * 1024 * 1024,
+        ge=1,
+        description="Maximum permitted size in bytes for a local source file.",
+    )
+    chunk_bytes: int = Field(
+        default=1024 * 1024,
+        ge=1,
+        le=8 * 1024 * 1024,
+        description="Maximum bytes read per filesystem operation while streaming a source.",
+    )
 
     def model_post_init(self, __context: object) -> None:
         """Canonicalize roots once so every resolution uses the same policy."""

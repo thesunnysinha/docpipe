@@ -29,11 +29,19 @@ class DocumentService:
         registry: PluginRegistry,
         runtime: DocpipeRuntime,
     ) -> None:
+        """Bind settings, registry, runtime-backed source parsing, and caches."""
         self._settings = settings
         self._registry = registry
         self._source_parser = SourceParser(runtime)
 
     async def parse(self, req: ParseRequest) -> ParseResponse:
+        """Resolve and run a parser, reusing the configured parse cache if present.
+
+        When the configured TTL is positive, parsed results are reused from and
+        retained in a process-local cache until expiry; otherwise each request
+        parses its source. Misses may fetch or read the source. Response content
+        follows the requested text, markdown, or serialized-result format.
+        """
         resolved = resolve_fields(
             {"parser": req.parser, "tier": req.tier},
             preset=req.preset,
@@ -70,6 +78,11 @@ class DocumentService:
         )
 
     async def extract(self, req: ExtractRequest) -> ExtractResponse:
+        """Extract fields from validated text using the selected extractor.
+
+        Extraction can invoke the extractor's configured external model provider;
+        the service returns extracted values and does not persist them.
+        """
         resolved = resolve_fields(
             {"extractor": req.extractor},
             preset=None,
@@ -82,7 +95,11 @@ class DocumentService:
         return ExtractResponse(extractions=results)
 
     async def run(self, req: RunRequest) -> RunResponse:
-        """Parse and extract in a single pipeline invocation."""
+        """Parse a source and extract a schema in one asynchronous pipeline run.
+
+        Parsing may read a local or remote source and the extractor may invoke an
+        external provider; the combined result is returned without job persistence.
+        """
         schema = extraction_schema_from_request(req)
         pipeline = Pipeline(
             parser=self._registry.get_parser(req.parser),

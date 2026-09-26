@@ -17,6 +17,12 @@ class SourceUrlLogFilter(logging.Filter):
     """Replace URL arguments while only a source download is active."""
 
     def filter(self, record: logging.LogRecord) -> bool:
+        """Redact URL values only while an HTTP source request is active.
+
+        The filter updates the record's message and arguments in place so
+        downstream handlers cannot accidentally log the original source URL.
+        Outside the request-scoped context, the record is left unchanged.
+        """
         if not _SOURCE_REQUEST.get():
             return True
         if isinstance(record.msg, str):

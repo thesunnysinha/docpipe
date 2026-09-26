@@ -13,4 +13,9 @@ class NaiveStrategy:
     name: str = "naive"
 
     async def retrieve(self, question: str) -> RetrievalResult:
+        """Return the nearest dense-vector matches for ``question``.
+
+        Embedding, capability-negotiation, and vector-reader failures propagate
+        unchanged from the underlying ``VectorSearch`` port.
+        """
         return RetrievalResult(await self.search.dense(question))

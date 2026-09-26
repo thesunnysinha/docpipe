@@ -27,6 +27,13 @@ class TranscriptionService:
         language: str | None = None,
         output_format: TranscribeOutputFormat = "plain",
     ) -> TranscribeResult:
+        """Transcribe an audio file with the selected configured backend.
+
+        An explicit ``backend`` overrides the default in ``settings``. The
+        result is normalized to plain text or structured segments according to
+        ``output_format``; credentials and model/runtime options are sourced
+        from the arguments and settings object.
+        """
         resolved = backend or settings.transcribe_default_backend  # type: ignore[assignment]
         if resolved not in ("openai", "vibevoice", "vibevoice_remote"):
             raise ConfigurationError(f"Unsupported transcription backend: {resolved}")
@@ -68,6 +75,12 @@ class TranscriptionService:
         audio_path: str,
         **kwargs: object,
     ) -> TranscribeResult:
+        """Run synchronous backend inference in a worker thread.
+
+        This keeps blocking SDK and local-model work off the event loop.
+        Configuration and transcription errors are preserved; unexpected
+        backend exceptions are wrapped as ``TranscriptionError``.
+        """
         try:
             return await asyncio.to_thread(
                 TranscriptionService.transcribe_file,

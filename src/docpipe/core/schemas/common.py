@@ -17,8 +17,18 @@ def validate_table_name(v: str) -> str:
 
 
 class TokenUsage(BaseModel):
-    """LLM token usage from provider responses."""
+    """Token counts reported by an LLM provider for one operation.
 
-    input_tokens: int | None = Field(default=None)
-    output_tokens: int | None = Field(default=None)
-    total_tokens: int | None = Field(default=None)
+    Providers may omit individual counts, so every value is optional. ``total_tokens``
+    is kept as reported rather than inferred from input and output counts.
+    """
+
+    input_tokens: int | None = Field(
+        default=None, description="Prompt/input tokens reported by the provider."
+    )
+    output_tokens: int | None = Field(
+        default=None, description="Completion/output tokens reported by the provider."
+    )
+    total_tokens: int | None = Field(
+        default=None, description="Total tokens reported by the provider, when available."
+    )

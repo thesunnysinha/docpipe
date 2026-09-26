@@ -19,6 +19,7 @@ _SKIP_LOG_PREFIXES = ("/metrics",)
 
 
 def _should_log_request(path: str, status_code: int) -> bool:
+    """Decide whether to log a request, suppressing non-error metrics paths."""
     for prefix in _SKIP_LOG_PREFIXES:
         if path.startswith(prefix):
             return status_code >= 500
@@ -29,6 +30,13 @@ class RequestResponseLoggingMiddleware(BaseHTTPMiddleware):
     """Log HTTP traffic with correlation IDs on ``X-Request-Id``."""
 
     async def dispatch(self, request: Request, call_next: Any) -> Response:
+        """Bind or generate a request ID around downstream HTTP handling.
+
+        Adds the ID to request state and successful response headers, logs
+        eligible responses with elapsed time, and enriches an active trace span.
+        The context binding is always reset, including when downstream handling
+        raises; raised exceptions are not caught or converted here.
+        """
         request_id = (request.headers.get("x-request-id") or "").strip() or str(uuid.uuid4())
         request.state.request_id = request_id
         ctx_token = bind_request_id(request_id)
@@ -59,7 +67,12 @@ def enrich_http_span(
     request_id: str,
     duration_ms: float,
 ) -> None:
-    """Attach request metadata to the active OpenTelemetry span."""
+    """Attach request ID, duration, status, and route to a recording span.
+
+    Does nothing when OpenTelemetry is unavailable or the current span is not
+    recording. Span attributes contain routing metadata, not request/response
+    bodies.
+    """
     try:
         from opentelemetry import trace
 
@@ -77,7 +90,11 @@ def enrich_http_span(
 
 
 def enrich_http_exception_span(request: Request, exc: Any) -> None:
-    """Add docpipe error attributes to the current span when present."""
+    """Add error type, phase, and route attributes for structured details.
+
+    Only dictionary-valued ``exc.detail`` is inspected. Does nothing without
+    OpenTelemetry or a recording span; it does not record the exception itself.
+    """
     detail = getattr(exc, "detail", None)
     if not isinstance(detail, dict):
         return

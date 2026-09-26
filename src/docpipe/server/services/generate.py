@@ -14,7 +14,15 @@ logger = logging.getLogger(__name__)
 
 
 class GenerateService:
+    """Invoke configured chat models for direct, non-streaming generation."""
+
     async def generate(self, req: GenerateRequest) -> GenerateResponse:
+        """Send the prompt to the requested provider and return its response.
+
+        An optional request API key is passed to the provider client. Provider
+        configuration errors remain typed; other invocation failures are logged
+        and raised as a generic runtime error for the route to map to HTTP 500.
+        """
         from docpipe.rag.pipeline import create_llm
 
         try:

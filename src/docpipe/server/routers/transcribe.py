@@ -20,6 +20,12 @@ async def transcribe(
     settings: SettingsDep,
     service: TranscribeServiceDep,
 ) -> TranscribeResponse:
+    """Transcribe an authenticated multipart audio upload.
+
+    The service validates multipart fields, writes the upload to a temporary
+    file, and invokes the selected transcription backend. Invalid input maps to
+    HTTP 400; Docpipe failures use the standard structured HTTP mapping.
+    """
     with trace_operation(
         "docpipe.transcribe",
         docpipe_backend=settings.transcribe_default_backend,

@@ -11,6 +11,12 @@ from docpipe.db.security import hash_password
 
 
 def seed_admin_user(session: Session, settings: DocpipeSettings) -> AdminUser | None:
+    """Add the configured initial administrator when the table is empty.
+
+    Returns the pending ``AdminUser`` after adding and flushing it, or ``None``
+    if any admin row already exists. The caller owns the transaction and must
+    commit or roll it back; the password is stored as a scrypt verifier.
+    """
     existing = session.scalar(select(AdminUser).limit(1))
     if existing is not None:
         return None

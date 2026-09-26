@@ -10,10 +10,18 @@ from docpipe.server.plugin_requests import resolve_fields
 
 
 class EvaluateService:
+    """Configure and execute RAG evaluations against caller-selected stores."""
+
     def __init__(self, settings: DocpipeSettings) -> None:
+        """Store defaults used when evaluation options are resolved."""
         self._settings = settings
 
     async def run(self, req: EvaluateRequest) -> EvaluateResponse:
+        """Evaluate the validated question set and return metrics and timings.
+
+        The run may connect to the requested vector store and model providers.
+        It returns aggregate results and does not persist an evaluation record.
+        """
         resolved = resolve_fields(
             {"strategy": req.strategy, "evaluator": req.evaluator},
             preset=req.preset,

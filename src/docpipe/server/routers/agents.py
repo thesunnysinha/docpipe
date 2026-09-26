@@ -18,4 +18,10 @@ async def agents_query(
     _: Auth,
     service: AgentServiceDep,
 ) -> RAGQueryResponse:
+    """Run an authenticated agentic RAG query from the validated request.
+
+    The service selects the configured agent and retrieval strategy and may call
+    the configured embedding, vector-store, and language-model providers. Known
+    Docpipe and public integration errors are translated by the route decorator.
+    """
     return await service.query(req)

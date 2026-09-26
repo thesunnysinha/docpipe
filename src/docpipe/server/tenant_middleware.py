@@ -30,6 +30,7 @@ class TenantContextMiddleware(BaseHTTPMiddleware):
         request: Request,
         call_next: Callable[[Request], Awaitable[Response]],
     ) -> Response:
+        """Set tenant policy context for verified requests and always reset it."""
         settings: DocpipeSettings = request.app.state.docpipe_runtime.settings
         tenant_id: str | None = None
         tenant_scoped = bool(settings.tenant_plugin_policies or settings.tenant_identity_map)

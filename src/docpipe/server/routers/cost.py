@@ -19,5 +19,10 @@ async def estimate_cost(
     _: Auth,
     service: CostServiceDep,
 ) -> CostEstimateResponse:
+    """Estimate ingestion cost from validated request parameters.
+
+    Authentication is required. This endpoint computes a local estimate and
+    does not ingest documents or contact provider APIs.
+    """
     with trace_operation("docpipe.cost.estimate", docpipe_preset=req.preset):
         return service.estimate(req)

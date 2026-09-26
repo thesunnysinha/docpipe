@@ -53,7 +53,9 @@ class BoundedBlockingRunner:
         /,
         *,
         context: OperationContext | None = None,
-    ) -> Result: ...
+    ) -> Result:
+        """Run a zero-argument blocking callable within runner limits."""
+        ...
 
     @overload
     async def run(
@@ -63,7 +65,9 @@ class BoundedBlockingRunner:
         /,
         *,
         context: OperationContext | None = None,
-    ) -> Result: ...
+    ) -> Result:
+        """Run a one-argument blocking callable within runner limits."""
+        ...
 
     @overload
     async def run(
@@ -74,7 +78,9 @@ class BoundedBlockingRunner:
         /,
         *,
         context: OperationContext | None = None,
-    ) -> Result: ...
+    ) -> Result:
+        """Run a two-argument blocking callable within runner limits."""
+        ...
 
     async def run(
         self,

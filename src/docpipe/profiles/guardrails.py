@@ -50,6 +50,7 @@ def reset_tenant_context(
 
 
 def get_tenant_context() -> str | None:
+    """Return the verified tenant identity bound to the current context, if any."""
     return _TENANT_CONTEXT.get()
 
 
@@ -128,11 +129,17 @@ def enabled_plugins(group: str) -> list[str] | None:
 
 
 def disabled_plugins() -> set[str]:
+    """Return globally disabled plugin names from the active request settings."""
     settings = _current_settings()
     return set(_parse_csv(settings.disabled_plugins) or [])
 
 
 def is_plugin_allowed(group: str, name: str) -> bool:
+    """Check a plugin against global disables and the effective allowlist.
+
+    Tenant-scoped policy takes precedence when configured; an absent or unknown
+    tenant then receives no tenant-scoped plugins rather than the global list.
+    """
     if name in disabled_plugins():
         return False
     allow = enabled_plugins(group)
@@ -142,6 +149,11 @@ def is_plugin_allowed(group: str, name: str) -> bool:
 
 
 def assert_plugin_allowed(group: str, name: str) -> None:
+    """Validate registration, policy, and dependency availability for a plugin.
+
+    Raises :class:`ConfigurationError` for unknown, disabled, or unavailable
+    plugins. A policy denial also records a metric and audit event.
+    """
     registry = PluginRegistry.get()
     if name not in getattr(registry, f"list_{group}")():
         raise ConfigurationError(
@@ -166,10 +178,12 @@ def assert_plugin_allowed(group: str, name: str) -> None:
 
 
 def http_exception_for_config(exc: ConfigurationError) -> HTTPException:
+    """Convert a client-facing plugin configuration error into HTTP 422."""
     return HTTPException(status_code=422, detail=str(exc))
 
 
 def enrich_plugin_info(group: str, name: str, info: dict[str, Any]) -> dict[str, Any]:
+    """Copy plugin metadata and add its catalog tier and current allow status."""
     tier_maps = {
         "parsers": PARSER_TIERS,
         "chunkers": CHUNKER_TIERS,

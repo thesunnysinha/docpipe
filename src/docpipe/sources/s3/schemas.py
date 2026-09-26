@@ -18,20 +18,71 @@ _BUCKET = re.compile(r"^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$")
 class S3SourceConfig(TypedPluginConfig):
     """Bound access to selected buckets, prefixes, endpoints, and byte limits."""
 
-    allowed_buckets: tuple[str, ...] = Field(...)
-    allowed_prefixes: tuple[str, ...] = Field(default=())
-    temporary_root: Path = Field(...)
-    endpoint_url: str | None = Field(default=None)
-    allow_insecure_http: bool = Field(default=False)
-    region_name: str | None = Field(default=None)
-    access_key_id_ref: SecretReference | None = Field(default=None)
-    secret_access_key_ref: SecretReference | None = Field(default=None)
-    session_token_ref: SecretReference | None = Field(default=None)
-    max_bytes: int = Field(default=100 * 1024 * 1024, ge=1)
-    chunk_bytes: int = Field(default=1024 * 1024, ge=1, le=8 * 1024 * 1024)
-    connect_timeout: int = Field(default=5, ge=1, le=120)
-    read_timeout: int = Field(default=30, ge=1, le=600)
-    total_timeout: float = Field(default=120.0, gt=0, le=3600)
+    allowed_buckets: tuple[str, ...] = Field(
+        ...,
+        description="Bucket names this resolver may access; at least one valid name is required.",
+    )
+    allowed_prefixes: tuple[str, ...] = Field(
+        default=(),
+        description="Allowed object-key prefixes; empty allows any key in the configured buckets.",
+    )
+    temporary_root: Path = Field(
+        ...,
+        description="Existing private directory used for temporary materialized objects.",
+    )
+    endpoint_url: str | None = Field(
+        default=None,
+        description="Optional S3-compatible origin without credentials, path, query, or fragment.",
+    )
+    allow_insecure_http: bool = Field(
+        default=False,
+        description="Allow plain HTTP for endpoint_url; use only for a trusted, isolated endpoint.",
+    )
+    region_name: str | None = Field(
+        default=None,
+        description="Optional AWS region name used when creating the S3 client.",
+    )
+    access_key_id_ref: SecretReference | None = Field(
+        default=None,
+        description="Secret reference for the access key ID; configure with secret_access_key_ref.",
+    )
+    secret_access_key_ref: SecretReference | None = Field(
+        default=None,
+        description="Secret reference for the secret access key; configure with access_key_id_ref.",
+    )
+    session_token_ref: SecretReference | None = Field(
+        default=None,
+        description="Optional session-token secret reference; requires explicit key references.",
+    )
+    max_bytes: int = Field(
+        default=100 * 1024 * 1024,
+        ge=1,
+        description="Maximum object size accepted from S3, in bytes.",
+    )
+    chunk_bytes: int = Field(
+        default=1024 * 1024,
+        ge=1,
+        le=8 * 1024 * 1024,
+        description="Maximum bytes requested per streamed S3 object chunk.",
+    )
+    connect_timeout: int = Field(
+        default=5,
+        ge=1,
+        le=120,
+        description="S3 client connection timeout, in seconds.",
+    )
+    read_timeout: int = Field(
+        default=30,
+        ge=1,
+        le=600,
+        description="S3 client socket-read timeout, in seconds.",
+    )
+    total_timeout: float = Field(
+        default=120.0,
+        gt=0,
+        le=3600,
+        description="Overall deadline in seconds for resolution, streaming, or materialization.",
+    )
 
     def model_post_init(self, __context: object) -> None:
         """Canonicalize the temp root and reject ambiguous remote policy."""
