@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "plugins": [
+    {
+      "name": "future",
+      "category": "vectorstore",
+      "description": "A plugin for a future API.",
+      "api_min": "2.0.0",
+      "api_max": "2.5.0"
+    }
+  ]
+}

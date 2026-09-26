@@ -17,9 +17,7 @@ def client():
 
 
 def test_health_includes_dependencies(client):
-    settings = DocpipeSettings(health_check_db=False, health_check_embedding=False)
-    with patch("docpipe.server.health.get_settings", return_value=settings):
-        resp = client.get("/health")
+    resp = client.get("/health")
     assert resp.status_code == 200
     body = resp.json()
     assert "dependencies" in body
@@ -28,17 +26,17 @@ def test_health_includes_dependencies(client):
 
 @patch("docpipe.server.health.psycopg2.connect")
 def test_health_db_failure_marks_unavailable(mock_connect, client):
-    mock_connect.side_effect = RuntimeError("connection refused")
-    settings = DocpipeSettings(
+    mock_connect.side_effect = RuntimeError("secret-password connection refused")
+    client.app.state.docpipe_runtime.settings = DocpipeSettings(
         health_check_db=True,
-        db_connection_string="postgresql://bad/db",
+        db_connection_string="postgresql://bad:secret-password@db/test",
         health_check_embedding=False,
     )
-    with patch("docpipe.server.health.get_settings", return_value=settings):
-        resp = client.get("/health")
+    resp = client.get("/health")
     assert resp.status_code == 200
     body = resp.json()
     assert body["status"] == "unavailable"
     assert any(
         d["name"] == "database" and d["status"] == "unavailable" for d in body["dependencies"]
     )
+    assert "secret-password" not in resp.text

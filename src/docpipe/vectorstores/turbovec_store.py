@@ -1,4 +1,8 @@
-"""File-backed turbovec index helpers (optional ``docpipe-sdk[turbovec]`` extra)."""
+"""Deprecated LangChain compatibility facade for the TurboVec backend.
+
+New integrations should select the typed plugin in :mod:`docpipe.vectorstores.turbovec`.
+These helpers remain until the legacy ingestion and RAG paths migrate.
+"""
 
 from __future__ import annotations
 
@@ -8,13 +12,19 @@ from pathlib import Path
 from typing import Any
 
 from docpipe.core.errors import ConfigurationError, IngestionError
+from docpipe.plugins.contracts.vectorstore import CollectionRef
+from docpipe.vectorstores.turbovec.configuration import TurboVecConfig
 
 logger = logging.getLogger(__name__)
 
 
 def turbovec_index_path(index_dir: Path, table_name: str) -> Path:
-    """Directory for one collection (``index.tvim`` + ``docstore.json``)."""
-    return index_dir / table_name
+    """Return a confined legacy collection directory.
+
+    .. deprecated:: 0.7
+       Use :meth:`TurboVecConfig.collection_path` through the plugin adapter.
+    """
+    return TurboVecConfig(index_root=index_dir).collection_path(CollectionRef(table_name))
 
 
 def _import_turbovec_langchain() -> Any:
@@ -42,7 +52,7 @@ def load_or_create_turbovec_store(
     if index_file.exists():
         return TurboQuantVectorStore.load(str(path), embedding=embeddings)
     path.mkdir(parents=True, exist_ok=True)
-    return TurboQuantVectorStore(embeddings=embeddings, bit_width=bit_width)
+    return TurboQuantVectorStore(embedding=embeddings, bit_width=bit_width)
 
 
 def persist_turbovec_store(store: Any, table_name: str, index_dir: Path) -> None:

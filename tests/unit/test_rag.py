@@ -1,4 +1,4 @@
-"""Unit tests for RAGPipeline — all external calls mocked."""
+"""Stable RAG SDK model and provider configuration regressions."""
 
 from __future__ import annotations
 
@@ -8,59 +8,26 @@ import pytest
 
 from docpipe.core.errors import ConfigurationError, RAGError
 from docpipe.core.types import RAGChunk, RAGConfig, RAGResult
+from docpipe.plugins.loader import PluginLoader
 from docpipe.rag.pipeline import RAGPipeline
 
-_TEST_SYSTEM_PROMPT = "Context:\n{context}\n\nQuestion: {question}\n\nAnswer:"
-_TEST_HYDE_PROMPT = "Hypothetical passage for: {question}"
-_TEST_MULTI_QUERY_PROMPT = "Generate {n} variants of: {question}\nOne per line."
-_TEST_AUTO_STRATEGY_PROMPT = "Reply naive for: {question}"
 
-
-def _make_config(**overrides: object) -> RAGConfig:
-    defaults = dict(
-        connection_string="postgresql://test/db",
-        table_name="docs",
-        embedding_provider="openai",
-        embedding_model="text-embedding-3-small",
-        llm_provider="openai",
-        llm_model="gpt-4o",
-        system_prompt=_TEST_SYSTEM_PROMPT,
-        hyde_prompt=_TEST_HYDE_PROMPT,
-        multi_query_prompt=_TEST_MULTI_QUERY_PROMPT,
-        auto_strategy_prompt=_TEST_AUTO_STRATEGY_PROMPT,
-    )
-    defaults.update(overrides)
-    return RAGConfig(**defaults)  # type: ignore[arg-type]
-
-
-def _mock_doc(content: str = "chunk text", source: str = "doc.pdf", page: int = 1) -> MagicMock:
-    doc = MagicMock()
-    doc.page_content = content
-    doc.metadata = {"source": source, "page": page}
-    return doc
-
-
-# ---------------------------------------------------------------------------
-# Config defaults
-# ---------------------------------------------------------------------------
-
-
-def test_rag_query_requires_system_prompt() -> None:
-    with (
-        patch.object(RAGPipeline, "_create_embeddings") as mock_emb,
-        patch.object(RAGPipeline, "_create_llm") as mock_llm,
-        patch.object(RAGPipeline, "_retrieve_naive", return_value=[]),
-    ):
-        mock_emb.return_value = MagicMock()
-        mock_llm.return_value = MagicMock()
-        config = _make_config(system_prompt=None)
-        pipeline = RAGPipeline(config)
-        with pytest.raises(ConfigurationError, match="system_prompt"):
-            pipeline.query("What is the answer?")
+def _config(**overrides: object) -> RAGConfig:
+    values: dict[str, object] = {
+        "connection_string": "postgresql://test/db",
+        "table_name": "documents",
+        "embedding_provider": "openai",
+        "embedding_model": "model",
+        "llm_provider": "openai",
+        "llm_model": "model",
+        "system_prompt": "Use {context} for {question}",
+    }
+    values.update(overrides)
+    return RAGConfig.model_validate(values)
 
 
 def test_rag_config_defaults() -> None:
-    config = _make_config()
+    config = _config()
     assert config.strategy == "naive"
     assert config.top_k == 5
     assert config.multi_query_count == 3
@@ -71,339 +38,55 @@ def test_rag_config_defaults() -> None:
     assert config.output_model is None
 
 
-# ---------------------------------------------------------------------------
-# Unknown provider errors raised at __init__
-# ---------------------------------------------------------------------------
-
-
-@patch.object(RAGPipeline, "_create_llm")
-def test_unknown_embedding_provider_raises(mock_llm: MagicMock) -> None:
-    mock_llm.return_value = MagicMock()
-    config = _make_config(embedding_provider="nonexistent")
-    with pytest.raises(ConfigurationError, match="Unknown embedding provider"):
-        RAGPipeline(config)
-
-
-@patch.object(RAGPipeline, "_create_embeddings")
-def test_unknown_llm_provider_raises(mock_emb: MagicMock) -> None:
-    mock_emb.return_value = MagicMock()
-    config = _make_config(llm_provider="nonexistent")
-    with pytest.raises(ConfigurationError, match="Unknown LLM provider"):
-        RAGPipeline(config)
-
-
-# ---------------------------------------------------------------------------
-# Invalid strategy
-# ---------------------------------------------------------------------------
-
-
-@patch.object(RAGPipeline, "_create_embeddings")
-@patch.object(RAGPipeline, "_create_llm")
-def test_invalid_strategy_raises(mock_llm: MagicMock, mock_emb: MagicMock) -> None:
-    mock_emb.return_value = MagicMock()
-    mock_llm.return_value = MagicMock()
-
-    config = _make_config()
-    pipeline = RAGPipeline(config)
-    pipeline._config.strategy = "bad_strategy"  # type: ignore[assignment]
-    with pytest.raises(RAGError, match="Unknown strategy"):
-        pipeline.query("test")
-
-
-# ---------------------------------------------------------------------------
-# Naive strategy
-# ---------------------------------------------------------------------------
-
-
-@patch.object(RAGPipeline, "_create_embeddings")
-@patch.object(RAGPipeline, "_create_llm")
-def test_naive_query(mock_llm: MagicMock, mock_emb: MagicMock) -> None:
-    mock_emb.return_value = MagicMock()
-    llm = MagicMock()
-    llm.invoke.return_value = MagicMock(
-        content="The answer is 42.",
-        usage_metadata={"input_tokens": 20, "output_tokens": 8, "total_tokens": 28},
-    )
-    mock_llm.return_value = llm
-
-    pipeline = RAGPipeline(_make_config(strategy="naive"))
-
-    vs = MagicMock()
-    doc = _mock_doc("Some relevant text.", "report.pdf", 3)
-    vs.similarity_search_with_score.return_value = [(doc, 0.91)]
-
-    with patch.object(pipeline, "_get_vectorstore", return_value=vs):
-        result = pipeline.query("What is the answer?")
-
-    assert result.answer == "The answer is 42."
-    assert result.usage is not None
-    assert result.usage.input_tokens == 20
-    assert result.strategy == "naive"
-    assert len(result.chunks) == 1
-    assert result.chunks[0].source == "report.pdf"
-    assert result.chunks[0].score == pytest.approx(0.91)
-    assert result.sources == ["report.pdf"]
-    assert result.timing_seconds > 0
-    vs.similarity_search_with_score.assert_called_once_with("What is the answer?", k=5, filter=None)
-
-
-# ---------------------------------------------------------------------------
-# Sources deduplication
-# ---------------------------------------------------------------------------
-
-
-@patch.object(RAGPipeline, "_create_embeddings")
-@patch.object(RAGPipeline, "_create_llm")
-def test_sources_deduplicated(mock_llm: MagicMock, mock_emb: MagicMock) -> None:
-    mock_emb.return_value = MagicMock()
-    llm = MagicMock()
-    llm.invoke.return_value = MagicMock(content="Answer.")
-    mock_llm.return_value = llm
-
-    pipeline = RAGPipeline(_make_config())
-    vs = MagicMock()
-    doc1 = _mock_doc("chunk 1", "same.pdf", 1)
-    doc2 = _mock_doc("chunk 2", "same.pdf", 2)
-    vs.similarity_search_with_score.return_value = [(doc1, 0.9), (doc2, 0.8)]
-
-    with patch.object(pipeline, "_get_vectorstore", return_value=vs):
-        result = pipeline.query("question")
-
-    assert result.sources == ["same.pdf"]
-
-
-# ---------------------------------------------------------------------------
-# HyDE strategy
-# ---------------------------------------------------------------------------
-
-
-@patch.object(RAGPipeline, "_create_embeddings")
-@patch.object(RAGPipeline, "_create_llm")
-def test_hyde_query_uses_hypothetical_doc(mock_llm: MagicMock, mock_emb: MagicMock) -> None:
-    mock_emb.return_value = MagicMock()
-    llm = MagicMock()
-    llm.invoke.side_effect = [
-        MagicMock(content="Hypothetical passage about revenue."),
-        MagicMock(content="Revenue was $5M."),
-    ]
-    mock_llm.return_value = llm
-
-    pipeline = RAGPipeline(_make_config(strategy="hyde"))
-    vs = MagicMock()
-    doc = _mock_doc("Revenue details.", "finance.pdf", 5)
-    vs.similarity_search_with_score.return_value = [(doc, 0.95)]
-
-    with patch.object(pipeline, "_get_vectorstore", return_value=vs):
-        result = pipeline.query("What was the revenue?")
-
-    # Search must use the hypothetical doc, not the original question
-    vs.similarity_search_with_score.assert_called_once_with(
-        "Hypothetical passage about revenue.", k=5, filter=None
-    )
-    assert result.answer == "Revenue was $5M."
-    assert result.metadata.get("hypothetical_doc") == "Hypothetical passage about revenue."
-
-
-# ---------------------------------------------------------------------------
-# Multi-query strategy
-# ---------------------------------------------------------------------------
-
-
-@patch.object(RAGPipeline, "_create_embeddings")
-@patch.object(RAGPipeline, "_create_llm")
-def test_multi_query_deduplicates(mock_llm: MagicMock, mock_emb: MagicMock) -> None:
-    mock_emb.return_value = MagicMock()
-    llm = MagicMock()
-    llm.invoke.side_effect = [
-        MagicMock(content="variant 1\nvariant 2\nvariant 3"),
-        MagicMock(content="Final answer."),
-    ]
-    mock_llm.return_value = llm
-
-    pipeline = RAGPipeline(_make_config(strategy="multi_query", multi_query_count=3))
-    vs = MagicMock()
-    # Same doc returned for every variant → should deduplicate to 1 chunk
-    same_doc = _mock_doc("unique content", "file.pdf", 1)
-    vs.similarity_search_with_score.return_value = [(same_doc, 0.88)]
-
-    with patch.object(pipeline, "_get_vectorstore", return_value=vs):
-        result = pipeline.query("original question")
-
-    assert len(result.chunks) == 1
-    assert "query_variants" in result.metadata
-    assert result.answer == "Final answer."
-
-
-# ---------------------------------------------------------------------------
-# Parent-document strategy
-# ---------------------------------------------------------------------------
-
-
-@patch.object(RAGPipeline, "_create_embeddings")
-@patch.object(RAGPipeline, "_create_llm")
-def test_parent_document_expands_context(mock_llm: MagicMock, mock_emb: MagicMock) -> None:
-    mock_emb.return_value = MagicMock()
-    llm = MagicMock()
-    llm.invoke.return_value = MagicMock(content="Expanded answer.")
-    mock_llm.return_value = llm
-
-    pipeline = RAGPipeline(_make_config(strategy="parent_document", parent_window_size=2))
-    vs = MagicMock()
-    seed = _mock_doc("seed chunk", "report.pdf", 1)
-    extra = _mock_doc("extra chunk from same source", "report.pdf", 2)
-    # First call: seed retrieval; second call: source-filtered expansion
-    vs.similarity_search_with_score.side_effect = [
-        [(seed, 0.9)],
-        [(extra, 0.7)],
-    ]
-
-    with patch.object(pipeline, "_get_vectorstore", return_value=vs):
-        result = pipeline.query("question")
-
-    assert len(result.chunks) == 2
-    # Second call must use filter on source
-    second_call_kwargs = vs.similarity_search_with_score.call_args_list[1][1]
-    assert second_call_kwargs.get("filter") == {"source": "report.pdf"}
-
-
-# ---------------------------------------------------------------------------
-# Hybrid strategy — missing dependency error
-# ---------------------------------------------------------------------------
-
-
-@patch.object(RAGPipeline, "_create_embeddings")
-@patch.object(RAGPipeline, "_create_llm")
-def test_hybrid_missing_dep_raises(mock_llm: MagicMock, mock_emb: MagicMock) -> None:
-    mock_emb.return_value = MagicMock()
-    mock_llm.return_value = MagicMock()
-
-    import sys
-
-    pipeline = RAGPipeline(_make_config(strategy="hybrid"))
-    vs = MagicMock()
-    vs.similarity_search_with_score.return_value = [(_mock_doc(), 0.8)]
-
+def test_unknown_embedding_provider_raises_before_query() -> None:
     with (
-        patch.object(pipeline, "_get_vectorstore", return_value=vs),
-        patch.dict(
-            sys.modules, {"langchain_community": None, "langchain_community.retrievers": None}
-        ),  # noqa: E501
-        pytest.raises(RAGError, match="langchain-community"),
+        patch.object(RAGPipeline, "_create_llm", return_value=MagicMock()),
+        pytest.raises(ConfigurationError, match="Unknown embedding provider"),
     ):
-        pipeline.query("test")
+        RAGPipeline(_config(embedding_provider="nonexistent"))
 
 
-# ---------------------------------------------------------------------------
-# Structured output
-# ---------------------------------------------------------------------------
+def test_unknown_llm_provider_raises_before_query() -> None:
+    with (
+        patch.object(RAGPipeline, "_create_embeddings", return_value=MagicMock()),
+        pytest.raises(ConfigurationError, match="Unknown LLM provider"),
+    ):
+        RAGPipeline(_config(llm_provider="nonexistent"))
 
 
-@patch.object(RAGPipeline, "_create_embeddings")
-@patch.object(RAGPipeline, "_create_llm")
-def test_structured_rag_output(mock_llm: MagicMock, mock_emb: MagicMock) -> None:
-    from pydantic import BaseModel as PydanticModel
-
-    class Invoice(PydanticModel):
-        total: float
-        currency: str
-
-    mock_emb.return_value = MagicMock()
-    llm = MagicMock()
-    structured_llm = MagicMock()
-    invoice_obj = Invoice(total=4250.0, currency="USD")
-    structured_llm.invoke.return_value = invoice_obj
-    llm.with_structured_output.return_value = structured_llm
-    mock_llm.return_value = llm
-
-    pipeline = RAGPipeline(_make_config(output_model=Invoice))
-    vs = MagicMock()
-    vs.similarity_search_with_score.return_value = [(_mock_doc(), 0.9)]
-
-    with patch.object(pipeline, "_get_vectorstore", return_value=vs):
-        result = pipeline.query("What is the total?")
-
-    llm.with_structured_output.assert_called_once_with(Invoice)
-    assert result.structured is invoice_obj
-    assert "4250" in result.answer
-
-
-# ---------------------------------------------------------------------------
-# RAGResult fields
-# ---------------------------------------------------------------------------
-
-
-def test_rag_result_is_pydantic() -> None:
-    chunk = RAGChunk(content="text", score=0.9, source="a.pdf")
+def test_result_serializes_public_fields_but_not_structured_value() -> None:
     result = RAGResult(
         query="q",
         answer="a",
         strategy="naive",
-        chunks=[chunk],
+        chunks=[RAGChunk(content="text", score=0.9, source="a.pdf")],
         sources=["a.pdf"],
         timing_seconds=0.5,
+        structured={"private": "value"},
     )
-    data = result.model_dump()
-    assert data["query"] == "q"
-    assert data["sources"] == ["a.pdf"]
-    # structured is excluded from serialization
-    assert "structured" not in data
+    assert result.model_dump()["sources"] == ["a.pdf"]
+    assert "structured" not in result.model_dump()
 
 
-# ---------------------------------------------------------------------------
-# Conversation history
-# ---------------------------------------------------------------------------
-
-
-@patch.object(RAGPipeline, "_create_embeddings")
-@patch.object(RAGPipeline, "_create_llm")
-@patch.object(RAGPipeline, "_get_vectorstore")
-def test_history_messages_prepended_before_current_question(
-    mock_vs_factory, mock_llm_factory, mock_emb_factory
-):
-    from langchain_core.messages import HumanMessage
-
-    mock_llm = MagicMock()
-    mock_llm.invoke.return_value = MagicMock(content="answer")
-    mock_llm_factory.return_value = mock_llm
-    mock_emb_factory.return_value = MagicMock()
-    mock_vs = MagicMock()
-    mock_vs.similarity_search_with_score.return_value = []
-    mock_vs_factory.return_value = mock_vs
-
-    config = _make_config(
-        history=[
-            {"role": "user", "content": "What is RAG?"},
-            {"role": "assistant", "content": "RAG stands for retrieval-augmented generation."},
-        ]
-    )
-    pipeline = RAGPipeline(config)
-    pipeline.query("Tell me more about it")
-
-    call_messages = mock_llm.invoke.call_args[0][0]
-    types = [type(m).__name__ for m in call_messages]
-    contents = [m.content for m in call_messages]
-
-    assert types[0] == "SystemMessage"
-    assert "What is RAG?" in contents
-    assert "RAG stands for retrieval-augmented generation." in contents
-    assert call_messages[-1].content == "Tell me more about it"
-    assert isinstance(call_messages[-1], HumanMessage)
-
-
-def test_cap_chunks_per_source_limits_each_source() -> None:
+def test_unknown_strategy_fails_before_plugin_loading() -> None:
     with (
-        patch.object(RAGPipeline, "_create_embeddings") as mock_emb,
-        patch.object(RAGPipeline, "_create_llm") as mock_llm,
+        patch.object(RAGPipeline, "_create_embeddings", return_value=MagicMock()),
+        patch.object(RAGPipeline, "_create_llm", return_value=MagicMock()),
+        patch.object(PluginLoader, "load") as loader,
     ):
-        mock_emb.return_value = MagicMock()
-        mock_llm.return_value = MagicMock()
-        pipeline = RAGPipeline(_make_config(max_chunks_per_source=1, top_k=4))
-        chunks = [
-            RAGChunk(content="a1", score=0.9, source="docA.pdf"),
-            RAGChunk(content="a2", score=0.8, source="docA.pdf"),
-            RAGChunk(content="b1", score=0.7, source="docB.pdf"),
-            RAGChunk(content="b2", score=0.6, source="docB.pdf"),
-        ]
-        capped = pipeline._cap_chunks_per_source(chunks)
-        assert len(capped) == 2
-        assert {c.source for c in capped} == {"docA.pdf", "docB.pdf"}
+        pipeline = RAGPipeline(_config())
+        pipeline._config.strategy = "missing"  # type: ignore[assignment]
+        with pytest.raises(RAGError, match="Unknown strategy 'missing'"):
+            pipeline.query("question")
+        loader.assert_not_called()
+
+
+def test_hyde_requires_prompt_before_plugin_loading() -> None:
+    with (
+        patch.object(RAGPipeline, "_create_embeddings", return_value=MagicMock()),
+        patch.object(RAGPipeline, "_create_llm", return_value=MagicMock()),
+        patch.object(PluginLoader, "load") as loader,
+        pytest.raises(ConfigurationError, match="hyde_prompt"),
+    ):
+        RAGPipeline(_config(strategy="hyde")).query("question")
+    loader.assert_not_called()

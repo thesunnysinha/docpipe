@@ -30,7 +30,8 @@ def log_plugin_denied(*, group: str, name: str, tenant: str | None = None) -> No
 
 def log_plugin_resolve(
     *,
-    source: str | None,
+    source_scheme: str | None,
+    source_key: str | None,
     goal: str,
     preset: str | None,
     recommended: dict[str, Any],
@@ -38,7 +39,8 @@ def log_plugin_resolve(
 ) -> None:
     _emit(
         "plugin_resolve",
-        source=source,
+        source_scheme=source_scheme,
+        source_key=source_key,
         goal=goal,
         preset=preset,
         recommended=recommended,

@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Experimental plugin API 1.0.0 foundation: static source/vector catalog, policy-gated lazy loading, explicit lifecycles, public conformance kit, and an installable external example
+- Namespaced `vector_store` and `source_plugin` options with legacy translation and safe nested validation errors
+- Source/HTTP resolvers, vector facets, and selected-provider `/search`; `/plugins` catalog metadata and explicit `/plugins/health` probe
+- Optional Qdrant vector-store adapter with typed filters, deterministic IDs, source aggregation, and local/server conformance coverage
+- Optional S3/MinIO source resolver with operator-owned bucket and endpoint policy, bounded streaming, credential references, and a source conformance job
 - Optional control-plane DB (SQLite in Docker) with Alembic migrations, seeded admin user, `/admin` panel
 - Env-gated persistence: `DOCPIPE_PERSIST_AUDIT_EVENTS`, `DOCPIPE_PERSIST_INGEST_JOBS`, `DOCPIPE_PERSIST_PLUGIN_RESOLUTIONS`
 - `POST /ingest/stream` SSE progress events for long ingest jobs

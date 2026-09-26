@@ -46,110 +46,6 @@ from docpipe.eval.pipeline import EvalPipeline
 from docpipe.rag.pipeline import RAGPipeline
 from docpipe.registry.registry import PluginRegistry
 
-
-def _register_builtins() -> None:
-    """Register built-in plugins if their dependencies are available."""
-    registry = PluginRegistry.get()
-
-    _try_register_parser(registry, "docling", "docpipe.parsers.docling_parser", "DoclingParser")
-    _try_register_parser(
-        registry, "markitdown", "docpipe.parsers.markitdown_parser", "MarkItDownParser"
-    )
-    _try_register_parser(registry, "glm-ocr", "docpipe.parsers.glm_ocr_parser", "GLMOCRParser")
-    _try_register_parser(registry, "pymupdf", "docpipe.parsers.pymupdf_parser", "PyMuPDFParser")
-    _try_register_parser(registry, "mineru", "docpipe.parsers.mineru_parser", "MinerUParser")
-    _try_register_parser(
-        registry, "paddleocr", "docpipe.parsers.paddleocr_parser", "PaddleOCRParser"
-    )
-    _try_register_parser(
-        registry, "unstructured", "docpipe.parsers.unstructured_parser", "UnstructuredParser"
-    )
-
-    _try_register_extractor(
-        registry, "langextract", "docpipe.extractors.langextract_extractor", "LangExtractExtractor"
-    )
-    _try_register_extractor(
-        registry, "langchain", "docpipe.extractors.langchain_extractor", "LangChainExtractor"
-    )
-    _try_register_extractor(
-        registry, "outlines", "docpipe.extractors.outlines_extractor", "OutlinesExtractor"
-    )
-
-    _try_register_chunker(
-        registry, "recursive", "docpipe.chunkers.recursive_chunker", "RecursiveChunker"
-    )
-    _try_register_chunker(
-        registry, "semchunk", "docpipe.chunkers.semchunk_chunker", "SemchunkChunker"
-    )
-    _try_register_chunker(
-        registry, "chonkie-semantic", "docpipe.chunkers.chonkie_chunker", "ChonkieSemanticChunker"
-    )
-    _try_register_chunker(
-        registry, "chonkie-late", "docpipe.chunkers.chonkie_chunker", "ChonkieLateChunker"
-    )
-
-    _try_register_reranker(
-        registry, "flashrank", "docpipe.rerankers.flashrank_reranker", "FlashRankReranker"
-    )
-    _try_register_reranker(
-        registry, "cohere", "docpipe.rerankers.cohere_reranker", "CohereReranker"
-    )
-    _try_register_reranker(registry, "bge", "docpipe.rerankers.bge_reranker", "BGEReranker")
-    _try_register_reranker(registry, "mxbai", "docpipe.rerankers.mxbai_reranker", "MxbaiReranker")
-
-    _try_register_evaluator(
-        registry, "builtin", "docpipe.eval.builtin_evaluator", "BuiltinEvaluator"
-    )
-    _try_register_evaluator(registry, "ragas", "docpipe.eval.ragas_evaluator", "RagasEvaluator")
-
-
-def _try_register_parser(registry: PluginRegistry, name: str, module: str, cls_name: str) -> None:
-    try:
-        mod = __import__(module, fromlist=[cls_name])
-        registry.register_parser(name, getattr(mod, cls_name))
-    except ImportError:
-        pass
-
-
-def _try_register_extractor(
-    registry: PluginRegistry, name: str, module: str, cls_name: str
-) -> None:
-    try:
-        mod = __import__(module, fromlist=[cls_name])
-        registry.register_extractor(name, getattr(mod, cls_name))
-    except ImportError:
-        pass
-
-
-def _try_register_chunker(registry: PluginRegistry, name: str, module: str, cls_name: str) -> None:
-    try:
-        mod = __import__(module, fromlist=[cls_name])
-        registry.register_chunker(name, getattr(mod, cls_name))
-    except ImportError:
-        pass
-
-
-def _try_register_reranker(registry: PluginRegistry, name: str, module: str, cls_name: str) -> None:
-    try:
-        mod = __import__(module, fromlist=[cls_name])
-        registry.register_reranker(name, getattr(mod, cls_name))
-    except ImportError:
-        pass
-
-
-def _try_register_evaluator(
-    registry: PluginRegistry, name: str, module: str, cls_name: str
-) -> None:
-    try:
-        mod = __import__(module, fromlist=[cls_name])
-        registry.register_evaluator(name, getattr(mod, cls_name))
-    except ImportError:
-        pass
-
-
-_register_builtins()
-
-
 # --- Convenience functions ---
 
 
@@ -158,7 +54,9 @@ def parse(source: str, *, parser: str = "docling", **kwargs: object) -> ParsedDo
     from docpipe.parsers.router import resolve_parser
 
     name = resolve_parser(parser, source=source, tier=str(kwargs.pop("tier", "balanced")))
-    p = PluginRegistry.get().get_parser(name, **kwargs)
+    from docpipe.bootstrap.sdk import get_default_runtime
+
+    p = get_default_runtime().legacy_registry.get_parser(name, **kwargs)
     return p.parse(source)
 
 
@@ -170,7 +68,9 @@ def extract(
     **kwargs: object,
 ) -> list[ExtractionResult]:
     """Extract structured data using the specified extractor."""
-    e = PluginRegistry.get().get_extractor(extractor, **kwargs)
+    from docpipe.bootstrap.sdk import get_default_runtime
+
+    e = get_default_runtime().legacy_registry.get_extractor(extractor, **kwargs)
     return e.extract(text, schema)
 
 
@@ -198,9 +98,10 @@ def ingest(
     parser: str = "docling",
 ) -> IngestionResult:
     """Parse a document and ingest it into a vector store."""
+    from docpipe.bootstrap.sdk import get_default_runtime
     from docpipe.ingestion.pipeline import IngestionPipeline
 
-    p = PluginRegistry.get().get_parser(parser)
+    p = get_default_runtime().legacy_registry.get_parser(parser)
     parsed = p.parse(source)
     ingestion = IngestionPipeline(config)
     return ingestion.ingest(parsed)

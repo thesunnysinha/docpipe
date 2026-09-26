@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.metadata
 import logging
+import warnings
 from typing import Any
 
 from docpipe.core.errors import (
@@ -16,6 +17,7 @@ from docpipe.core.errors import (
 from docpipe.core.plugin_meta import plugin_info_dict
 
 logger = logging.getLogger(__name__)
+_LEGACY_WARNING_EMITTED = False
 
 _ENTRYPOINT_GROUPS = (
     ("docpipe.parsers", "_parsers", "parser"),
@@ -27,9 +29,7 @@ _ENTRYPOINT_GROUPS = (
 
 
 class PluginRegistry:
-    """Central registry for docpipe plugins."""
-
-    _instance: PluginRegistry | None = None
+    """Legacy parser/extractor registry with an isolated instance state."""
 
     def __init__(self) -> None:
         self._parsers: dict[str, type[Any]] = {}
@@ -41,18 +41,27 @@ class PluginRegistry:
 
     @classmethod
     def get(cls) -> PluginRegistry:
-        """Get or create the singleton registry instance."""
-        if cls._instance is None:
-            cls._instance = cls()
-        if not cls._instance._discovered:
-            cls._instance._discover_entrypoints()
-            cls._instance._discovered = True
-        return cls._instance
+        """Return the deprecated process-default compatibility registry."""
+        global _LEGACY_WARNING_EMITTED
+        if not _LEGACY_WARNING_EMITTED:
+            warnings.warn(
+                "PluginRegistry.get() is deprecated; inject a DocpipeRuntime registry instead.",
+                DeprecationWarning,
+                stacklevel=2,
+            )
+            _LEGACY_WARNING_EMITTED = True
+        from docpipe.bootstrap.sdk import get_default_runtime
+
+        registry = get_default_runtime().legacy_registry
+        registry._ensure_discovered()
+        return registry
 
     @classmethod
     def reset(cls) -> None:
-        """Reset the singleton (for testing)."""
-        cls._instance = None
+        """Reset the deprecated process default when it is not active."""
+        from docpipe.bootstrap.sdk import reset_default_runtime
+
+        reset_default_runtime()
 
     def register_parser(self, name: str, parser_cls: type[Any]) -> None:
         self._parsers[name] = parser_cls
@@ -70,6 +79,7 @@ class PluginRegistry:
         self._evaluators[name] = evaluator_cls
 
     def get_parser(self, name: str, **kwargs: Any) -> Any:
+        self._ensure_discovered()
         if name not in self._parsers:
             raise ParserNotFoundError(
                 f"Parser '{name}' not found. Available: {list(self._parsers.keys())}"
@@ -77,6 +87,7 @@ class PluginRegistry:
         return self._parsers[name](**kwargs)
 
     def get_extractor(self, name: str, **kwargs: Any) -> Any:
+        self._ensure_discovered()
         if name not in self._extractors:
             raise ExtractorNotFoundError(
                 f"Extractor '{name}' not found. Available: {list(self._extractors.keys())}"
@@ -84,6 +95,7 @@ class PluginRegistry:
         return self._extractors[name](**kwargs)
 
     def get_chunker(self, name: str, **kwargs: Any) -> Any:
+        self._ensure_discovered()
         if name not in self._chunkers:
             raise ChunkerNotFoundError(
                 f"Chunker '{name}' not found. Available: {list(self._chunkers.keys())}"
@@ -91,6 +103,7 @@ class PluginRegistry:
         return self._chunkers[name](**kwargs)
 
     def get_reranker(self, name: str, **kwargs: Any) -> Any:
+        self._ensure_discovered()
         if name not in self._rerankers:
             raise RerankerNotFoundError(
                 f"Reranker '{name}' not found. Available: {list(self._rerankers.keys())}"
@@ -98,6 +111,7 @@ class PluginRegistry:
         return self._rerankers[name](**kwargs)
 
     def get_evaluator(self, name: str, **kwargs: Any) -> Any:
+        self._ensure_discovered()
         if name not in self._evaluators:
             raise EvaluatorNotFoundError(
                 f"Evaluator '{name}' not found. Available: {list(self._evaluators.keys())}"
@@ -105,41 +119,51 @@ class PluginRegistry:
         return self._evaluators[name](**kwargs)
 
     def list_parsers(self) -> list[str]:
+        self._ensure_discovered()
         return list(self._parsers.keys())
 
     def list_extractors(self) -> list[str]:
+        self._ensure_discovered()
         return list(self._extractors.keys())
 
     def list_chunkers(self) -> list[str]:
+        self._ensure_discovered()
         return list(self._chunkers.keys())
 
     def list_rerankers(self) -> list[str]:
+        self._ensure_discovered()
         return list(self._rerankers.keys())
 
     def list_evaluators(self) -> list[str]:
+        self._ensure_discovered()
         return list(self._evaluators.keys())
 
     def parser_info(self, name: str) -> dict[str, Any]:
+        self._ensure_discovered()
         if name not in self._parsers:
             raise ParserNotFoundError(f"Parser '{name}' not found.")
         return plugin_info_dict(self._parsers[name], name=name)
 
     def extractor_info(self, name: str) -> dict[str, Any]:
+        self._ensure_discovered()
         if name not in self._extractors:
             raise ExtractorNotFoundError(f"Extractor '{name}' not found.")
         return plugin_info_dict(self._extractors[name], name=name)
 
     def chunker_info(self, name: str) -> dict[str, Any]:
+        self._ensure_discovered()
         if name not in self._chunkers:
             raise ChunkerNotFoundError(f"Chunker '{name}' not found.")
         return plugin_info_dict(self._chunkers[name], name=name)
 
     def reranker_info(self, name: str) -> dict[str, Any]:
+        self._ensure_discovered()
         if name not in self._rerankers:
             raise RerankerNotFoundError(f"Reranker '{name}' not found.")
         return plugin_info_dict(self._rerankers[name], name=name)
 
     def evaluator_info(self, name: str) -> dict[str, Any]:
+        self._ensure_discovered()
         if name not in self._evaluators:
             raise EvaluatorNotFoundError(f"Evaluator '{name}' not found.")
         return plugin_info_dict(self._evaluators[name], name=name)
@@ -154,6 +178,12 @@ class PluginRegistry:
             "evaluators": {n: self.evaluator_info(n) for n in self.list_evaluators()},
         }
 
+    def _ensure_discovered(self) -> None:
+        if self._discovered:
+            return
+        self._discovered = True
+        self._discover_entrypoints()
+
     def _discover_entrypoints(self) -> None:
         for group, attr, kind in _ENTRYPOINT_GROUPS:
             store: dict[str, type[Any]] = getattr(self, attr)
@@ -164,5 +194,13 @@ class PluginRegistry:
                     cls = ep.load()
                     store[ep.name] = cls
                     logger.debug("Registered %s plugin: %s", kind, ep.name)
-                except Exception as e:
-                    logger.warning("Failed to load %s plugin '%s': %s", kind, ep.name, e)
+                except Exception as exc:
+                    logger.warning(
+                        "legacy.plugin.load.failed",
+                        extra={
+                            "event": "legacy.plugin.load.failed",
+                            "plugin_kind": kind,
+                            "plugin": ep.name,
+                            "error_type": type(exc).__name__,
+                        },
+                    )

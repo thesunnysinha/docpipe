@@ -58,6 +58,15 @@
 </div>
 
 <section class="card mb-16">
+  <h2 class="card-title">Plugin categories</h2>
+  <div class="chips">
+    <div class="chip">Sources ({{ plugin_categories.source | default(0) }})</div>
+    <div class="chip">Vector stores ({{ plugin_categories.vectorstore | default(0) }})</div>
+  </div>
+  <p class="hint">See <a href="/plugins">GET /plugins</a> for availability and installation hints.</p>
+</section>
+
+<section class="card mb-16">
   <h2 class="card-title">Quick Access</h2>
   <div class="link-grid">
     <a class="link-card" href="/docs">

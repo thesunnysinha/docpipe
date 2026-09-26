@@ -12,7 +12,7 @@ This document covers **in-process and shared-internal concerns** — what docpip
 |-------|--------|
 | Public exposure | Do not put an unauthenticated instance on the internet. Use a private network, mesh, or API gateway. |
 | TLS / mTLS | Terminate TLS at ingress or sidecar; docpipe serves plain HTTP by default. |
-| Strong credentials | Change `DOCPIPE_PASSWORD` / seed admin password; use K8s Secrets or your secret manager. |
+| Strong credentials | Set a unique `DOCPIPE_PASSWORD` / seed admin password; auth-enabled startup fails when none is configured. Use K8s Secrets or your secret manager. |
 | Identity federation | HTTP Basic Auth is built in; map OIDC/JWT at your gateway if you need SSO. |
 | Provider API keys | `OPENAI_API_KEY`, etc. are operator env vars — protect like any other secret. |
 | `/metrics` without auth | Standard Prometheus scrape pattern; restrict network access to the metrics port/path. |
@@ -57,13 +57,13 @@ Parser coverage: see [`SSRF_AUDIT.md`](SSRF_AUDIT.md). Prefer time-limited presi
 
 ### 5. Local and mounted file paths
 
-`source` may be a path or `file://` URL readable by the docpipe process. Any caller with API access can request parse/ingest of files under mounted volumes (e.g. `/data/uploads/...`).
+`source` may be a path or `file://` URL under `DOCPIPE_SOURCE_ALLOWED_ROOTS`. Local path access is disabled by default; any authenticated caller can read files within roots the operator grants.
 
 **Mitigation:** mount only intended directories; do not mount host `/` or sensitive paths; treat API credentials as filesystem access to those mounts.
 
 ### 6. Rate limiting (intra-cluster abuse)
 
-`DOCPIPE_RATE_LIMIT_ENABLED` applies per-preset limits on expensive POST routes (`/ingest`, `/parse`, `/rag/*`). Keyed by Basic Auth identity + optional tenant header — useful when many internal services share one docpipe.
+`DOCPIPE_RATE_LIMIT_ENABLED` applies a bounded per-peer budget on expensive POST routes (`/ingest`, `/parse`, `/rag/*`) before authentication and without buffering bodies. It does not trust caller identity headers. Behind shared ingress, add per-client throttling at that ingress.
 
 ### 7. Audit trail (optional)
 
@@ -108,6 +108,6 @@ Each downstream app:
 | Firewall, TLS, SSO, secret rotation | Deployer |
 | Which plugins can run, audit log, rate limits, URL fetch policy | docpipe (configured by operator) |
 | Where vectors live | Calling app (`connection_string` per request) |
-| Tenant plugin policy selection | Calling app (trusted header) + operator JSON policy |
+| Tenant plugin policy selection | Verified Basic Auth username mapping (`DOCPIPE_TENANT_IDENTITY_MAP`) + operator JSON policy |
 
 For URL parser details: [`SSRF_AUDIT.md`](SSRF_AUDIT.md). For control DB: [`CONTROL_DB.md`](CONTROL_DB.md).

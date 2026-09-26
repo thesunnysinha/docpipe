@@ -7,6 +7,7 @@ from typing import Any
 from pydantic import Field
 
 from docpipe.schemas.base import ApiResponse
+from docpipe.schemas.plugin_catalog import CatalogPluginInfo
 
 
 class PluginInfo(ApiResponse):
@@ -46,6 +47,10 @@ class PluginsResponse(ApiResponse):
     chunkers: dict[str, PluginInfo] = Field(default_factory=dict)
     rerankers: dict[str, PluginInfo] = Field(default_factory=dict)
     evaluators: dict[str, PluginInfo] = Field(default_factory=dict)
+    catalog: dict[str, dict[str, CatalogPluginInfo]] = Field(
+        default_factory=dict,
+        description="Static source and vector-store plugins grouped by extension category.",
+    )
 
     @classmethod
     def from_payload(cls, payload: dict[str, dict[str, dict[str, Any]]]) -> PluginsResponse:

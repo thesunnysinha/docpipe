@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from docpipe.config import get_settings
+from docpipe.bootstrap.runtime import DocpipeRuntime
+from docpipe.config.settings import DocpipeSettings
 from docpipe.core.pipeline import Pipeline
 from docpipe.registry.registry import PluginRegistry
 from docpipe.schemas import (
@@ -16,11 +17,21 @@ from docpipe.schemas import (
 from docpipe.server.mappers import extraction_schema_from_request
 from docpipe.server.parser_cache import get_cached_parse, store_cached_parse
 from docpipe.server.plugin_requests import resolve_fields, resolve_parser_name
+from docpipe.sources.parsing import SourceParser
 
 
 class DocumentService:
-    def __init__(self, registry: PluginRegistry) -> None:
+    """Serve parsing operations from injected application dependencies."""
+
+    def __init__(
+        self,
+        settings: DocpipeSettings,
+        registry: PluginRegistry,
+        runtime: DocpipeRuntime,
+    ) -> None:
+        self._settings = settings
         self._registry = registry
+        self._source_parser = SourceParser(runtime)
 
     async def parse(self, req: ParseRequest) -> ParseResponse:
         resolved = resolve_fields(
@@ -32,16 +43,15 @@ class DocumentService:
         )
         parser_name = resolve_parser_name(resolved, req.source)
         parser = self._registry.get_parser(parser_name)
-        settings = get_settings()
-        cache_ttl = settings.parser_cache_ttl_seconds
+        cache_ttl = self._settings.parser_cache_ttl_seconds
         parsed = get_cached_parse(req.source, parser_name, ttl_seconds=cache_ttl)
         if parsed is None:
-            parsed = await parser.aparse(req.source)
+            parsed = await self._source_parser.parse(parser, req.source)
             store_cached_parse(
                 req.source,
                 parser_name,
                 parsed,
-                ttl_seconds=settings.parser_cache_ttl_seconds,
+                ttl_seconds=cache_ttl,
             )
         result = parsed
 
@@ -74,6 +84,10 @@ class DocumentService:
     async def run(self, req: RunRequest) -> RunResponse:
         """Parse and extract in a single pipeline invocation."""
         schema = extraction_schema_from_request(req)
-        pipeline = Pipeline(parser=req.parser, extractor=req.extractor)
+        pipeline = Pipeline(
+            parser=self._registry.get_parser(req.parser),
+            extractor=self._registry.get_extractor(req.extractor),
+            source_parser=self._source_parser,
+        )
         result = await pipeline.arun(req.source, schema)
         return RunResponse.model_validate(result.model_dump())

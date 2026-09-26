@@ -3,15 +3,14 @@
 from __future__ import annotations
 
 from docpipe.agents.mcp_tools import execute_mcp_tool, list_mcp_tools
-from docpipe.registry.registry import PluginRegistry
 from docpipe.schemas.mcp import McpCallRequest, McpCallResponse, McpToolDescriptor, McpToolsResponse
 from docpipe.server.services.documents import DocumentService
 from docpipe.server.services.rag import RAGService
 
 
 class McpService:
-    def __init__(self, registry: PluginRegistry, rag_service: RAGService) -> None:
-        self._documents = DocumentService(registry)
+    def __init__(self, document_service: DocumentService, rag_service: RAGService) -> None:
+        self._documents = document_service
         self._rag = rag_service
 
     def list_tools(self) -> McpToolsResponse:

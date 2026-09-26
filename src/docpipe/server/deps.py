@@ -4,9 +4,9 @@ from __future__ import annotations
 
 from typing import Annotated
 
-from fastapi import Depends
+from fastapi import Depends, Request
 
-from docpipe.config import get_settings
+from docpipe.bootstrap.runtime import DocpipeRuntime
 from docpipe.config.settings import DocpipeSettings
 from docpipe.registry.registry import PluginRegistry
 from docpipe.server.auth import require_auth
@@ -27,12 +27,23 @@ from docpipe.server.services import (
 Auth = Annotated[None, Depends(require_auth)]
 
 
-def get_app_settings() -> DocpipeSettings:
-    return get_settings()
+def get_runtime(request: Request) -> DocpipeRuntime:
+    """Return the application-scoped runtime attached during composition."""
+    runtime: DocpipeRuntime = request.app.state.docpipe_runtime
+    return runtime
 
 
-def get_registry() -> PluginRegistry:
-    return PluginRegistry.get()
+RuntimeDep = Annotated[DocpipeRuntime, Depends(get_runtime)]
+
+
+def get_app_settings(runtime: RuntimeDep) -> DocpipeSettings:
+    """Return settings owned by the application runtime."""
+    return runtime.settings
+
+
+def get_registry(runtime: RuntimeDep) -> PluginRegistry:
+    """Return the isolated legacy registry during its migration window."""
+    return runtime.legacy_registry
 
 
 SettingsDep = Annotated[DocpipeSettings, Depends(get_app_settings)]
@@ -46,20 +57,29 @@ def get_admin_service() -> AdminService:
 def get_discovery_service(
     settings: SettingsDep,
     registry: RegistryDep,
+    runtime: RuntimeDep,
 ) -> DiscoveryService:
-    return DiscoveryService(settings, registry)
+    return DiscoveryService(settings, registry, runtime)
 
 
-def get_document_service(registry: RegistryDep) -> DocumentService:
-    return DocumentService(registry)
+def get_document_service(
+    settings: SettingsDep,
+    registry: RegistryDep,
+    runtime: RuntimeDep,
+) -> DocumentService:
+    return DocumentService(settings, registry, runtime)
 
 
-def get_ingest_service(settings: SettingsDep, registry: RegistryDep) -> IngestService:
-    return IngestService(settings, registry)
+def get_ingest_service(
+    settings: SettingsDep,
+    registry: RegistryDep,
+    runtime: RuntimeDep,
+) -> IngestService:
+    return IngestService(settings, registry, runtime)
 
 
-def get_rag_service(settings: SettingsDep) -> RAGService:
-    return RAGService(settings)
+def get_rag_service(settings: SettingsDep, runtime: RuntimeDep) -> RAGService:
+    return RAGService(settings, runtime)
 
 
 def get_agent_service(settings: SettingsDep) -> AgentService:
@@ -94,8 +114,11 @@ TranscribeServiceDep = Annotated[TranscribeService, Depends(get_transcribe_servi
 CostServiceDep = Annotated[CostService, Depends(get_cost_service)]
 
 
-def get_mcp_service(registry: RegistryDep, rag_service: RAGServiceDep) -> McpService:
-    return McpService(registry, rag_service)
+def get_mcp_service(
+    document_service: DocumentServiceDep,
+    rag_service: RAGServiceDep,
+) -> McpService:
+    return McpService(document_service, rag_service)
 
 
 McpServiceDep = Annotated[McpService, Depends(get_mcp_service)]

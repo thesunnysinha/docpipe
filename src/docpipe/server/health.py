@@ -7,7 +7,7 @@ from typing import Literal
 
 import psycopg2
 
-from docpipe.config import get_settings
+from docpipe.config.settings import DocpipeSettings
 from docpipe.schemas.health import DependencyStatus, HealthResponse
 
 
@@ -31,13 +31,12 @@ def check_database(connection_string: str | None) -> DependencyStatus:
             name="database",
             status="unavailable",
             latency_ms=latency_ms,
-            detail=str(exc),
+            detail=f"database probe failed ({type(exc).__name__})",
         )
 
 
-def check_embedding_provider() -> DependencyStatus:
+def check_embedding_provider(settings: DocpipeSettings) -> DependencyStatus:
     """Optional lightweight embedding probe (disabled by default)."""
-    settings = get_settings()
     provider = settings.embedding_provider
     model = settings.embedding_model
     if not provider or not model:
@@ -69,13 +68,14 @@ def check_embedding_provider() -> DependencyStatus:
             name="embedding_provider",
             status="degraded",
             latency_ms=latency_ms,
-            detail=str(exc),
+            detail=f"embedding probe failed ({type(exc).__name__})",
         )
 
 
-def build_health_response(version: str, plugins: dict[str, list[str]]) -> HealthResponse:
+def build_health_response(
+    version: str, plugins: dict[str, list[str]], settings: DocpipeSettings
+) -> HealthResponse:
     """Aggregate dependency checks into an overall health status."""
-    settings = get_settings()
     dependencies: list[DependencyStatus] = []
 
     if settings.health_check_db:
@@ -93,7 +93,7 @@ def build_health_response(version: str, plugins: dict[str, list[str]]) -> Health
         db_status = None
 
     if settings.health_check_embedding:
-        emb_status = check_embedding_provider()
+        emb_status = check_embedding_provider(settings)
         dependencies.append(emb_status)
     else:
         emb_status = None

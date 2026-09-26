@@ -13,7 +13,7 @@ Sample Docker Compose stacks and a full **environment variable reference** for i
 
 ```bash
 cd examples/internal-shared
-cp .env.example .env          # add OPENAI_API_KEY, set DOCPIPE_PASSWORD
+cp .env.example .env          # add OPENAI_API_KEY and a unique DOCPIPE_PASSWORD
 docker compose up -d
 curl -u admin:your-password http://localhost:8000/health
 open http://localhost:8000/admin   # control-plane UI (when enabled)
@@ -131,7 +131,7 @@ LLM provider/model are set per RAG request; no global `DOCPIPE_LLM_*` in setting
 |----------|---------|--------------|
 | `DOCPIPE_AUTH_ENABLED` | `true` | HTTP Basic Auth on API + `/admin`. Set `false` only on trusted internal networks |
 | `DOCPIPE_USERNAME` | `admin` | Basic Auth username (also seeds admin user when control DB enabled) |
-| `DOCPIPE_PASSWORD` | `docpipe` | Basic Auth password — **change in production** |
+| `DOCPIPE_PASSWORD` | unset | Required when auth is enabled; set a unique secret before startup |
 
 When `DOCPIPE_CONTROL_DB_ENABLED=true`, login is validated against the `admin_users` table after seed.
 
@@ -171,14 +171,15 @@ docpipe is open source: **TLS, ingress, and credential rotation are your respons
 | `DOCPIPE_MAX_CONCURRENCY` | `4` | Max parallel pipeline tasks |
 | `DOCPIPE_MODEL_CACHE_DIR` | — | Cache dir for CrossEncoder, GLM-OCR, HF models |
 | `DOCPIPE_PARSER_CACHE_TTL_SECONDS` | `0` | In-memory parse cache TTL; `0` = off |
-| `DOCPIPE_RATE_LIMIT_ENABLED` | `true` | Per-preset POST rate limits (`/ingest`, `/parse`, `/rag/*`) |
+| `DOCPIPE_RATE_LIMIT_ENABLED` | `true` | Bounded per-peer POST rate limits (`/ingest`, `/parse`, `/rag/*`) |
 
 ### Multi-tenant plugin policy
 
 | Variable | Default | What it does |
 |----------|---------|--------------|
 | `DOCPIPE_TENANT_PLUGIN_POLICIES` | — | JSON map: `{"team-a":{"enabled_parsers":"markitdown,docling"}}` |
-| Request header `X-Docpipe-Tenant-Id` | — | Selects policy entry — **set from trusted server-side callers only**, not end-user clients |
+| `DOCPIPE_TENANT_IDENTITY_MAP` | `{}` | JSON map from verified Basic Auth usernames to tenant IDs, e.g. `{"service-a":"team-a"}` |
+| Request header `X-Docpipe-Tenant-Id` | ignored | Caller-controlled tenant IDs never select a policy |
 
 ### Observability
 
