@@ -38,13 +38,40 @@ class _AsyncCloseable(Protocol):
 class HttpSourceConfig(TypedPluginConfig):
     """Network deadlines, redirect limits, and owned temporary root."""
 
-    temporary_root: Path = Field(...)
-    max_bytes: int = Field(default=100 * 1024 * 1024, ge=1)
-    chunk_bytes: int = Field(default=1024 * 1024, ge=1, le=8 * 1024 * 1024)
-    total_timeout: float = Field(default=30.0, gt=0, le=600)
-    max_redirects: int = Field(default=3, ge=0, le=10)
-    allow_private: bool = Field(default=False)
-    allowed_ports: tuple[int, ...] = Field(default=(80, 443))
+    temporary_root: Path = Field(
+        ..., description="Existing private directory for materialized source artifacts."
+    )
+    max_bytes: int = Field(
+        default=100 * 1024 * 1024,
+        ge=1,
+        description="Maximum bytes accepted from one downloaded object.",
+    )
+    chunk_bytes: int = Field(
+        default=1024 * 1024,
+        ge=1,
+        le=8 * 1024 * 1024,
+        description="Maximum bytes read or yielded in one source chunk.",
+    )
+    total_timeout: float = Field(
+        default=30.0,
+        gt=0,
+        le=600,
+        description="End-to-end download deadline in seconds.",
+    )
+    max_redirects: int = Field(
+        default=3,
+        ge=0,
+        le=10,
+        description="Maximum redirects followed after each target is revalidated.",
+    )
+    allow_private: bool = Field(
+        default=False,
+        description="Whether operator policy permits requests to private or local addresses.",
+    )
+    allowed_ports: tuple[int, ...] = Field(
+        default=(80, 443),
+        description="Destination TCP ports permitted by the HTTP source policy.",
+    )
 
     def model_post_init(self, __context: object) -> None:
         """Require an existing private directory instead of creating broad paths."""
@@ -68,6 +95,13 @@ class HttpSourceResolver:
         client: object | None = None,
         security: HttpSecurityPolicy | None = None,
     ) -> None:
+        """Create a resolver, optionally using a caller-owned HTTP client.
+
+        When ``client`` is omitted, entering the resolver creates a pinned
+        transport and the resolver closes it on exit. An injected client is
+        never closed by this resolver. ``security`` overrides the policy
+        derived from ``config`` and is applied to the owned transport.
+        """
         self._config = config
         self._client = client
         self._security = security or HttpSecurityPolicy(config.allow_private, config.allowed_ports)

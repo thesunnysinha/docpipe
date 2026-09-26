@@ -17,6 +17,13 @@ class MultiQueryStrategy:
     name: str = "multi_query"
 
     async def retrieve(self, question: str) -> RetrievalResult:
+        """Search the original question plus up to ``count`` rewritten variants.
+
+        The rewrite call runs first, then each query is searched sequentially.
+        Duplicate source/content pairs retain their highest score and results
+        are sorted descending. Metadata contains the accepted ``query_variants``;
+        rewrite and vector-search failures propagate.
+        """
         rendered = self.prompt.format(question=question, n=self.count)
         completion = await self.rewriter.complete(rendered)
         variants = tuple(

@@ -7,12 +7,17 @@ from typing import Protocol, runtime_checkable
 
 @runtime_checkable
 class EmbeddingEncoder(Protocol):
-    """Encode text into plain immutable floating-point vectors."""
+    """Encode text into plain immutable floating-point vectors.
+
+    Implementations preserve document input order and return one vector per
+    input. Provider failures propagate through the async methods; callers should
+    validate dimensions against the selected vector collection before writing.
+    """
 
     async def encode_documents(self, texts: tuple[str, ...]) -> tuple[tuple[float, ...], ...]:
-        """Encode document texts in input order."""
+        """Return one normalized vector for each document, in input order."""
         ...
 
     async def encode_query(self, text: str) -> tuple[float, ...]:
-        """Encode one search query."""
+        """Return one normalized vector suitable for query search."""
         ...

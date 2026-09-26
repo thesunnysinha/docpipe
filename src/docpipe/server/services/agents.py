@@ -13,10 +13,19 @@ from docpipe.server.responses import rag_result_to_response
 
 
 class AgentService:
+    """Resolve request presets and execute the selected agentic RAG pipeline."""
+
     def __init__(self, settings: DocpipeSettings) -> None:
+        """Keep the application settings used to supply RAG defaults."""
         self._settings = settings
 
     async def query(self, req: AgentQueryRequest) -> RAGQueryResponse:
+        """Run an agent query, offloading synchronous pipeline work to a thread.
+
+        Request-explicit strategy and agent options take precedence over preset
+        values; remaining defaults come from the injected settings. The selected
+        pipeline can access configured embedding, vector-store, and LLM services.
+        """
         rag_resolved = resolve_fields(
             {"strategy": req.strategy, "reranker": req.reranker},
             preset=req.preset,

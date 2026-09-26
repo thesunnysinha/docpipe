@@ -18,6 +18,14 @@ class RagasEvaluator:
     requires_gpu = False
 
     def evaluate(self, config: EvalConfig) -> EvalResult:
+        """Evaluate configured RAG answers with the optional RAGAS library.
+
+        The configured RAG pipeline supplies answers and retrieved contexts;
+        RAGAS computes the selected supported metrics and this adapter returns
+        aggregate scores plus question-level answer metadata. Raises
+        ``ConfigurationError`` when the optional dependency is unavailable
+        and ``EvalError`` when generation or metric evaluation fails.
+        """
         if not self.is_available():
             raise ConfigurationError(
                 "RAGAS is not installed. Install with: pip install docpipe-sdk[eval-ragas]"
@@ -91,6 +99,7 @@ class RagasEvaluator:
 
     @classmethod
     def is_available(cls) -> bool:
+        """Return whether the optional ``ragas`` package can be imported."""
         try:
             import ragas  # noqa: F401
 

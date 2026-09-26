@@ -15,8 +15,15 @@ class SecretReference(BaseModel):
 
     model_config = ConfigDict(extra="forbid", frozen=True)
 
-    kind: Literal["environment"] = Field(...)
-    name: str = Field(min_length=1, pattern=r"^[A-Za-z_][A-Za-z0-9_]*$")
+    kind: Literal["environment"] = Field(
+        ...,
+        description="Secret source type; environment variables are resolved at composition time.",
+    )
+    name: str = Field(
+        min_length=1,
+        pattern=r"^[A-Za-z_][A-Za-z0-9_]*$",
+        description="Environment variable name holding the secret value, never the value itself.",
+    )
 
 
 class CredentialResolver(Protocol):

@@ -26,14 +26,18 @@ from docpipe.server.plugin_catalog_mapping import catalog_payload
 
 
 class DiscoveryService:
+    """Compose read-only discovery responses from settings and runtime catalogs."""
+
     def __init__(
         self, settings: DocpipeSettings, registry: PluginRegistry, runtime: DocpipeRuntime
     ) -> None:
+        """Bind application settings and plugin/runtime state for discovery."""
         self._settings = settings
         self._registry = registry
         self._runtime = runtime
 
     def homepage(self) -> HTMLResponse:
+        """Render HTML summarizing the running version and available capabilities."""
         preset_catalog = list_runtime_presets()
         html = render_homepage(
             version=__version__,
@@ -51,6 +55,7 @@ class DiscoveryService:
         return HTMLResponse(content=html)
 
     def health(self) -> HealthResponse:
+        """Build a health response, running only probes enabled in settings."""
         return build_health_response(
             __version__,
             {
@@ -75,6 +80,7 @@ class DiscoveryService:
         )
 
     def list_profiles(self) -> ProfilesResponse:
+        """Return the active install profile, available presets, and defaults."""
         return ProfilesResponse(
             install_profile=self._settings.profile,
             install_profiles=INSTALL_PROFILES,
@@ -90,6 +96,7 @@ class DiscoveryService:
         )
 
     def resolve_plugins(self, req: PluginResolveRequest) -> PluginResolveResponse:
+        """Recommend plugins for the validated source, goal, and optional preset."""
         data = resolve_recommendation(
             source=req.source,
             goal=req.goal,

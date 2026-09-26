@@ -17,6 +17,17 @@ class OutlinesExtractor:
     requires_gpu = False
 
     def __init__(self, model: str | None = None, **kwargs: Any) -> None:
+        """Configure a local Outlines model and defer model loading until use.
+
+        Args:
+            model: Retained for extractor interface compatibility; the model
+                identifier is selected by ``schema.model_id`` at extraction time.
+            **kwargs: Options forwarded to Outlines' Transformers model loader.
+
+        Raises:
+            ExtractorNotInstalledError: If the optional ``outlines`` package is
+                unavailable in the current environment.
+        """
         if not self.is_available():
             raise ExtractorNotInstalledError(
                 "Outlines is not installed. Install with: pip install docpipe-sdk[outlines]"
@@ -39,6 +50,23 @@ class OutlinesExtractor:
         schema: ExtractionSchema,
         **kwargs: Any,
     ) -> list[ExtractionResult]:
+        """Extract values matching a Pydantic-backed JSON schema.
+
+        Args:
+            text: Source text supplied to the model.
+            schema: Extraction instructions and output model. ``output_model``
+                must be set to a Pydantic class; ``schema.model_id`` identifies
+                the local model loaded lazily and then reused by this instance.
+            **kwargs: Per-call options passed to the Outlines JSON generator.
+
+        Returns:
+            Normalized extraction results produced from the structured output.
+
+        Raises:
+            ConfigurationError: If the schema has no Pydantic output model.
+            ExtractorNotInstalledError: If Outlines is unavailable.
+            ExtractionError: If model generation fails.
+        """
         if schema.output_model is None:
             raise ConfigurationError(
                 "Outlines extractor requires schema.output_model (a Pydantic model class)."
@@ -63,10 +91,17 @@ class OutlinesExtractor:
         schema: ExtractionSchema,
         **kwargs: Any,
     ) -> list[ExtractionResult]:
+        """Run synchronous extraction in a worker thread.
+
+        Cancelling the awaiting coroutine does not guarantee that already-started
+        model work in the worker thread is interrupted. Exceptions raised by
+        :meth:`extract` are propagated to the awaiter.
+        """
         return await asyncio.to_thread(self.extract, text, schema, **kwargs)
 
     @classmethod
     def is_available(cls) -> bool:
+        """Return whether the optional Outlines package can import."""
         try:
             import outlines  # noqa: F401
 

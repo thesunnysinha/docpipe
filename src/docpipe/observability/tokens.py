@@ -15,7 +15,12 @@ except ImportError:
 
 
 def extract_usage_from_langchain_response(response: Any) -> TokenUsage | None:
-    """Read usage_metadata from an AIMessage or LLMResult."""
+    """Extract token counts from common LangChain message/response fields.
+
+    Prefers ``usage_metadata`` and falls back to response metadata keys
+    ``token_usage`` or ``usage``. Returns ``None`` when no recognized usage
+    mapping exists; malformed numeric values can raise during conversion.
+    """
     usage_meta = getattr(response, "usage_metadata", None)
     if isinstance(usage_meta, dict) and usage_meta:
         return _usage_from_metadata(usage_meta)
@@ -42,7 +47,11 @@ def _usage_from_metadata(meta: dict[str, Any]) -> TokenUsage | None:
 
 
 def merge_usage(*usages: TokenUsage | None) -> TokenUsage | None:
-    """Sum token counts across multiple usage records."""
+    """Sum available counts from usage records, preserving absent totals.
+
+    Returns ``None`` if every argument is ``None``. When component counts are
+    present but no total was supplied, computes total as their sum.
+    """
     inp = out = total = 0
     has_any = False
     for usage in usages:
@@ -69,17 +78,26 @@ class UsageCallbackHandler(BaseCallbackHandler):
     """LangChain callback handler that aggregates token usage across calls."""
 
     def __init__(self) -> None:
+        """Initialize an empty accumulator for completed LLM call usage."""
         super().__init__()
         self._usages: list[TokenUsage] = []
 
     @property
     def usage(self) -> TokenUsage | None:
+        """Return the current aggregate without clearing recorded usage."""
         return merge_usage(*self._usages)
 
     def reset(self) -> None:
+        """Discard usage records accumulated by this callback instance."""
         self._usages.clear()
 
     def on_llm_end(self, response: Any, **kwargs: Any) -> None:
+        """Capture usage metadata from an LLM result when available.
+
+        Checks ``llm_output.token_usage`` first, then generated messages. The
+        callback does not log or persist usage; callers read it through
+        :attr:`usage` and may reuse the handler after :meth:`reset`.
+        """
         del kwargs
         llm_output = getattr(response, "llm_output", None) or {}
         token_usage = llm_output.get("token_usage")

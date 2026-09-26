@@ -14,13 +14,25 @@ from docpipe.parsers.url_safety import assert_safe_http_source
 
 
 class MinerUParser:
-    """Document parser using OpenDataLab MinerU."""
+    """Parse supported documents with OpenDataLab MinerU.
+
+    MinerU is an optional, GPU-oriented backend. ``supported_formats`` lists
+    the formats advertised by this adapter; actual support depends on the
+    installed MinerU version and its runtime requirements. Parsed output is
+    represented as Markdown and, when non-empty, one aggregate page.
+    """
 
     name = "mineru"
     license = "Apache-2.0"
     requires_gpu = True
 
     def __init__(self, **options: Any) -> None:
+        """Create the adapter and retain options for MinerU's ``do_parse``.
+
+        Raises:
+            ParserNotInstalledError: If the optional ``mineru`` package is
+                unavailable.
+        """
         if not self.is_available():
             raise ParserNotInstalledError(
                 "MinerU is not installed. Install with: pip install docpipe-sdk[mineru]"
@@ -28,6 +40,16 @@ class MinerUParser:
         self._options = options
 
     def parse(self, source: str, **kwargs: Any) -> ParsedDocument:
+        """Parse one local or approved HTTP(S) source.
+
+        Per-call keyword options override options supplied at construction.
+        MinerU's first generated Markdown file becomes the document text and
+        Markdown; non-empty output is exposed as one aggregate page.
+
+        Raises:
+            ParserNotInstalledError: If MinerU cannot be imported.
+            ParseError: If MinerU fails or produces no Markdown file.
+        """
         assert_safe_http_source(source)
         try:
             from mineru.cli.common import do_parse
@@ -61,13 +83,16 @@ class MinerUParser:
         )
 
     async def aparse(self, source: str, **kwargs: Any) -> ParsedDocument:
+        """Run :meth:`parse` in a worker thread and return its result or error."""
         return await asyncio.to_thread(self.parse, source, **kwargs)
 
     def parse_batch(self, sources: list[str], **kwargs: Any) -> list[ParsedDocument]:
+        """Parse sources sequentially; the first parse error stops the batch."""
         return [self.parse(s, **kwargs) for s in sources]
 
     @classmethod
     def is_available(cls) -> bool:
+        """Return whether the top-level optional ``mineru`` package imports."""
         try:
             import mineru  # noqa: F401
 
@@ -77,4 +102,5 @@ class MinerUParser:
 
     @classmethod
     def supported_formats(cls) -> list[str]:
+        """Return this adapter's advertised format names, not a runtime probe."""
         return ["pdf", "docx", "pptx", "xlsx", "image"]

@@ -46,6 +46,21 @@ class RAGPipeline:
         cache_ttl_seconds: int = 300,
         cache_max_payload_bytes: int = 256 * 1024,
     ) -> None:
+        """Create the compatibility facade over a configured RAG operation.
+
+        Args:
+            config: Retrieval and generation settings. Response caching remains
+                disabled unless enabled in this configuration.
+            runtime: Optional active runtime owned by the caller. When omitted,
+                each operation creates and closes its own short-lived runtime.
+            cache_backend: Optional async KV backend. Its failures are best-effort
+                cache misses/skips; close an injected backend with its owner.
+            cache_tenant_scope: Non-secret tenant identity added to exact cache
+                key derivation. Supply it when results are tenant-specific.
+            cache_ttl_seconds: Lifetime for backend entries.
+            cache_max_payload_bytes: Maximum serialized result size accepted for
+                backend reads and writes.
+        """
         self._config = config
         self._runtime = runtime
         self._cache_backend = cache_backend
@@ -58,7 +73,13 @@ class RAGPipeline:
         self.last_usage: TokenUsage | None = None
 
     def query(self, question: str) -> RAGResult:
-        """Synchronously query from a thread without an active event loop."""
+        """Synchronously retrieve and generate outside an active event loop.
+
+        Raises:
+            ConfigurationError: If called from a thread with a running event
+                loop; use :meth:`aquery` there instead.
+            Exception: Provider, retrieval, or generation failures propagate.
+        """
         try:
             asyncio.get_running_loop()
         except RuntimeError:
@@ -66,7 +87,18 @@ class RAGPipeline:
         raise ConfigurationError("query() cannot run inside an event loop; use aquery()")
 
     async def aquery(self, question: str) -> RAGResult:
-        """Retrieve and generate with scope-safe, cancellation-aware ownership."""
+        """Retrieve and generate while preserving runtime ownership.
+
+        The result cache is exact-question only when enabled; cache backend
+        failures are logged and do not fail the query. An injected runtime must
+        already be active and remains caller-owned. Standalone operation scopes
+        close on success, failure, or cancellation.
+
+        Raises:
+            ValueError: If streaming is configured; use :meth:`stream_query` or
+                :meth:`astream_query` instead.
+            RuntimeError: If an injected runtime is not active.
+        """
         if self._config.stream:
             raise ValueError("RAGConfig(stream=True) requires stream_query()")
         if self._runtime is not None:
@@ -144,7 +176,11 @@ class RAGPipeline:
             )
 
     async def aretrieve_chunks(self, question: str) -> tuple[RAGChunk, ...]:
-        """Retrieve chunks without generation for agent and evaluation callers."""
+        """Retrieve chunks without answer generation for agent/evaluation callers.
+
+        Runtime ownership follows :meth:`aquery`; retrieval and reranking errors
+        propagate. Response-cache entries are not consulted by this method.
+        """
         if self._runtime is not None:
             if not self._runtime.is_active:
                 raise RuntimeError("caller-owned Docpipe runtime is not active")

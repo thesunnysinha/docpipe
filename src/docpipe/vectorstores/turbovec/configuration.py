@@ -18,10 +18,24 @@ class TurboVecConfig(TypedPluginConfig):
     permission checks happen only when a selected adapter performs an operation.
     """
 
-    index_root: Path = Field(default=Path(".docpipe/indices"))
-    collection: str = Field(default="documents")
-    bit_width: Literal[2, 3, 4] = Field(default=4)
-    max_dimensions: int = Field(default=16_384, ge=8, le=16_384)
+    index_root: Path = Field(
+        default=Path(".docpipe/indices"),
+        description="Root for local TurboVec indexes; validation performs no disk writes.",
+    )
+    collection: str = Field(
+        default="documents",
+        description="Default collection name, validated using Docpipe's safe collection policy.",
+    )
+    bit_width: Literal[2, 3, 4] = Field(
+        default=4,
+        description="Bits per quantized vector value supported by the TurboVec index.",
+    )
+    max_dimensions: int = Field(
+        default=16_384,
+        ge=8,
+        le=16_384,
+        description="Maximum vector dimensions; an 8-byte multiple no greater than 16,384.",
+    )
 
     @field_validator("index_root", mode="before")
     @classmethod

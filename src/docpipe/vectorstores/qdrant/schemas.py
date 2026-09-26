@@ -14,14 +14,42 @@ from docpipe.plugins.contracts.vectorstore import CollectionRef
 class QdrantConfig(TypedPluginConfig):
     """Connection policy for one selected Qdrant adapter instance."""
 
-    url: str | None = Field(default=None)
-    location: Literal[":memory:"] | None = Field(default=None)
-    collection: str = Field(default="documents")
-    api_key: SecretStr | None = Field(default=None)
-    timeout_seconds: float = Field(default=10.0, gt=0, le=120)
-    max_scan_points: int = Field(default=100_000, ge=1, le=1_000_000)
-    distance: Literal["cosine", "dot", "euclid"] = Field(default="cosine")
-    allow_insecure_http: bool = Field(default=False)
+    url: str | None = Field(
+        default=None,
+        description="Remote HTTP(S) endpoint; exclusive with the local in-memory location.",
+    )
+    location: Literal[":memory:"] | None = Field(
+        default=None,
+        description="Use an in-memory Qdrant instance; mutually exclusive with url.",
+    )
+    collection: str = Field(
+        default="documents",
+        description="Validated collection name used to store and query document vectors.",
+    )
+    api_key: SecretStr | None = Field(
+        default=None,
+        description="Optional credential for authenticating with the remote Qdrant service.",
+    )
+    timeout_seconds: float = Field(
+        default=10.0,
+        gt=0,
+        le=120,
+        description="Maximum duration in seconds to wait for a Qdrant operation.",
+    )
+    max_scan_points: int = Field(
+        default=100_000,
+        ge=1,
+        le=1_000_000,
+        description="Upper bound on points scanned by operations that enumerate collection data.",
+    )
+    distance: Literal["cosine", "dot", "euclid"] = Field(
+        default="cosine",
+        description="Distance metric used to compare stored and query vectors.",
+    )
+    allow_insecure_http: bool = Field(
+        default=False,
+        description="Allow unencrypted remote HTTP; HTTPS is required otherwise.",
+    )
 
     @model_validator(mode="after")
     def check_endpoint(self) -> QdrantConfig:

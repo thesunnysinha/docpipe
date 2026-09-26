@@ -24,6 +24,13 @@ def transcribe_file(
     output_format: str = "plain",
     timeout: float = 600.0,
 ) -> TranscribeResult:
+    """Forward audio and transcription options to a remote VibeVoice service.
+
+    The target is taken from ``service_url`` or
+    ``DOCPIPE_VIBEVOICE_SERVICE_URL``. Basic credentials and the selected
+    output format are sent with the multipart request; structured segment data
+    is parsed when present in the service response.
+    """
     if httpx is None:
         raise ConfigurationError(
             "Remote VibeVoice backend requires httpx. Install with: pip install 'docpipe-sdk[http]'"

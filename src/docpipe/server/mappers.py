@@ -7,6 +7,7 @@ from docpipe.schemas import ExtractRequest, RunRequest
 
 
 def extraction_schema_from_request(req: ExtractRequest | RunRequest) -> ExtractionSchema:
+    """Map public extraction request fields to the core schema contract."""
     return ExtractionSchema(
         description=req.description,
         model_id=req.model_id,

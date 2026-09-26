@@ -7,6 +7,7 @@ from docpipe.schemas import RAGChunkResponse, RAGQueryResponse
 
 
 def rag_result_to_response(result: RAGResult) -> RAGQueryResponse:
+    """Convert a core RAG result into its public API response model."""
     usage = result.usage if isinstance(result.usage, TokenUsage) else None
     return RAGQueryResponse(
         query=result.query,

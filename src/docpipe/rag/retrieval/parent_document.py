@@ -16,6 +16,13 @@ class ParentDocumentStrategy:
     name: str = "parent_document"
 
     async def retrieve(self, question: str) -> RetrievalResult:
+        """Expand dense matches with more matching chunks from each source.
+
+        Performs the initial search, then one filtered search per distinct seed
+        source, sequentially, with ``window_size`` as each expansion limit.
+        Duplicate source/content pairs keep the highest score. Filtering requires
+        metadata-filter capability; dependency errors propagate.
+        """
         seeds = await self.search.dense(question)
         merged: dict[tuple[str, str], RAGChunk] = {
             (chunk.source, chunk.content): chunk for chunk in seeds

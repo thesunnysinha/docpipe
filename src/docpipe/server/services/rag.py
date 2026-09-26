@@ -112,6 +112,7 @@ class RAGService:
         pipeline = RAGPipeline(config, runtime=self._runtime)
 
         async def generate() -> AsyncIterator[str]:
+            """Yield SSE tokens, usage metadata, completion, or a safe error."""
             try:
                 with observe_rag(strategy):
                     async for token in pipeline.astream_query(req.question):

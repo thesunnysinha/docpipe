@@ -24,6 +24,7 @@ def create_server_lifespan(
 
     @asynccontextmanager
     async def lifespan(app: FastAPI) -> AsyncIterator[None]:
+        """Initialize app-owned resources and release them after serving."""
         from docpipe.db import init_control_db, shutdown_control_db
         from docpipe.observability import shutdown_observability
 

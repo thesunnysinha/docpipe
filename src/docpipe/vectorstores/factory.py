@@ -46,6 +46,11 @@ def resolve_index_dir(
     config: str | Path | None = None,
     default: str | Path = ".docpipe/indices",
 ) -> Path:
+    """Resolve the TurboVec index directory in request/config/default order.
+
+    The returned path is expanded for a leading home-directory marker but is
+    not created or otherwise checked for writability.
+    """
     raw = request or config or default
     return Path(raw).expanduser()
 

@@ -19,6 +19,12 @@ async def generate(
     _: Auth,
     service: GenerateServiceDep,
 ) -> GenerateResponse:
+    """Generate a completion using the requested configured LLM provider.
+
+    Authentication is required. The request may supply a provider API key, which
+    is passed to the service for the outbound model call. Configuration errors
+    are mapped to Docpipe HTTP errors; invocation failures return HTTP 500.
+    """
     with trace_operation(
         "docpipe.generate",
         gen_ai_operation="chat",
