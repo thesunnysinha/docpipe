@@ -20,6 +20,9 @@ htmlcov/
 .worktrees/
 tsconfig.tsbuildinfo
 
+# macOS Finder metadata
+.DS_Store
+
 # Graphify intermediates + cache (rebuildable)
 graphify-out/cache/
 graphify-out/.graphify_*.json
