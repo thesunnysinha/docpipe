@@ -17,7 +17,7 @@ class PgVectorConfig(TypedPluginConfig):
     )
     collection: str = Field(
         default="documents",
-        description="Default pgvector collection name, validated using Docpipe's collection policy.",
+        description="Default collection name, validated with Docpipe's collection policy.",
     )
     connect_timeout_seconds: float = Field(
         default=10.0,

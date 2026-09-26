@@ -22,7 +22,7 @@ class SecretReference(BaseModel):
     name: str = Field(
         min_length=1,
         pattern=r"^[A-Za-z_][A-Za-z0-9_]*$",
-        description="Name of the environment variable containing the secret, never the secret itself.",
+        description="Environment variable name holding the secret value, never the value itself.",
     )
 
 

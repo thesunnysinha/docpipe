@@ -20,7 +20,7 @@ class TurboVecConfig(TypedPluginConfig):
 
     index_root: Path = Field(
         default=Path(".docpipe/indices"),
-        description="Root directory for local TurboVec collection indexes; normalized without disk writes.",
+        description="Root for local TurboVec indexes; validation performs no disk writes.",
     )
     collection: str = Field(
         default="documents",
@@ -34,7 +34,7 @@ class TurboVecConfig(TypedPluginConfig):
         default=16_384,
         ge=8,
         le=16_384,
-        description="Maximum vector dimensionality; must be a multiple of eight and no greater than 16,384.",
+        description="Maximum vector dimensions; an 8-byte multiple no greater than 16,384.",
     )
 
     @field_validator("index_root", mode="before")
