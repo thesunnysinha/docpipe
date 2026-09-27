@@ -10,7 +10,7 @@ Unified document parsing, structured extraction, vector ingestion, and RAG pipel
 
 ## Overview
 
-docpipe connects document parsing (Docling, [MarkItDown](https://github.com/microsoft/markitdown), GLM-OCR), LLM-based structured extraction (LangExtract + LangChain), vector ingestion (pgvector or optional turbovec), and RAG querying into a single composable pipeline. Optional [AutoGen](https://github.com/microsoft/autogen) agents add tool-using multi-agent RAG.
+docpipe connects document parsing (Docling, [MarkItDown](https://github.com/microsoft/markitdown), GLM-OCR), LLM-based structured extraction (LangExtract + LangChain), vector ingestion (pgvector or optional vector-store plugins), and RAG querying into a single composable pipeline. Optional integrations include Qdrant and S3-compatible adapters, authenticated MCP, opt-in in-memory or Redis RAG response caching, and [AutoGen](https://github.com/microsoft/autogen) agents.
 
 **Four pipelines, composable together:**
 
@@ -35,7 +35,7 @@ pip install "docpipe-sdk[server,observability]"
 
 Optional extras (`docling`, `openai`, `google`, `pgvector`, `turbovec`, `rag`, `rag-redis`, `mcp-server`, `rerank`, `http`, `all`, …) are listed on the **[Install guide](https://docpipe.sunnysinha.online/docs)**. See [`docs/MCP_SERVER.md`](docs/MCP_SERVER.md) for hosted MCP setup and [`docs/RAG_CACHE.md`](docs/RAG_CACHE.md) for shared RAG caching.
 
-The new source and vector-store plugin foundation lets you select an installed provider with a namespaced `provider`/`options` envelope while legacy settings continue to work. See the [plugin architecture](docs/architecture/plugins.md), [configuration guide](docs/plugins/configuration.md), and [external plugin example](examples/plugin-package/README.md). The plugin API is experimental until the Qdrant and S3/MinIO reference adapters pass conformance.
+The source and vector-store plugin API is experimental; installed providers use a namespaced `provider`/`options` envelope while legacy request fields remain supported. Qdrant and S3-compatible adapters have conformance coverage. S3 integration tests run against SeaweedFS; MinIO-specific interoperability is not claimed. See the [plugin architecture](docs/architecture/plugins.md), [configuration guide](docs/plugins/configuration.md), and [external plugin example](examples/plugin-package/README.md).
 
 For unreleased commits: `pip install git+https://github.com/thesunnysinha/docpipe.git`
 

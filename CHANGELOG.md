@@ -7,30 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-09-27
+
 ### Added
 
-- Experimental plugin API 1.0.0 foundation: static source/vector catalog, policy-gated lazy loading, explicit lifecycles, public conformance kit, and an installable external example
-- Namespaced `vector_store` and `source_plugin` options with legacy translation and safe nested validation errors
-- Source/HTTP resolvers, vector facets, and selected-provider `/search`; `/plugins` catalog metadata and explicit `/plugins/health` probe
-- Optional Qdrant vector-store adapter with typed filters, deterministic IDs, source aggregation, and local/server conformance coverage
-- Optional S3/MinIO source resolver with operator-owned bucket and endpoint policy, bounded streaming, credential references, and a source conformance job
-- Optional control-plane DB (SQLite in Docker) with Alembic migrations, seeded admin user, `/admin` panel
-- Env-gated persistence: `DOCPIPE_PERSIST_AUDIT_EVENTS`, `DOCPIPE_PERSIST_INGEST_JOBS`, `DOCPIPE_PERSIST_PLUGIN_RESOLUTIONS`
-- `POST /ingest/stream` SSE progress events for long ingest jobs
-- `POST /cost/estimate` heuristic parse time and embedding cost by preset
-- `GET /mcp/tools` and `POST /mcp/call` for agent tool discovery and invocation
-- Jinja2 homepage templates (`server/templates/`), PyMuPDF license page (`GET /licenses/pymupdf`)
-- LightRAG ingest sync (`graph_index`, `lightrag_working_dir`); `docs/LIGHTRAG.md`
-- Preset rate limiting, tenant plugin policies (`X-Docpipe-Tenant-Id`), plugin resolve audit log
-- Phoenix optional tracing (`DOCPIPE_PHOENIX_ENABLED`), model cache dir, in-memory parser cache
-- GPU K8s manifests (`deployment-gpu.yaml`, `hpa-gpu.yaml`); Docker release tags per profile
-- SSRF guards for quality parsers; `docs/SSRF_AUDIT.md`
-- Tests: MinerU, PaddleOCR, RAGAS evaluator, DeepEval smoke (`tests/eval/`)
+- Experimental plugin API 1.0 foundation with a static source/vector catalog, policy-gated lazy loading, explicit lifecycles, conformance contracts, and an installable external-plugin example.
+- Namespaced `vector_store` and `source_plugin` configuration, legacy-field translation, safer nested validation errors, source/HTTP resolvers, and explicit `/plugins/health` probes.
+- Optional Qdrant vector-store and S3-compatible source adapters, including operator-owned policy, bounded streaming, typed filters, and conformance coverage.
+- Authenticated stateless Streamable HTTP MCP at `/mcp`, operator-managed bearer tokens, host/origin controls, and bounded request/tool execution; legacy `/mcp/tools` and `/mcp/call` routes remain available.
+- Opt-in RAG response caching with bounded in-memory or Redis backends, tenant/configuration-aware keys, TTL and payload limits, and uncached fallback on backend errors.
+- Optional control-plane persistence with Alembic migrations, SQLite-backed Docker default, seeded administrator, `/admin` panel, and separately configurable audit, ingest-job, and plugin-resolution persistence.
+- `POST /ingest/stream` progress events, `POST /cost/estimate`, `POST /collection/sources`, selected-provider search, and expanded `/plugins` catalog metadata.
+- LightRAG graph-index synchronization, parser/model cache controls, optional Phoenix tracing, and expanded Prometheus metrics.
+- Refactored CLI command groups, richer service homepage, GPU Kubernetes manifests, and profile-specific Docker images.
+- Jinja2 server templates and the PyMuPDF license page at `GET /licenses/pymupdf`.
+- Expanded provider, integration, deployment, security, and API-contract documentation and conformance coverage for optional integrations.
 
 ### Changed
 
-- FastAPI server layered into `routers/` + `services/`; strict `ApiRequest`/`ApiResponse` schemas
-- RAGAS pin `>=0.4`; GLM-OCR lazy model init; OTEL preset/profile on parse and RAG routes
+- FastAPI organization now separates thin routers, domain services, and application composition; public HTTP contracts use typed request/response schemas with field descriptions.
+- Settings are split into domain sections; existing vector/source request fields remain supported through compatibility translation and deprecation warnings.
+- Tenant-aware plugin policy, request limits, and SSRF protections now guard provider and source boundaries.
+- Optional integrations remain separately installable; runtime profiles and presets continue to select supported dependency and execution combinations.
+- RAGAS now requires `>=0.4`; GLM-OCR model initialization is lazy, and OpenTelemetry instrumentation follows the selected runtime profile.
 
 ## [0.6.0] - 2026-06-12
 
@@ -181,7 +180,9 @@ PyPI release (predates items in Unreleased above; install from `main` for latest
 - Dockerfile for containerized deployment
 - 34 unit tests with mock parser/extractor
 
-[Unreleased]: https://github.com/thesunnysinha/docpipe/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/thesunnysinha/docpipe/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/thesunnysinha/docpipe/releases/tag/v0.7.0
+[0.6.0]: https://github.com/thesunnysinha/docpipe/releases/tag/v0.6.0
 [0.5.0]: https://github.com/thesunnysinha/docpipe/compare/v0.4.5...v0.5.0
 [0.3.0]: https://github.com/thesunnysinha/docpipe/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/thesunnysinha/docpipe/compare/v0.2.0...v0.2.1
