@@ -78,7 +78,7 @@ observability = [
 phoenix = ["arize-phoenix>=5.0"]
 http = ["httpx>=0.28,<0.29"]
 rag = ["langchain-community>=0.3", "langchain-classic>=0.1", "rank-bm25>=0.2"]
-rag-redis = ["redis>=5.0,<7"]
+rag-redis = ["redis>=5.0,<9"]
 mcp-server = ["fastmcp>=4.0.0,<5"]
 rerank = ["flashrank>=0.2"]
 rerank-quality = ["sentence-transformers>=3.0", "cohere>=5.0"]
