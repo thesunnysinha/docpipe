@@ -46,6 +46,8 @@ paddleocr = ["paddleocr>=3.0"]
 unstructured = ["unstructured[all-docs]>=0.16"]
 autogen = ["autogen-agentchat>=0.4", "autogen-ext[openai]>=0.4"]
 langgraph = ["langgraph>=0.2", "langchain-core>=0.3"]
+# Agent runtime backend (agent_backend="runtime"): guardrails, loop guard, sessions, tracing.
+agents = ["langgraph>=1.0", "langchain-core>=1.0", "structlog>=24.1"]
 langextract = ["langextract>=0.1"]
 outlines = ["outlines>=0.1"]
 openai = ["langchain-openai>=0.3"]
@@ -112,7 +114,7 @@ profile-gpu = [
 ]
 # Dev/CI only — not recommended for production images
 all = [
-    "docpipe-sdk[profile-balanced,profile-quality,profile-agents,profile-eval,turbovec,anthropic,google,ollama,huggingface,langgraph,outlines,lightrag,unstructured,pymupdf]",
+    "docpipe-sdk[profile-balanced,profile-quality,profile-agents,profile-eval,turbovec,anthropic,google,ollama,huggingface,langgraph,agents,outlines,lightrag,unstructured,pymupdf]",
 ]
 dev = [
     "build>=1.2",
@@ -189,6 +191,8 @@ packages = ["src/docpipe"]
 target-version = "py310"
 line-length = 100
 src = ["src"]
+# Vendored copy of the shared agent runtime; changed upstream and re-synced, never edited here.
+extend-exclude = ["src/docpipe/agents/_runtime"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP", "B", "SIM"]
@@ -198,6 +202,10 @@ python_version = "3.10"
 strict = true
 warn_return_any = true
 warn_unused_configs = true
+
+[[tool.mypy.overrides]]
+module = "docpipe.agents._runtime.*"
+ignore_errors = true
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

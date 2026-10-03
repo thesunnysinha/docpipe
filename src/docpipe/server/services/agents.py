@@ -48,7 +48,18 @@ class AgentService:
 
         with observe_rag(strategy):
             config = rag_config_from_request(req, self._settings)
-            if req.agent_backend == "langgraph":
+            if req.agent_backend == "runtime":
+                from docpipe.agents.runtime_pipeline import RuntimeRAGPipeline
+
+                runtime_pipeline = await asyncio.to_thread(
+                    RuntimeRAGPipeline,
+                    config,
+                    enable_parse_tool=req.enable_parse_tool,
+                    parse_tool_parser=req.parse_tool_parser,
+                    max_steps=req.max_steps,
+                )
+                result = await runtime_pipeline.aquery(req.question, req.session_id)
+            elif req.agent_backend == "langgraph":
                 from docpipe.agents.langgraph_pipeline import LangGraphRAGPipeline
 
                 pipeline = LangGraphRAGPipeline(config, max_steps=req.max_steps)

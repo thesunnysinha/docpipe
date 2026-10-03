@@ -92,6 +92,12 @@ agent_result = docpipe.agent_query(
 print(agent_result.answer)
 ```
 
+**Agent backends over HTTP.** `POST /agents/query` runs AutoGen by default and LangGraph with `"agent_backend": "langgraph"`. With
+`pip install "docpipe-sdk[agents]"` you can also pass `"agent_backend": "runtime"`: the same search (and optional parse) tools,
+plus prompt-injection and PII checks on the question, a loop guard that stops repeated or fruitless tool calls, per-tool logging,
+and an optional `"session_id"` that continues a conversation (kept in memory by the server process, up to 500 sessions, lost on
+restart). Without the extra, requests that omit `agent_backend` behave exactly as before and `runtime` returns an install hint.
+
 **CLI:** `docpipe parse`, `docpipe ingest`, `docpipe rag query`, `docpipe plugins list`, `docpipe profiles list`, `docpipe serve` — see **[CLI & API server](https://docpipe.sunnysinha.online/docs)**.
 
 **Docker (profile tags):**

@@ -2881,7 +2881,7 @@ standard = [
 
 [[package]]
 name = "docpipe-sdk"
-version = "0.6.0"
+version = "0.7.0"
 source = { editable = "." }
 dependencies = [
     { name = "click", version = "8.3.3", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.15' and sys_platform != 'win32'" },
@@ -2894,6 +2894,11 @@ dependencies = [
 ]
 
 [package.optional-dependencies]
+agents = [
+    { name = "langchain-core" },
+    { name = "langgraph" },
+    { name = "structlog" },
+]
 all = [
     { name = "alembic" },
     { name = "autogen-agentchat" },
@@ -2936,6 +2941,7 @@ all = [
     { name = "sentence-transformers" },
     { name = "sqlalchemy", version = "2.0.54", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "sqlalchemy", version = "2.1.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
+    { name = "structlog" },
     { name = "turbovec", extra = ["langchain"] },
     { name = "unstructured", version = "0.18.32", source = { registry = "https://pypi.org/simple" }, extra = ["all-docs"], marker = "python_full_version < '3.11'" },
     { name = "unstructured", version = "0.27.9", source = { registry = "https://pypi.org/simple" }, extra = ["all-docs"], marker = "python_full_version >= '3.11'" },
@@ -3330,7 +3336,7 @@ requires-dist = [
     { name = "docpipe-sdk", extras = ["profile-balanced", "eval-ragas"], marker = "extra == 'profile-eval'" },
     { name = "docpipe-sdk", extras = ["profile-balanced", "glm-ocr", "rerank-quality", "chonkie"], marker = "extra == 'profile-quality'" },
     { name = "docpipe-sdk", extras = ["profile-balanced", "mcp-server"], marker = "extra == 'profile-mcp'" },
-    { name = "docpipe-sdk", extras = ["profile-balanced", "profile-quality", "profile-agents", "profile-eval", "turbovec", "anthropic", "google", "ollama", "huggingface", "langgraph", "outlines", "lightrag", "unstructured", "pymupdf"], marker = "extra == 'all'" },
+    { name = "docpipe-sdk", extras = ["profile-balanced", "profile-quality", "profile-agents", "profile-eval", "turbovec", "anthropic", "google", "ollama", "huggingface", "langgraph", "agents", "outlines", "lightrag", "unstructured", "pymupdf"], marker = "extra == 'all'" },
     { name = "docpipe-sdk", extras = ["profile-eval", "eval-ci"], marker = "extra == 'profile-eval-ci'" },
     { name = "docpipe-sdk", extras = ["profile-quality", "mineru", "paddleocr"], marker = "extra == 'profile-gpu'" },
     { name = "docpipe-sdk", extras = ["profile-slim", "docling", "rag", "langextract"], marker = "extra == 'profile-balanced'" },
@@ -3348,6 +3354,7 @@ requires-dist = [
     { name = "langchain-classic", marker = "extra == 'rag'", specifier = ">=0.1" },
     { name = "langchain-community", marker = "extra == 'rag'", specifier = ">=0.3" },
     { name = "langchain-core", specifier = ">=0.3" },
+    { name = "langchain-core", marker = "extra == 'agents'", specifier = ">=1.0" },
     { name = "langchain-core", marker = "extra == 'langgraph'", specifier = ">=0.3" },
     { name = "langchain-google-genai", marker = "extra == 'google'", specifier = ">=2.0" },
     { name = "langchain-huggingface", marker = "extra == 'huggingface'", specifier = ">=0.1" },
@@ -3356,6 +3363,7 @@ requires-dist = [
     { name = "langchain-postgres", marker = "extra == 'pgvector'", specifier = ">=0.0.12" },
     { name = "langchain-text-splitters", specifier = ">=0.3" },
     { name = "langextract", marker = "extra == 'langextract'", specifier = ">=0.1" },
+    { name = "langgraph", marker = "extra == 'agents'", specifier = ">=1.0" },
     { name = "langgraph", marker = "extra == 'langgraph'", specifier = ">=0.2" },
     { name = "lightrag-hku", marker = "extra == 'lightrag'", specifier = ">=1.0" },
     { name = "markitdown", marker = "extra == 'markitdown'", specifier = ">=0.1" },
@@ -3384,18 +3392,19 @@ requires-dist = [
     { name = "qdrant-client", marker = "extra == 'qdrant'", specifier = ">=1.15,<2" },
     { name = "ragas", marker = "extra == 'eval-ragas'", specifier = ">=0.4" },
     { name = "rank-bm25", marker = "extra == 'rag'", specifier = ">=0.2" },
-    { name = "redis", marker = "extra == 'rag-redis'", specifier = ">=5.0,<7" },
+    { name = "redis", marker = "extra == 'rag-redis'", specifier = ">=5.0,<9" },
     { name = "ruff", marker = "extra == 'dev'" },
     { name = "semchunk", marker = "extra == 'semchunk'", specifier = ">=2.0" },
     { name = "sentence-transformers", marker = "extra == 'rerank-quality'", specifier = ">=3.0" },
     { name = "sqlalchemy", marker = "extra == 'server'", specifier = ">=2.0" },
+    { name = "structlog", marker = "extra == 'agents'", specifier = ">=24.1" },
     { name = "tomli", marker = "python_full_version < '3.11' and extra == 'dev'", specifier = ">=2" },
     { name = "turbovec", extras = ["langchain"], marker = "extra == 'turbovec'", specifier = ">=1.0,<2" },
     { name = "twine", marker = "extra == 'dev'", specifier = ">=6.0" },
     { name = "unstructured", extras = ["all-docs"], marker = "extra == 'unstructured'", specifier = ">=0.16" },
     { name = "uvicorn", extras = ["standard"], marker = "extra == 'server'", specifier = ">=0.20" },
 ]
-provides-extras = ["docling", "markitdown", "glm-ocr", "pymupdf", "mineru", "paddleocr", "unstructured", "autogen", "langgraph", "langextract", "outlines", "openai", "anthropic", "google", "ollama", "huggingface", "pgvector", "turbovec", "qdrant", "s3", "semchunk", "chonkie", "server", "observability", "phoenix", "http", "rag", "rag-redis", "mcp-server", "rerank", "rerank-quality", "eval-ragas", "eval-ci", "lightrag", "profile-slim", "profile-balanced", "profile-quality", "profile-agents", "profile-mcp", "profile-eval", "profile-eval-ci", "profile-gpu", "all", "dev"]
+provides-extras = ["docling", "markitdown", "glm-ocr", "pymupdf", "mineru", "paddleocr", "unstructured", "autogen", "langgraph", "agents", "langextract", "outlines", "openai", "anthropic", "google", "ollama", "huggingface", "pgvector", "turbovec", "qdrant", "s3", "semchunk", "chonkie", "server", "observability", "phoenix", "http", "rag", "rag-redis", "mcp-server", "rerank", "rerank-quality", "eval-ragas", "eval-ci", "lightrag", "profile-slim", "profile-balanced", "profile-quality", "profile-agents", "profile-mcp", "profile-eval", "profile-eval-ci", "profile-gpu", "all", "dev"]
 
 [[package]]
 name = "docstring-parser"
@@ -12892,6 +12901,18 @@ dependencies = [
 sdist = { url = "https://files.pythonhosted.org/packages/ab/ab/6b3f0ce8d1f77f89446aff8ccaa3f875b23a082111b903a7adc261f99645/strawberry_graphql-0.320.4.tar.gz", hash = "sha256:cd02eb963c63b84a89007c2784704327924d826ca8f4f172e8386701f839416b", size = 229798, upload-time = "2026-07-09T09:29:57.753Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/12/ba/ab8323bed6ddc12c218c0e38d9bee02b10fbc6f03da6a05b5af1cf250572/strawberry_graphql-0.320.4-py3-none-any.whl", hash = "sha256:79a0172ecb372cd1855a199b78668629dc7c6e54276554d459ff51678385e389", size = 332789, upload-time = "2026-07-09T09:29:56.186Z" },
+]
+
+[[package]]
+name = "structlog"
+version = "26.1.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "typing-extensions", marker = "python_full_version < '3.11'" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/5e/89/b4a0bcfdf4f71a3dea31379f095929613d7e4528a0996bca6aa964cd0dca/structlog-26.1.0.tar.gz", hash = "sha256:f63a716cbd1b1291cf7661de7794b455acfa4c43c5bcf1630e6ad5ddc1adb3b7", size = 1459881, upload-time = "2026-06-06T07:33:39.348Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/a9/18/489c97b834dfff9cf2fc2507cede4bcd4b11e67f84bc462acd1992496f86/structlog-26.1.0-py3-none-any.whl", hash = "sha256:e081a26d6c373e6d201eca24eede26d8ffab07f88f477822e679183428d3d91e", size = 73764, upload-time = "2026-06-06T07:33:38.046Z" },
 ]
 
 [[package]]

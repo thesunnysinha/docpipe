@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- Optional `agents` extra and `agent_backend="runtime"` for `POST /agents/query`: the existing search and parse tools run on a shared agent runtime with prompt-injection and PII guardrails on the question, a loop guard, per-tool logging, tracing, and an optional `session_id` for multi-turn conversations (in-memory, bounded to 500 sessions). The default AutoGen backend, the `langgraph` backend and installs without the extra are unchanged; `runtime` without the extra returns an install hint. The runtime is vendored under `docpipe/agents/_runtime` (see `scripts/sync_agent_runtime.py`).
+
 ## [0.7.0] - 2026-09-27
 
 ### Added

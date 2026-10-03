@@ -22,7 +22,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Install dependencies
-        run: pip install -e ".[dev,server,profile-slim,mcp-server]"
+        run: pip install -e ".[dev,server,profile-slim,mcp-server,agents]"
 
       - name: Lint with ruff
         run: ruff check src tests scripts/benchmark_plugin_foundation.py examples/plugin-package/src
