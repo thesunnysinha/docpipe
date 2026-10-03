@@ -53,7 +53,7 @@ class CoreSettings(Settings):
     default_evaluator: str = Field(
         default="builtin", description="Evaluator plugin used when evaluation omits one."
     )
-    default_agent_backend: Literal["autogen", "langgraph"] = Field(
+    default_agent_backend: Literal["autogen", "langgraph", "runtime"] = Field(
         default="autogen", description="Agent framework selected when a request omits a backend."
     )
     default_runtime_preset: Literal["fast", "balanced", "quality", "agents"] = Field(

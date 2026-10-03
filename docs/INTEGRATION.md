@@ -63,7 +63,7 @@ curl -u admin:your-password -N -X POST http://docpipe:8000/ingest/stream \
 | Fast | `preset=fast` |
 | Balanced | `preset=balanced` |
 | Quality | `preset=quality` |
-| Agents | `preset=agents` on `/agents/query` |
+| Agents | `preset=agents` on `/agents/query` (add `agent_backend=runtime` with `docpipe-sdk[agents]` for guardrails, loop guard and sessions) |
 
 Store the user's choice on the assistant record; pass it on every ingest/RAG call.
 

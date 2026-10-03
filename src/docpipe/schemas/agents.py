@@ -12,7 +12,19 @@ class AgentQueryRequest(RAGQueryRequest):
 
     agent_backend: str | None = Field(
         default=None,
-        description="Agent framework: langgraph, autogen, etc.",
+        description=(
+            "Agent framework: autogen (default), langgraph, or runtime (guardrails, loop guard, "
+            "sessions; needs the docpipe-sdk[agents] extra)."
+        ),
+    )
+    session_id: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=128,
+        description=(
+            "Continue an earlier conversation. Runtime backend only; sessions are kept in "
+            "memory by this process and are lost on restart."
+        ),
     )
     enable_reviewer: bool = Field(
         default=False,
